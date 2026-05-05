@@ -4,146 +4,112 @@ namespace App\Http\Controllers;
 
 use App\Models\Cota;
 use App\Models\Socio;
-use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\View\View;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class SocioController extends Controller
 {
-    public function index(Request $request): View
+    public function __construct()
     {
-        $query = Socio::query();
-
-        if ($request->filled('estado')) {
-            $query->where('estado', $request->input('estado'));
-        }
-
-        if ($request->filled('pesquisa')) {
-            $search = $request->input('pesquisa');
-            $query->where(function ($q) use ($search) {
-                $q->where('nome', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('numero_socio', 'like', "%{$search}%");
-            });
-        }
-
-        $socios = $query->orderBy('nome')->paginate(20);
-
-        return view('socios.index', compact('socios'));
+        $this->middleware('permission:socios.ver')->only(['index', 'show', 'emAtraso', 'exportarPDF']);
+        $this->middleware('permission:socios.criar')->only(['create', 'store']);
+        $this->middleware('permission:socios.editar')->only(['edit', 'update']);
+        $this->middleware('permission:socios.apagar')->only('destroy');
     }
 
-    public function create(): View
+    public function index(Request $request): Response
     {
-        return view('socios.create');
+        $socios = Socio::with('cotas')
+            ->when($request->estado, fn ($query, $estado) => $query->where('estado', $estado))
+            ->when($request->pesquisa, fn ($query, $pesquisa) => $query->where(fn ($q) => $q
+                ->where('nome', 'like', "%{$pesquisa}%")
+                ->orWhere('numero_socio', 'like', "%{$pesquisa}%")))
+            ->orderBy('numero_socio')
+            ->paginate(15)
+            ->withQueryString();
+
+        return Inertia::render('Socios/Index', ['socios' => $socios, 'filters' => $request->only('estado', 'pesquisa')]);
+    }
+
+    public function create(): Response
+    {
+        return Inertia::render('Socios/Form');
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'numero_socio' => 'required|string|unique:socios,numero_socio',
-            'nome' => 'required|string|max:255',
-            'email' => 'required|email|unique:socios,email',
-            'telefone' => 'nullable|string|max:50',
-            'morada' => 'nullable|string|max:255',
-            'data_nascimento' => 'nullable|date',
-            'data_inscricao' => 'nullable|date',
-            'estado' => 'required|in:ativo,inativo',
-        ]);
+        Socio::create($this->validated($request));
 
-        Socio::create($request->only([
-            'numero_socio',
-            'nome',
-            'email',
-            'telefone',
-            'morada',
-            'data_nascimento',
-            'data_inscricao',
-            'estado',
-        ]));
-
-        return redirect()->route('socios.index')->with('success', 'Sócio criado com sucesso.');
+        return to_route('socios.index')->with('success', 'Sócio criado com sucesso.');
     }
 
-    public function show(Socio $socio): View
+    public function show(Socio $socio): Response
     {
-        return view('socios.show', compact('socio'));
+        $socio->load(['cotas' => fn ($query) => $query->latest('ano')->latest('mes')]);
+
+        return Inertia::render('Socios/Show', ['socio' => $socio]);
     }
 
-    public function edit(Socio $socio): View
+    public function edit(Socio $socio): Response
     {
-        return view('socios.edit', compact('socio'));
+        return Inertia::render('Socios/Form', ['socio' => $socio]);
     }
 
     public function update(Request $request, Socio $socio): RedirectResponse
     {
-        $request->validate([
-            'numero_socio' => 'required|string|unique:socios,numero_socio,' . $socio->id,
-            'nome' => 'required|string|max:255',
-            'email' => 'required|email|unique:socios,email,' . $socio->id,
-            'telefone' => 'nullable|string|max:50',
-            'morada' => 'nullable|string|max:255',
-            'data_nascimento' => 'nullable|date',
-            'data_inscricao' => 'nullable|date',
-            'estado' => 'required|in:ativo,inativo',
-        ]);
+        $socio->update($this->validated($request, $socio));
 
-        $socio->update($request->only([
-            'numero_socio',
-            'nome',
-            'email',
-            'telefone',
-            'morada',
-            'data_nascimento',
-            'data_inscricao',
-            'estado',
-        ]));
-
-        return redirect()->route('socios.index')->with('success', 'Sócio atualizado com sucesso.');
+        return to_route('socios.index')->with('success', 'Sócio atualizado com sucesso.');
     }
 
     public function destroy(Socio $socio): RedirectResponse
     {
         $socio->delete();
 
-        return redirect()->route('socios.index')->with('success', 'Sócio excluído com sucesso.');
+        return to_route('socios.index')->with('success', 'Sócio apagado com sucesso.');
     }
 
-    public function emAtraso(): View
+    public function emAtraso(): Response
     {
-        $socios = Socio::whereHas('cotas', function ($query) {
-            $query->where('estado', 'em_atraso');
-        })->orderBy('nome')->paginate(20);
-
-        return view('socios.em_atraso', compact('socios'));
+        return Inertia::render('Cotas/EmAtraso', ['socios' => $this->sociosEmAtraso()]);
     }
 
-    public function gerarCotas(): RedirectResponse
+    public function exportarPDF()
     {
-        $hoje = now();
-        $ano = $hoje->year;
-        $mes = $hoje->month;
+        $socios = $this->sociosEmAtraso();
 
-        Socio::chunk(100, function ($socios) use ($ano, $mes, $hoje) {
-            foreach ($socios as $socio) {
-                $exists = Cota::where('socio_id', $socio->id)
-                    ->where('ano', $ano)
-                    ->where('mes', $mes)
-                    ->exists();
+        return Pdf::loadView('pdf.socios-atraso', [
+            'socios' => $socios,
+            'total' => collect($socios)->sum('valor_divida'),
+        ])->download('socios-com-cotas-em-atraso.pdf');
+    }
 
-                if (! $exists) {
-                    Cota::create([
-                        'socio_id' => $socio->id,
-                        'ano' => $ano,
-                        'mes' => $mes,
-                        'tipo' => 'mensal',
-                        'valor' => 0,
-                        'data_vencimento' => $hoje->endOfMonth()->toDateString(),
-                        'estado' => 'pendente',
-                    ]);
-                }
-            }
-        });
+    private function validated(Request $request, ?Socio $socio = null): array
+    {
+        return $request->validate([
+            'numero_socio' => ['required', 'string', 'max:50', 'unique:socios,numero_socio,'.($socio?->id ?? 'NULL')],
+            'nome' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'telefone' => ['nullable', 'string', 'max:50'],
+            'morada' => ['nullable', 'string'],
+            'data_nascimento' => ['nullable', 'date'],
+            'data_inscricao' => ['required', 'date'],
+            'estado' => ['required', 'in:ativo,inativo'],
+        ]);
+    }
 
-        return redirect()->route('socios.index')->with('success', 'Cotas geradas com sucesso.');
+    private function sociosEmAtraso()
+    {
+        return Socio::emAtraso()->with(['cotas' => fn ($query) => $query->emAtraso()])->orderBy('nome')->get()
+            ->map(fn (Socio $socio) => [
+                'id' => $socio->id,
+                'numero_socio' => $socio->numero_socio,
+                'nome' => $socio->nome,
+                'meses_atraso' => $socio->cotas->count(),
+                'valor_divida' => (float) $socio->cotas->sum('valor'),
+            ]);
     }
 }

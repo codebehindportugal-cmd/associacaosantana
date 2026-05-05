@@ -11,8 +11,12 @@ return new class extends Migration
         Schema::create('pedidos', function (Blueprint $table) {
             $table->id();
             $table->foreignId('mesa_id')->constrained('mesas')->cascadeOnDelete();
-            $table->enum('estado', ['pendente', 'preparacao', 'pronto', 'entregue'])->default('pendente');
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->enum('estado', ['pendente', 'preparacao', 'pronto', 'entregue', 'cancelado'])->default('pendente');
             $table->decimal('total', 10, 2)->default(0);
+            $table->decimal('valor_recebido', 10, 2)->nullable();
+            $table->decimal('troco', 10, 2)->default(0);
+            $table->decimal('doacao', 10, 2)->default(0);
             $table->text('observacoes')->nullable();
             $table->timestamps();
         });

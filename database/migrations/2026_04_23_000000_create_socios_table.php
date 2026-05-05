@@ -12,11 +12,11 @@ return new class extends Migration
             $table->id();
             $table->string('numero_socio')->unique();
             $table->string('nome');
-            $table->string('email')->unique();
+            $table->string('email')->nullable();
             $table->string('telefone')->nullable();
-            $table->string('morada')->nullable();
+            $table->text('morada')->nullable();
             $table->date('data_nascimento')->nullable();
-            $table->date('data_inscricao')->nullable();
+            $table->date('data_inscricao');
             $table->enum('estado', ['ativo', 'inativo'])->default('ativo');
             $table->timestamps();
         });

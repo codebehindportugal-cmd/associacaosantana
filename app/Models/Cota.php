@@ -19,10 +19,31 @@ class Cota extends Model
         'data_vencimento',
         'estado',
         'metodo_pagamento',
+        'observacoes',
+    ];
+
+    protected $casts = [
+        'data_pagamento' => 'date',
+        'data_vencimento' => 'date',
     ];
 
     public function socio()
     {
         return $this->belongsTo(Socio::class);
+    }
+
+    public function scopePendentes($query)
+    {
+        return $query->where('estado', 'pendente');
+    }
+
+    public function scopeEmAtraso($query)
+    {
+        return $query->where('estado', 'em_atraso');
+    }
+
+    public function scopeDoAno($query, int $ano)
+    {
+        return $query->where('ano', $ano);
     }
 }

@@ -20,4 +20,9 @@ class Produto extends Model
     {
         return $this->belongsTo(Categoria::class);
     }
+
+    public function scopeDisponiveis($query)
+    {
+        return $query->where('disponivel', true);
+    }
 }

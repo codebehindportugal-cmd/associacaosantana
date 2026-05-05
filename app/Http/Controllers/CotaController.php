@@ -3,84 +3,111 @@
 namespace App\Http\Controllers;
 
 use App\Models\Cota;
-use Illuminate\Http\Request;
+use App\Models\Socio;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\View\View;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class CotaController extends Controller
 {
-    public function index(Request $request): View
+    public function __construct()
     {
-        $cotas = Cota::with('socio')
-            ->orderBy('ano', 'desc')
-            ->orderBy('mes', 'desc')
-            ->paginate(20);
+        $this->middleware('permission:cotas.ver')->only(['index', 'show']);
+        $this->middleware('permission:cotas.criar')->only(['create', 'store']);
+        $this->middleware('permission:cotas.editar')->only(['edit', 'update']);
+        $this->middleware('permission:cotas.apagar')->only('destroy');
+        $this->middleware('permission:cotas.gerar')->only('gerarCotas');
+    }
 
-        return view('cotas.index', compact('cotas'));
+    public function index(Request $request): Response
+    {
+        $query = Cota::with('socio')
+            ->when($request->ano, fn ($q, $ano) => $q->where('ano', $ano))
+            ->when($request->mes, fn ($q, $mes) => $q->where('mes', $mes))
+            ->when($request->estado, fn ($q, $estado) => $q->where('estado', $estado));
+
+        return Inertia::render('Cotas/Index', [
+            'cotas' => (clone $query)->latest('ano')->latest('mes')->paginate(20)->withQueryString(),
+            'totais' => [
+                'cobrado' => (float) (clone $query)->where('estado', 'pago')->sum('valor'),
+                'pendente' => (float) (clone $query)->whereIn('estado', ['pendente', 'em_atraso'])->sum('valor'),
+            ],
+            'filters' => $request->only('ano', 'mes', 'estado'),
+            'socios' => Socio::ativos()->orderBy('nome')->get(['id', 'nome', 'numero_socio']),
+        ]);
+    }
+
+    public function create(): Response
+    {
+        return Inertia::render('Cotas/Index');
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'socio_id' => 'required|exists:socios,id',
-            'ano' => 'required|digits:4|integer',
-            'mes' => 'required|integer|min:1|max:12',
-            'tipo' => 'required|in:mensal,anual',
-            'valor' => 'required|numeric|min:0',
-            'data_pagamento' => 'nullable|date',
-            'data_vencimento' => 'nullable|date',
-            'estado' => 'required|in:pago,pendente,em_atraso',
-            'metodo_pagamento' => 'nullable|in:dinheiro,mbway,transferencia',
+        $data = $request->validate([
+            'socio_id' => ['required', 'exists:socios,id'],
+            'ano' => ['required', 'integer'],
+            'mes' => ['nullable', 'integer', 'between:1,12'],
+            'tipo' => ['required', 'in:mensal,anual'],
+            'valor' => ['required', 'numeric', 'min:0'],
+            'data_pagamento' => ['nullable', 'date'],
+            'data_vencimento' => ['required', 'date'],
+            'estado' => ['required', 'in:pago,pendente,em_atraso'],
+            'metodo_pagamento' => ['nullable', 'in:dinheiro,mbway,transferencia'],
+            'observacoes' => ['nullable', 'string'],
         ]);
 
-        Cota::create($request->only([
-            'socio_id',
-            'ano',
-            'mes',
-            'tipo',
-            'valor',
-            'data_pagamento',
-            'data_vencimento',
-            'estado',
-            'metodo_pagamento',
-        ]));
+        Cota::create($data);
 
-        return redirect()->route('cotas.index')->with('success', 'Cota criada com sucesso.');
+        return back()->with('success', 'Cota registada com sucesso.');
+    }
+
+    public function show(Cota $cota): Response
+    {
+        return Inertia::render('Cotas/Index', ['cota' => $cota->load('socio')]);
+    }
+
+    public function edit(Cota $cota): Response
+    {
+        return Inertia::render('Cotas/Index', ['cota' => $cota->load('socio')]);
     }
 
     public function update(Request $request, Cota $cota): RedirectResponse
     {
-        $request->validate([
-            'socio_id' => 'required|exists:socios,id',
-            'ano' => 'required|digits:4|integer',
-            'mes' => 'required|integer|min:1|max:12',
-            'tipo' => 'required|in:mensal,anual',
-            'valor' => 'required|numeric|min:0',
-            'data_pagamento' => 'nullable|date',
-            'data_vencimento' => 'nullable|date',
-            'estado' => 'required|in:pago,pendente,em_atraso',
-            'metodo_pagamento' => 'nullable|in:dinheiro,mbway,transferencia',
-        ]);
-
-        $cota->update($request->only([
-            'socio_id',
-            'ano',
-            'mes',
-            'tipo',
-            'valor',
-            'data_pagamento',
-            'data_vencimento',
-            'estado',
-            'metodo_pagamento',
+        $cota->update($request->validate([
+            'estado' => ['required', 'in:pago,pendente,em_atraso'],
+            'data_pagamento' => ['nullable', 'date'],
+            'metodo_pagamento' => ['nullable', 'in:dinheiro,mbway,transferencia'],
+            'observacoes' => ['nullable', 'string'],
         ]));
 
-        return redirect()->route('cotas.index')->with('success', 'Cota atualizada com sucesso.');
+        return back()->with('success', 'Cota atualizada.');
     }
 
     public function destroy(Cota $cota): RedirectResponse
     {
         $cota->delete();
 
-        return redirect()->route('cotas.index')->with('success', 'Cota excluída com sucesso.');
+        return back()->with('success', 'Cota apagada.');
+    }
+
+    public function gerarCotas(): RedirectResponse
+    {
+        $hoje = now();
+        Socio::ativos()->get()->each(function (Socio $socio) use ($hoje) {
+            Cota::firstOrCreate([
+                'socio_id' => $socio->id,
+                'ano' => $hoje->year,
+                'mes' => $hoje->month,
+                'tipo' => 'mensal',
+            ], [
+                'valor' => 5,
+                'data_vencimento' => $hoje->copy()->endOfMonth(),
+                'estado' => 'pendente',
+            ]);
+        });
+
+        return back()->with('success', 'Cotas mensais geradas.');
     }
 }

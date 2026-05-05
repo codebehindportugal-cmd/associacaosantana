@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('categorias', function (Blueprint $table) {
             $table->id();
             $table->string('nome')->unique();
-            $table->enum('secao', ['bebidas', 'acompanhamentos', 'sobremesas']);
+            $table->enum('secao', ['cozinha', 'bebidas', 'acompanhamentos', 'sobremesas', 'servico']);
             $table->text('descricao')->nullable();
             $table->timestamps();
         });

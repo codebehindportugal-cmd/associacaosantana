@@ -17,6 +17,7 @@ class Reserva extends Model
         'hora',
         'pessoas',
         'estado',
+        'observacoes',
     ];
 
     public function mesa()

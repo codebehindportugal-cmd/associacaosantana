@@ -15,7 +15,7 @@ return new class extends Migration
             $table->integer('quantidade')->default(1);
             $table->decimal('preco_unitario', 10, 2);
             $table->enum('estado', ['pendente', 'pronto'])->default('pendente');
-            $table->enum('secao', ['bebidas', 'acompanhamentos', 'sobremesas']);
+            $table->enum('secao', ['cozinha', 'bebidas', 'acompanhamentos', 'sobremesas', 'servico']);
             $table->timestamps();
         });
     }

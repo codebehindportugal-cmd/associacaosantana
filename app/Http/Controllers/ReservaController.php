@@ -2,66 +2,88 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Mesa;
 use App\Models\Reserva;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\View\View;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ReservaController extends Controller
 {
-    public function index(): View
+    public function __construct()
     {
-        $reservas = Reserva::with('mesa')->orderBy('data')->orderBy('hora')->paginate(20);
-
-        return view('reservas.index', compact('reservas'));
+        $this->middleware('permission:reservas.ver')->only(['index', 'show']);
+        $this->middleware('permission:reservas.criar')->only(['create', 'store']);
+        $this->middleware('permission:reservas.editar')->only(['edit', 'update', 'sentar']);
+        $this->middleware('permission:reservas.apagar')->only('destroy');
     }
 
-    public function create(): View
+    public function index(): Response
     {
-        $mesas = Mesa::orderBy('numero')->get();
+        $hoje = now()->toDateString();
 
-        return view('reservas.create', compact('mesas'));
+        return Inertia::render('Reservas/Index', [
+            'reservas' => Reserva::query()
+                ->where('estado', 'confirmada')
+                ->orderByRaw('CASE WHEN data >= ? THEN 0 ELSE 1 END', [$hoje])
+                ->orderBy('data')
+                ->orderBy('hora')
+                ->paginate(30),
+        ]);
+    }
+
+    public function create(): Response
+    {
+        return $this->index();
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'mesa_id' => 'required|exists:mesas,id',
-            'nome' => 'required|string|max:255',
-            'telefone' => 'required|string|max:50',
-            'data' => 'required|date',
-            'hora' => 'required|date_format:H:i',
-            'pessoas' => 'required|integer|min:1',
-            'estado' => 'required|in:confirmada,cancelada',
-        ]);
+        Reserva::create($this->validated($request) + ['estado' => 'confirmada']);
 
-        Reserva::create($request->only(['mesa_id', 'nome', 'telefone', 'data', 'hora', 'pessoas', 'estado']));
+        return back()->with('success', 'Reserva criada.');
+    }
 
-        return redirect()->route('reservas.index')->with('success', 'Reserva criada com sucesso.');
+    public function show(Reserva $reserva): Response
+    {
+        return Inertia::render('Reservas/Index', ['reserva' => $reserva]);
+    }
+
+    public function edit(Reserva $reserva): Response
+    {
+        return $this->show($reserva);
     }
 
     public function update(Request $request, Reserva $reserva): RedirectResponse
     {
-        $request->validate([
-            'mesa_id' => 'required|exists:mesas,id',
-            'nome' => 'required|string|max:255',
-            'telefone' => 'required|string|max:50',
-            'data' => 'required|date',
-            'hora' => 'required|date_format:H:i',
-            'pessoas' => 'required|integer|min:1',
-            'estado' => 'required|in:confirmada,cancelada',
-        ]);
+        $reserva->update($this->validated($request));
 
-        $reserva->update($request->only(['mesa_id', 'nome', 'telefone', 'data', 'hora', 'pessoas', 'estado']));
-
-        return redirect()->route('reservas.index')->with('success', 'Reserva atualizada com sucesso.');
+        return back()->with('success', 'Reserva atualizada.');
     }
 
     public function destroy(Reserva $reserva): RedirectResponse
     {
         $reserva->delete();
 
-        return redirect()->route('reservas.index')->with('success', 'Reserva excluída com sucesso.');
+        return back()->with('success', 'Reserva apagada.');
+    }
+
+    public function sentar(Reserva $reserva): RedirectResponse
+    {
+        $reserva->update(['estado' => 'sentada']);
+
+        return back()->with('success', 'Reserva marcada como sentada.');
+    }
+
+    private function validated(Request $request): array
+    {
+        return $request->validate([
+            'nome' => ['required', 'string', 'max:255'],
+            'data' => ['required', 'date'],
+            'hora' => ['required'],
+            'pessoas' => ['required', 'integer', 'min:1'],
+            'estado' => ['nullable', 'in:confirmada,sentada,cancelada'],
+            'observacoes' => ['nullable', 'string'],
+        ]);
     }
 }

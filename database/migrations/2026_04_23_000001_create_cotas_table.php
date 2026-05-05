@@ -12,13 +12,14 @@ return new class extends Migration
             $table->id();
             $table->foreignId('socio_id')->constrained('socios')->cascadeOnDelete();
             $table->year('ano');
-            $table->tinyInteger('mes');
+            $table->tinyInteger('mes')->nullable();
             $table->enum('tipo', ['mensal', 'anual'])->default('mensal');
             $table->decimal('valor', 10, 2);
             $table->date('data_pagamento')->nullable();
-            $table->date('data_vencimento')->nullable();
+            $table->date('data_vencimento');
             $table->enum('estado', ['pago', 'pendente', 'em_atraso'])->default('pendente');
             $table->enum('metodo_pagamento', ['dinheiro', 'mbway', 'transferencia'])->nullable();
+            $table->text('observacoes')->nullable();
             $table->timestamps();
         });
     }
