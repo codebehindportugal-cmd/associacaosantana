@@ -41,13 +41,15 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Show', [
             'mesas' => $this->mesasParaPedido(),
             'produtos' => Produto::with('categoria')->disponiveis()->orderBy('nome')->get(),
+            'paraLevar' => request()->boolean('para_levar'),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'mesa_id' => ['required', 'exists:mesas,id'],
+            'tipo_atendimento' => ['nullable', 'in:mesa,para_levar'],
+            'mesa_id' => ['nullable', 'required_if:tipo_atendimento,mesa', 'exists:mesas,id'],
             'lugares_ocupados' => ['nullable', 'integer', 'min:1'],
             'observacoes' => ['nullable', 'string'],
         ]);
@@ -56,18 +58,28 @@ class PedidoController extends Controller
             return back()->withErrors(['mesa_id' => 'Abre a caixa do Restaurante antes de abrir pedidos.']);
         }
 
-        $mesa = Mesa::with('submesas')->findOrFail($data['mesa_id']);
-        $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null);
+        $paraLevar = ($data['tipo_atendimento'] ?? 'mesa') === 'para_levar';
+        $mesaPedido = null;
+
+        if (! $paraLevar) {
+            $mesa = Mesa::with('submesas')->findOrFail($data['mesa_id']);
+            $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null);
+        }
 
         $pedido = Pedido::create([
-            'mesa_id' => $mesaPedido->id,
+            'mesa_id' => $mesaPedido?->id,
             'user_id' => $request->user()->id,
             'tipo' => 'restaurante',
             'estado' => 'pendente',
-            'observacoes' => $data['observacoes'] ?? null,
+            'observacoes' => $paraLevar
+                ? trim('PARA LEVAR'.(($data['observacoes'] ?? null) ? ' - '.$data['observacoes'] : ''))
+                : ($data['observacoes'] ?? null),
         ]);
-        $mesaPedido->update(['estado' => 'ocupada']);
-        $mesaPedido->mesaPrincipal?->update(['estado' => 'ocupada']);
+
+        if ($mesaPedido) {
+            $mesaPedido->update(['estado' => 'ocupada']);
+            $mesaPedido->mesaPrincipal?->update(['estado' => 'ocupada']);
+        }
 
         return to_route('pedidos.show', $pedido);
     }

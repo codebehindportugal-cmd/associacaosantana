@@ -25,7 +25,7 @@ class EnsurePosSession
             abort(403, 'Terminal nao autorizado para esta area');
         }
 
-        if (($path === 'pos' || str_starts_with($path, 'pos/')) && $path !== 'pos/login' && $tipo !== 'bar') {
+        if (($path === 'pos' || str_starts_with($path, 'pos/')) && $path !== 'pos/login' && ! in_array($tipo, ['bar', 'cafe'], true)) {
             abort(403, 'Terminal nao autorizado para esta area');
         }
 

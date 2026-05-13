@@ -37,6 +37,15 @@ const submit = () => {
             {{ status }}
         </div>
 
+        <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <div class="mb-3 text-sm font-bold text-gray-700">Acessos rápidos</div>
+            <div class="grid gap-2 sm:grid-cols-3">
+                <Link :href="route('pos.login', { tipo: 'restaurante' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Restaurante</Link>
+                <Link :href="route('pos.login', { tipo: 'bar' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Bares</Link>
+                <Link :href="route('pos.login', { tipo: 'cafe' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Café</Link>
+            </div>
+        </div>
+
         <form @submit.prevent="submit">
             <div>
                 <InputLabel for="email" value="Email" />

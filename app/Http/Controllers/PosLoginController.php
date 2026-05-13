@@ -10,14 +10,19 @@ use Inertia\Response;
 
 class PosLoginController extends Controller
 {
-    public function show(): Response
+    public function show(Request $request): Response
     {
+        $tipo = $request->query('tipo');
+        $ordem = ['restaurante', 'bar', 'cafe', 'cotas'];
+
         return Inertia::render('Pos/Login', [
             'terminais' => PosSession::where('ativo', true)
+                ->when(in_array($tipo, $ordem, true), fn ($query) => $query->where('tipo', $tipo))
                 ->orderBy('nome')
                 ->get(['id', 'nome', 'localizacao', 'tipo'])
-                ->sortBy(fn ($terminal) => array_search($terminal->tipo, ['bar', 'restaurante', 'cotas'], true))
+                ->sortBy(fn ($terminal) => array_search($terminal->tipo, $ordem, true))
                 ->values(),
+            'tipoSelecionado' => $tipo,
         ]);
     }
 

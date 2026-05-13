@@ -72,7 +72,7 @@ class SecaoController extends Controller
             ->orderByDesc('prioridade')
             ->oldest()
             ->get()
-            ->groupBy(fn ($item) => $item->pedido->mesa?->designacao ?? 'Bar')
+            ->groupBy(fn ($item) => $item->pedido->mesa?->designacao ?? 'Para levar #'.$item->pedido_id)
             ->map(fn ($grupo, $mesa) => [
                 'mesa' => $mesa,
                 'urgente' => $grupo->contains('prioridade', true),

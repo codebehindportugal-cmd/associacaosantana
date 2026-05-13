@@ -16,9 +16,8 @@ class BarController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:pedidos.ver')->only(['index', 'show']);
-        $this->middleware('permission:pedidos.criar')->only(['novaContaBar', 'novoPrepago', 'storeContaBar', 'storePrepago']);
-        $this->middleware('permission:pedidos.editar')->only('fecharContaBar');
+        $this->middleware('permission:bar.ver')->only(['index', 'show', 'talao']);
+        $this->middleware('permission:bar.vender')->only(['novaContaBar', 'novoPrepago', 'storeContaBar', 'storePrepago', 'fecharContaBar']);
     }
 
     public function index(Request $request): Response

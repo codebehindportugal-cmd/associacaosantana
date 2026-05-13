@@ -10,7 +10,7 @@ class PosSessionSeeder extends Seeder
     public function run(): void
     {
         $terminais = [
-            ['nome' => 'Cafe', 'pin' => '3333', 'localizacao' => 'Cafe', 'tipo' => 'bar'],
+            ['nome' => 'Cafe', 'pin' => '3333', 'localizacao' => 'Cafe', 'tipo' => 'cafe'],
             ['nome' => 'Bar 1', 'pin' => '1234', 'localizacao' => 'Bar 1', 'tipo' => 'bar'],
             ['nome' => 'Bar 2', 'pin' => '5678', 'localizacao' => 'Bar 2', 'tipo' => 'bar'],
             ['nome' => 'Restaurante', 'pin' => '1111', 'localizacao' => 'Restaurante', 'tipo' => 'restaurante'],

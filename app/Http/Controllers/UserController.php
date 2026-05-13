@@ -12,6 +12,14 @@ use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:users.ver')->only(['index', 'edit']);
+        $this->middleware('permission:users.criar')->only('store');
+        $this->middleware('permission:users.editar')->only('update');
+        $this->middleware('permission:users.apagar')->only('destroy');
+    }
+
     public function index(): Response
     {
         return Inertia::render('Users/Index', [

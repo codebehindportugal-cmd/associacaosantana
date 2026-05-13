@@ -3,9 +3,10 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
-const props = defineProps({ pedido: Object, mesas: Array, produtos: Array });
+const props = defineProps({ pedido: Object, mesas: Array, produtos: Array, paraLevar: Boolean });
 
 const pedidoForm = useForm({
+    tipo_atendimento: props.paraLevar ? 'para_levar' : 'mesa',
     mesa_id: props.mesas?.[0]?.id ?? '',
     lugares_ocupados: '',
     observacoes: '',
@@ -97,7 +98,7 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
         <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h1 class="text-2xl font-bold">{{ pedido ? `Pedido #${pedido.id}` : 'Novo pedido' }}</h1>
-                <p v-if="pedido" class="mt-1 text-sm text-slate-500">{{ pedido.mesa?.designacao }} · {{ pedido.estado }}</p>
+                <p v-if="pedido" class="mt-1 text-sm text-slate-500">{{ pedido.mesa?.designacao ?? 'Para levar' }} · {{ pedido.estado }}</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <Link v-if="pedido" :href="route('pedidos.talao', pedido.id)" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold">Talão</Link>
@@ -106,7 +107,12 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
         </div>
 
         <form v-if="!pedido" class="max-w-xl space-y-4 rounded-lg bg-white p-6 shadow-sm" @submit.prevent="pedidoForm.post(route('pedidos.store'))">
-            <label class="block">
+            <div class="grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-2">
+                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'mesa' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="pedidoForm.tipo_atendimento = 'mesa'">Mesa</button>
+                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'para_levar' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="pedidoForm.tipo_atendimento = 'para_levar'">Para levar</button>
+            </div>
+
+            <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="block">
                 <span class="mb-1 block text-sm font-semibold text-slate-700">Mesa ou submesa</span>
                 <select v-model="pedidoForm.mesa_id" class="w-full rounded-md border-slate-300">
                     <option v-for="mesa in mesas" :key="mesa.id" :value="mesa.id">
@@ -115,7 +121,7 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                 </select>
             </label>
 
-            <label class="block">
+            <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="block">
                 <span class="mb-1 block text-sm font-semibold text-slate-700">Lugares ocupados</span>
                 <input v-model="pedidoForm.lugares_ocupados" type="number" min="1" class="w-full rounded-md border-slate-300" placeholder="Vazio = mesa completa">
             </label>
@@ -130,7 +136,7 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <div class="text-sm text-slate-500">Mesa</div>
-                            <div class="text-xl font-bold">{{ pedido.mesa?.designacao }}</div>
+                            <div class="text-xl font-bold">{{ pedido.mesa?.designacao ?? 'Para levar' }}</div>
                         </div>
                         <div class="text-right">
                             <div class="text-sm text-slate-500">Total</div>
@@ -144,14 +150,14 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                     <div v-if="pedido.items?.length" class="divide-y divide-slate-100">
                         <div v-for="item in pedido.items" :key="item.id" class="flex items-center justify-between gap-4 px-5 py-4" :class="item.prioridade ? 'bg-red-50' : ''">
                             <div>
-                                <div class="font-semibold">{{ item.quantidade }}x {{ item.produto?.nome }} <span v-if="item.prioridade" class="ml-2 rounded-full bg-red-600 px-2 py-1 text-xs font-black text-white">⚡ URGENTE</span></div>
+                                <div class="font-semibold">{{ item.quantidade }}x {{ item.produto?.nome }} <span v-if="item.prioridade" class="ml-2 rounded-full bg-amber-600 px-2 py-1 text-xs font-black text-white">A TERMINAR</span></div>
                                 <div class="text-sm text-slate-500">{{ item.produto?.categoria?.nome }} · {{ formatarPreco(item.preco_unitario) }} cada</div>
                                 <div v-if="item.observacoes" class="mt-2 rounded-md bg-amber-100 px-3 py-2 text-sm font-bold text-amber-900">
                                     Info: {{ item.observacoes }}
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
-                                <button type="button" class="rounded-full px-3 py-2 text-xs font-black" :class="item.prioridade ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-700'" @click="alternarUrgente(item)">⚡ Urgente</button>
+                                <button type="button" class="rounded-full px-3 py-2 text-xs font-black" :class="item.prioridade ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-700'" @click="alternarUrgente(item)">A terminar</button>
                                 <div class="rounded-full px-3 py-1 text-xs font-semibold" :class="item.estado === 'pronto' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
                                     {{ item.estado }}
                                 </div>
@@ -169,9 +175,9 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                         <input v-model.number="quantidade" type="number" min="1" class="w-20 rounded-md border-slate-300 text-center">
                     </div>
 
-                    <label class="mb-4 flex items-center gap-3 rounded-lg bg-red-50 p-3 font-bold text-red-700">
-                        <input v-model="itemForm.prioridade" type="checkbox" class="rounded border-red-300 text-red-600">
-                        ⚡ Marcar novo item como urgente
+                    <label class="mb-4 flex items-center gap-3 rounded-lg bg-amber-50 p-3 font-bold text-amber-800">
+                        <input v-model="itemForm.prioridade" type="checkbox" class="rounded border-amber-300 text-amber-600">
+                        Marcar novo item como a terminar
                     </label>
 
                     <label class="mb-4 block rounded-lg bg-amber-50 p-3">

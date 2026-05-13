@@ -13,8 +13,8 @@ class ProdutoController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:pedidos.ver')->only('index');
-        $this->middleware('permission:pedidos.editar')->only(['store', 'update', 'destroy']);
+        $this->middleware('permission:produtos.ver')->only('index');
+        $this->middleware('permission:produtos.gerir')->only(['store', 'update', 'destroy']);
     }
 
     public function index(): Response

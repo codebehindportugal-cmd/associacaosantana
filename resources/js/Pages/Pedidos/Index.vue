@@ -26,7 +26,7 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                 </thead>
                 <tbody>
                     <tr v-for="pedido in pedidos.data" :key="pedido.id" class="border-t">
-                        <td class="p-3 font-semibold">{{ pedido.mesa?.designacao ?? 'Sem mesa' }}</td>
+                        <td class="p-3 font-semibold">{{ pedido.mesa?.designacao ?? 'Para levar' }}</td>
                         <td>{{ pedido.estado }}</td>
                         <td>{{ formatarPreco(pedido.total) }}</td>
                         <td class="pr-3 text-right">

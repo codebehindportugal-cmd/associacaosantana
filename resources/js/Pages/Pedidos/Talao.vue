@@ -26,7 +26,7 @@ onMounted(() => {
         <div class="mx-auto max-w-sm rounded-lg bg-white p-5 shadow-sm print:shadow-none">
             <div class="mb-4 text-center">
                 <h1 class="text-lg font-black uppercase">Associação de Santana</h1>
-                <div class="mt-1 text-sm">Talão de mesa</div>
+                <div class="mt-1 text-sm">{{ pedido.mesa ? 'Talão de mesa' : 'Talão para levar' }}</div>
                 <div class="mt-2 border-y border-slate-300 py-2 text-sm font-bold uppercase">
                     Este documento não é fatura
                 </div>
@@ -34,7 +34,7 @@ onMounted(() => {
 
             <div class="mb-4 text-sm">
                 <div class="flex justify-between"><span>Pedido</span><strong>#{{ pedido.id }}</strong></div>
-                <div class="flex justify-between"><span>Mesa</span><strong>{{ pedido.mesa?.designacao }}</strong></div>
+                <div class="flex justify-between"><span>{{ pedido.mesa ? 'Mesa' : 'Tipo' }}</span><strong>{{ pedido.mesa?.designacao ?? 'Para levar' }}</strong></div>
                 <div class="flex justify-between"><span>Data</span><strong>{{ agora }}</strong></div>
                 <div class="flex justify-between"><span>Estado</span><strong>{{ pedido.estado }}</strong></div>
             </div>

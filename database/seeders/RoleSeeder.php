@@ -15,6 +15,10 @@ class RoleSeeder extends Seeder
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
         $permissions = [
+            'restaurante.ver',
+            'caixa.ver', 'caixa.gerir',
+            'bar.ver', 'bar.vender',
+            'produtos.ver', 'produtos.gerir',
             'mesas.ver', 'mesas.criar', 'mesas.editar', 'mesas.apagar',
             'pedidos.ver', 'pedidos.criar', 'pedidos.editar', 'pedidos.apagar', 'pedidos.gerir-estado',
             'socios.ver', 'socios.criar', 'socios.editar', 'socios.apagar',
@@ -28,8 +32,10 @@ class RoleSeeder extends Seeder
 
         $roles = [
             'admin' => $permissions,
-            'gerente' => array_values(array_filter($permissions, fn ($p) => ! str_starts_with($p, 'users.'))),
-            'staff_bar' => ['dashboard.ver', 'mesas.ver', 'pedidos.ver', 'pedidos.criar', 'pedidos.editar', 'pedidos.gerir-estado'],
+            'gerente' => $permissions,
+            'tesoureiro_restaurante' => ['dashboard.ver', 'restaurante.ver', 'caixa.ver', 'caixa.gerir', 'pedidos.ver', 'relatorios.ver'],
+            'pedidos_restaurante' => ['restaurante.ver', 'mesas.ver', 'pedidos.ver', 'pedidos.criar', 'pedidos.editar', 'pedidos.gerir-estado', 'produtos.ver'],
+            'staff_bar' => ['bar.ver', 'bar.vender'],
             'staff_cozinha' => ['pedidos.ver', 'pedidos.editar', 'pedidos.gerir-estado'],
             'tesoureiro' => ['dashboard.ver', 'socios.ver', 'socios.criar', 'socios.editar', 'cotas.ver', 'cotas.criar', 'cotas.editar', 'cotas.gerar', 'cotas.exportar'],
         ];

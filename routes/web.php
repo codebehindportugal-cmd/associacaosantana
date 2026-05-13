@@ -20,7 +20,21 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', fn () => redirect()->route('dashboard'));
+Route::get('/', function () {
+    if (! auth()->check()) {
+        return redirect()->route('login');
+    }
+
+    $user = auth()->user();
+
+    return match (true) {
+        $user->can('dashboard.ver') => redirect()->route('dashboard'),
+        $user->can('pedidos.criar') => redirect()->route('pedidos.create'),
+        $user->can('pedidos.ver') => redirect()->route('pedidos.index'),
+        $user->can('caixa.ver') => redirect()->route('caixa.index'),
+        default => redirect()->route('pos.login'),
+    };
+});
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
 Route::post('/pos/login', [PosLoginController::class, 'store'])->name('pos.login.store');
@@ -101,7 +115,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('pedidos/{pedido}/estado', [PedidoController::class, 'atualizarEstado'])->name('pedidos.estado');
     Route::resource('pedido-items', PedidoItemController::class)->parameters(['pedido-items' => 'pedidoItem'])->except(['index', 'create', 'show', 'edit']);
     Route::resource('produtos', ProdutoController::class)->except(['create', 'show', 'edit']);
-    Route::resource('users', UserController::class)->except(['create', 'show'])->middleware('role:admin');
+    Route::resource('users', UserController::class)->except(['create', 'show']);
 });
 
 require __DIR__.'/auth.php';

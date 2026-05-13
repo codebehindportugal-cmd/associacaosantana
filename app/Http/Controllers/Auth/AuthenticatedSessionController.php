@@ -33,7 +33,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        return redirect()->intended($this->homePathFor($request->user()));
     }
 
     /**
@@ -48,5 +48,30 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function homePathFor($user): string
+    {
+        if ($user->can('dashboard.ver')) {
+            return route('dashboard', absolute: false);
+        }
+
+        if ($user->can('pedidos.criar')) {
+            return route('pedidos.create', absolute: false);
+        }
+
+        if ($user->can('pedidos.ver')) {
+            return route('pedidos.index', absolute: false);
+        }
+
+        if ($user->can('caixa.ver')) {
+            return route('caixa.index', absolute: false);
+        }
+
+        if ($user->can('bar.ver')) {
+            return route('pos.login', absolute: false);
+        }
+
+        return route('pos.login', absolute: false);
     }
 }

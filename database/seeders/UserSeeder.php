@@ -12,7 +12,8 @@ class UserSeeder extends Seeder
     {
         collect([
             ['Gerente', 'gerente@santana.pt', 'gerente'],
-            ['Staff Bar', 'bar@santana.pt', 'staff_bar'],
+            ['Tesoureiro Restaurante', 'tesoureiro.restaurante@santana.pt', 'tesoureiro_restaurante'],
+            ['Pedidos Restaurante', 'pedidos@santana.pt', 'pedidos_restaurante'],
             ['Staff Cozinha', 'cozinha@santana.pt', 'staff_cozinha'],
             ['Tesoureiro', 'tesoureiro@santana.pt', 'tesoureiro'],
         ])->each(function ($row) {

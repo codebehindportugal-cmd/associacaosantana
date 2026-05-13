@@ -71,7 +71,7 @@ const fecharCaixa = (caixa) => {
                 <div>
                     <p class="text-sm font-black uppercase tracking-[0.3em] text-amber-300">{{ data }}</p>
                     <h1 class="mt-3 text-4xl font-black tracking-tight">Caixas</h1>
-                    <p class="mt-2 max-w-2xl text-sm font-semibold text-slate-300">Abre o Restaurante para trabalhar contas de mesa. Abre os cafés/bares para vender por senha e controlar trocos.</p>
+                    <p class="mt-2 max-w-2xl text-sm font-semibold text-slate-300">{{ pontosBar.length ? 'Abre o Restaurante para trabalhar contas de mesa. Abre os cafés/bares para vender por senha e controlar trocos.' : 'Abre o Restaurante para trabalhar contas de mesa e controlar o fecho de caixa.' }}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-2 text-right text-sm md:grid-cols-4">
                     <div class="rounded-2xl bg-white/10 p-3"><div class="text-slate-300">Fundo</div><strong class="text-lg">{{ euros(totalFundo) }}</strong></div>
@@ -108,6 +108,7 @@ const fecharCaixa = (caixa) => {
                         <div class="grid gap-2">
                             <button type="button" class="rounded-2xl border border-slate-300 px-4 py-3 font-black" @click="prepararAbertura('Restaurante')">{{ restaurante ? 'Reabrir / ajustar fundo' : 'Abrir Restaurante' }}</button>
                             <Link :href="route('mesas.index')" class="rounded-2xl bg-slate-900 px-4 py-3 text-center font-black text-white">Ir para mesas</Link>
+                            <Link :href="route('pedidos.create', { para_levar: 1 })" class="rounded-2xl bg-emerald-600 px-4 py-3 text-center font-black text-white">Pedido para levar</Link>
                             <Link :href="route('pedidos.index')" class="rounded-2xl bg-white px-4 py-3 text-center font-black text-slate-900 ring-1 ring-slate-300">Ver contas</Link>
                         </div>
                     </div>
@@ -135,7 +136,7 @@ const fecharCaixa = (caixa) => {
                     </form>
                 </section>
 
-                <section class="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
+                <section v-if="pontosBar.length" class="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p class="text-xs font-black uppercase tracking-[0.25em] text-emerald-700">Senhas impressas</p>

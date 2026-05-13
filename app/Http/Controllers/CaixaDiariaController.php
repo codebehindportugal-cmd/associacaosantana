@@ -14,25 +14,28 @@ class CaixaDiariaController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:pedidos.ver')->only('index');
-        $this->middleware('permission:pedidos.criar')->only('store');
-        $this->middleware('permission:pedidos.editar')->only('fechar');
+        $this->middleware('permission:caixa.ver')->only('index');
+        $this->middleware('permission:caixa.gerir')->only(['store', 'fechar']);
     }
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $caixas = CaixaDiaria::with('user', 'fechadoPor')
             ->whereDate('data', today())
+            ->when(! $request->user()->can('bar.ver'), fn ($query) => $query->where('ponto', 'Restaurante'))
             ->orderBy('ponto')
             ->get();
 
-        $vendasBar = Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
-            ->whereDate('created_at', today())
-            ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
-            ->select('ponto_bar', DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
-            ->groupBy('ponto_bar')
-            ->get()
-            ->keyBy(fn ($linha) => $linha->ponto_bar ?: 'Sem ponto definido');
+        $vendasBar = collect();
+        if ($request->user()->can('bar.ver')) {
+            $vendasBar = Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
+                ->whereDate('created_at', today())
+                ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
+                ->select('ponto_bar', DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
+                ->groupBy('ponto_bar')
+                ->get()
+                ->keyBy(fn ($linha) => $linha->ponto_bar ?: 'Sem ponto definido');
+        }
 
         $vendasRestaurante = Pedido::where('tipo', 'restaurante')
             ->whereDate('created_at', today())
@@ -48,7 +51,7 @@ class CaixaDiariaController extends Controller
 
         return Inertia::render('Caixa/Index', [
             'data' => today()->toDateString(),
-            'pontos_padrao' => $this->pontosPadrao(),
+            'pontos_padrao' => $request->user()->can('bar.ver') ? $this->pontosPadrao() : ['Restaurante'],
             'caixas' => $caixas->map(function (CaixaDiaria $caixa) use ($vendas) {
                 $venda = $vendas->get($caixa->ponto);
                 $esperado = (float) $caixa->fundo_maneio + (float) ($venda->total ?? 0);
@@ -80,6 +83,8 @@ class CaixaDiariaController extends Controller
             'fundo_maneio' => ['required', 'numeric', 'min:0'],
         ]);
 
+        abort_if($data['ponto'] !== 'Restaurante' && ! $request->user()->can('bar.ver'), 403);
+
         CaixaDiaria::updateOrCreate(
             ['data' => today()->toDateString(), 'ponto' => $data['ponto']],
             [
@@ -100,6 +105,7 @@ class CaixaDiariaController extends Controller
     public function fechar(Request $request, CaixaDiaria $caixa): RedirectResponse
     {
         abort_unless($caixa->data->isSameDay(today()), 404);
+        abort_if($caixa->ponto !== 'Restaurante' && ! $request->user()->can('bar.ver'), 403);
 
         $data = $request->validate([
             'valor_contado' => ['required', 'numeric', 'min:0'],

@@ -9,10 +9,10 @@ const drawerAberto = ref(false);
 let polling = null;
 const links = [
     ['Dashboard', 'dashboard', 'dashboard.ver', 'Início'],
-    ['Mesas', 'mesas.index', 'mesas.ver', 'Mesas'],
+    ['Mesas', 'mesas.index', 'restaurante.ver', 'Mesas'],
     ['Pedidos', 'pedidos.index', 'pedidos.ver', 'Pedidos'],
-    ['Caixas', 'caixa.index', 'pedidos.ver', 'Caixas'],
-    ['Produtos', 'produtos.index', 'pedidos.ver', 'Produtos'],
+    ['Caixas', 'caixa.index', 'caixa.ver', 'Caixas'],
+    ['Produtos', 'produtos.index', 'produtos.ver', 'Produtos'],
     ['Reservas', 'reservas.index', 'reservas.ver', 'Reservas'],
     ['Sócios', 'socios.index', 'socios.ver', 'Sócios'],
     ['Cotas', 'cotas.index', 'cotas.ver', 'Cotas'],
@@ -37,7 +37,7 @@ onBeforeUnmount(() => clearInterval(polling));
             </div>
             <nav class="space-y-1 p-3 xl:p-4">
                 <Link v-for="link in links" v-show="can(link[2])" :key="link[1]" :href="route(link[1])" class="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium hover:bg-slate-100 xl:text-sm" :class="{ 'bg-slate-900 text-white hover:bg-slate-900': ativo(link[1]) }">
-                    <span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="rounded-full bg-red-600 px-2 py-0.5 text-[11px] text-white">{{ urgentes() }}⚡</span>
+                    <span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="rounded-full bg-amber-600 px-2 py-0.5 text-[11px] text-white">{{ urgentes() }} a terminar</span>
                 </Link>
                 <Link v-if="hasRole('admin')" :href="route('users.index')" class="block rounded-md px-3 py-2 text-xs font-medium hover:bg-slate-100 xl:text-sm">Utilizadores</Link>
             </nav>
@@ -53,7 +53,7 @@ onBeforeUnmount(() => clearInterval(polling));
         <div v-if="drawerAberto" class="fixed inset-0 z-40 bg-slate-950/40 md:hidden" @click="drawerAberto = false"></div>
         <aside class="fixed inset-y-0 left-0 z-50 w-72 transform bg-white p-4 shadow-xl transition md:hidden" :class="drawerAberto ? 'translate-x-0' : '-translate-x-full'">
             <div class="mb-4 flex items-center justify-between"><strong>Menu</strong><button class="rounded-md border px-3 py-2" @click="drawerAberto = false">Fechar</button></div>
-            <Link v-for="link in links" v-show="can(link[2])" :key="link[1]" :href="route(link[1])" class="mb-2 flex justify-between rounded-lg px-3 py-3 font-bold hover:bg-slate-100" @click="drawerAberto = false"><span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="text-red-600">{{ urgentes() }}⚡</span></Link>
+            <Link v-for="link in links" v-show="can(link[2])" :key="link[1]" :href="route(link[1])" class="mb-2 flex justify-between rounded-lg px-3 py-3 font-bold hover:bg-slate-100" @click="drawerAberto = false"><span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="text-amber-700">{{ urgentes() }} a terminar</span></Link>
         </aside>
 
         <main class="md:pl-56 xl:pl-64">
