@@ -254,7 +254,7 @@ onBeforeUnmount(() => {
                         Associacao Recreativa Desportiva Cultural
                     </p>
                     <h1 class="max-w-4xl text-5xl font-black leading-none sm:text-7xl lg:text-8xl">
-                        Santana em modo futuro
+                        Santana 
                     </h1>
                     <p class="mt-6 max-w-2xl text-xl font-semibold leading-relaxed text-cyan-100">
                         Uma associacao em Carvalhal Benfeito, com eventos, cultura, desporto, restaurante e noites que juntam geracoes.
