@@ -41,6 +41,7 @@ class PosBarController extends Controller
     {
         $data = $request->validate([
             'valor_recebido' => ['required', 'numeric', 'min:0'],
+            'troco' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.produto_id' => ['required', 'exists:produtos,id'],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
@@ -56,9 +57,15 @@ class PosBarController extends Controller
             $produtos = Produto::with('categoria')->whereIn('id', collect($data['items'])->pluck('produto_id'))->get()->keyBy('id');
             $total = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->preco * (int) $item['quantidade']), 2);
             $valorRecebido = round((float) $data['valor_recebido'], 2);
+            $troco = round((float) ($data['troco'] ?? 0), 2);
+            $excedente = round($valorRecebido - $total, 2);
 
             if ($valorRecebido < $total) {
                 return back()->withErrors(['valor_recebido' => 'O valor recebido nao pode ser inferior ao total.']);
+            }
+
+            if ($troco > $excedente) {
+                return back()->withErrors(['troco' => 'O troco nao pode ser superior ao valor a devolver.']);
             }
 
             $pedido = Pedido::create([
@@ -70,8 +77,8 @@ class PosBarController extends Controller
                 'ponto_bar' => $ponto,
                 'total' => $total,
                 'valor_recebido' => $valorRecebido,
-                'troco' => round(max(0, $valorRecebido - $total), 2),
-                'doacao' => 0,
+                'troco' => $troco,
+                'doacao' => max(0, round($excedente - $troco, 2)),
                 'metodo_pagamento' => 'dinheiro',
             ]);
 

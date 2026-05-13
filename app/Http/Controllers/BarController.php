@@ -58,10 +58,15 @@ class BarController extends Controller
             $senha = $this->proximaSenhaBar();
             $total = $this->totalDosItens($data['items']);
             $valorRecebido = round((float) $data['valor_recebido'], 2);
-            $troco = round(max(0, $valorRecebido - $total), 2);
+            $troco = round((float) ($data['troco'] ?? 0), 2);
+            $excedente = round($valorRecebido - $total, 2);
 
             if ($valorRecebido < $total) {
                 return back()->withErrors(['valor_recebido' => 'O valor recebido nao pode ser inferior ao total.']);
+            }
+
+            if ($troco > $excedente) {
+                return back()->withErrors(['troco' => 'O troco nao pode ser superior ao valor a devolver.']);
             }
 
             $pedido = Pedido::create([
@@ -74,7 +79,7 @@ class BarController extends Controller
                 'total' => $total,
                 'valor_recebido' => $valorRecebido,
                 'troco' => $troco,
-                'doacao' => 0,
+                'doacao' => max(0, round($excedente - $troco, 2)),
             ]);
 
             $this->criarItems($pedido, $data['items']);
@@ -165,6 +170,7 @@ class BarController extends Controller
             'observacoes' => ['nullable', 'string', 'max:255'],
             'ponto_bar' => ['required', 'string', 'max:80'],
             'valor_recebido' => [$prepago ? 'required' : 'nullable', 'numeric', 'min:0'],
+            'troco' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.produto_id' => ['required', 'exists:produtos,id'],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],

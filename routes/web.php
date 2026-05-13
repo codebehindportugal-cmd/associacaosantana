@@ -4,6 +4,7 @@ use App\Http\Controllers\BarController;
 use App\Http\Controllers\CaixaDiariaController;
 use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MesaController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PedidoItemController;
@@ -18,23 +19,8 @@ use App\Http\Controllers\SecaoController;
 use App\Http\Controllers\SocioController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', function () {
-    if (! auth()->check()) {
-        return redirect()->route('login');
-    }
-
-    $user = auth()->user();
-
-    return match (true) {
-        $user->can('dashboard.ver') => redirect()->route('dashboard'),
-        $user->can('pedidos.criar') => redirect()->route('pedidos.create'),
-        $user->can('pedidos.ver') => redirect()->route('pedidos.index'),
-        $user->can('caixa.ver') => redirect()->route('caixa.index'),
-        default => redirect()->route('pos.login'),
-    };
-});
+Route::get('/', HomeController::class)->name('home');
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
 Route::post('/pos/login', [PosLoginController::class, 'store'])->name('pos.login.store');

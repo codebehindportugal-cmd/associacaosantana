@@ -1,0 +1,31 @@
+<svg width="900" height="1200" viewBox="0 0 900 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="1200" fill="#1E140B"/>
+  <circle cx="452" cy="336" r="282" fill="#E8751A" opacity=".68"/>
+  <path d="M0 0h900v1200H0z" fill="url(#sun)"/>
+  <g opacity=".32" fill="#0A160D">
+    <path d="M0 94c112 48 180 122 204 222C112 244 46 226 0 230V94zM900 70c-124 64-196 140-218 228 88-62 154-88 218-82V70z"/>
+  </g>
+  <g transform="translate(70 74)">
+    <rect x="0" y="0" width="760" height="1052" rx="36" fill="#2C1A0C" stroke="#E8751A" stroke-width="5"/>
+    <text x="42" y="72" font-family="Arial Black, Arial, sans-serif" font-size="34" fill="#F4B77D">ASSOCIAÇÃO</text>
+    <text x="380" y="150" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="118" fill="#D86112" stroke="#0B0704" stroke-width="6">SANTANA</text>
+    <text x="380" y="210" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="38" fill="#fff">CARVALHAL BENFEITO</text>
+    <circle cx="610" cy="310" r="92" fill="#B94149"/>
+    <text x="610" y="292" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="54" fill="#fff">MAIO</text>
+    <text x="610" y="354" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="72" fill="#fff">22</text>
+    <text x="380" y="476" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="150" fill="#F08A25" stroke="#5E2E0E" stroke-width="6">AFRO</text>
+    <text x="380" y="548" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="44" fill="#F8C779">BEATS</text>
+    <text x="380" y="674" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="112" fill="#E8751A" stroke="#4B250D" stroke-width="5">TROPICAL</text>
+    <text x="560" y="756" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="62" fill="#fff" font-style="italic">Night</text>
+    <text x="214" y="936" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="82" fill="#101010" stroke="#E8751A" stroke-width="2">FOKO</text>
+    <text x="548" y="936" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="68" fill="#fff" stroke="#E8751A" stroke-width="2">FILIPEXS</text>
+    <rect x="62" y="1002" width="636" height="34" rx="17" fill="#0B0704"/>
+    <text x="380" y="1026" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="18" fill="#fff">A organização não se responsabiliza por qualquer incidente ocorrido durante o evento</text>
+  </g>
+  <defs>
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(450 340) rotate(90) scale(820)">
+      <stop stop-color="#F4A12B" stop-opacity=".48"/>
+      <stop offset="1" stop-color="#0B0704"/>
+    </radialGradient>
+  </defs>
+</svg>

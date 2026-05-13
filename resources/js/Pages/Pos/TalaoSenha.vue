@@ -4,6 +4,7 @@ import { onMounted } from 'vue';
 
 const props = defineProps({ pedido: Object });
 const data = () => new Date(props.pedido.created_at).toLocaleString('pt-PT');
+const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
 onMounted(() => setTimeout(() => window.print(), 300));
 </script>
 
@@ -21,6 +22,12 @@ onMounted(() => setTimeout(() => window.print(), 300));
                     <span>{{ item.produto?.nome }}</span>
                     <span>{{ item.quantidade }} un.</span>
                 </div>
+            </div>
+            <div class="mt-4 border-t border-dashed border-slate-400 pt-3 text-sm">
+                <div class="flex justify-between"><span>Total</span><strong>{{ euros(pedido.total) }}</strong></div>
+                <div class="flex justify-between"><span>Recebido</span><strong>{{ euros(pedido.valor_recebido) }}</strong></div>
+                <div class="flex justify-between"><span>Troco</span><strong>{{ euros(pedido.troco) }}</strong></div>
+                <div v-if="Number(pedido.doacao || 0) > 0" class="flex justify-between"><span>Doação</span><strong>{{ euros(pedido.doacao) }}</strong></div>
             </div>
             <div class="mt-4 text-center text-xs">{{ data() }}</div>
             <div class="mt-3 text-center font-black">Obrigado!</div>

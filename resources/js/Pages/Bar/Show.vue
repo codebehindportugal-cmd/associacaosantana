@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 const props = defineProps({ pedido: Object, produtos: Array });
 const mostrarProdutos = ref(true);
 const valorRecebido = ref('');
-const troco = ref(0);
+const troco = ref('');
 const itemForm = useForm({ pedido_id: props.pedido.id, produto_id: '', quantidade: 1 });
 const fecharForm = useForm({ valor_recebido: '', troco: 0 });
 const porCategoria = computed(() => Object.groupBy(props.produtos ?? [], (p) => p.categoria?.nome ?? 'Outros'));
@@ -13,7 +13,7 @@ const total = computed(() => Number(props.pedido.total_calculado ?? props.pedido
 const trocoCalc = computed(() => Math.max(0, Number(valorRecebido.value || total.value) - total.value));
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const add = (produto) => { itemForm.produto_id = produto.id; itemForm.post(route('pedido-items.store'), { preserveScroll: true }); };
-const fechar = () => { fecharForm.valor_recebido = valorRecebido.value || total.value; fecharForm.troco = troco.value || trocoCalc.value; fecharForm.patch(route('bar.fechar', props.pedido.id)); };
+const fechar = () => { fecharForm.valor_recebido = valorRecebido.value || total.value; fecharForm.troco = troco.value === '' ? trocoCalc.value : troco.value; fecharForm.patch(route('bar.fechar', props.pedido.id)); };
 </script>
 
 <template>

@@ -13,12 +13,15 @@ const props = defineProps({
 const agora = ref(new Date());
 const carrinho = ref([]);
 const recebido = ref('');
-const form = useForm({ items: [], valor_recebido: 0 });
+const trocoEntregue = ref('');
+const form = useForm({ items: [], valor_recebido: 0, troco: 0 });
 let relogio = null;
 let refresh = null;
 
 const total = computed(() => carrinho.value.reduce((soma, item) => soma + Number(item.preco) * item.quantidade, 0));
 const troco = computed(() => Math.max(0, Number(recebido.value || 0) - total.value));
+const trocoRegistado = computed(() => trocoEntregue.value === '' ? troco.value : Number(trocoEntregue.value || 0));
+const doacao = computed(() => Math.max(0, troco.value - trocoRegistado.value));
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
 const hora = (data) => new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const logout = () => router.post(route('pos.logout'));
@@ -36,6 +39,7 @@ const alterar = (item, delta) => {
 const cobrar = () => {
     form.items = carrinho.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
     form.valor_recebido = recebido.value || total.value;
+    form.troco = trocoRegistado.value;
     form.post(route('pos.prepago.store'));
 };
 
@@ -94,8 +98,13 @@ onBeforeUnmount(() => {
                     <div class="text-4xl font-black">{{ euros(total) }}</div>
                 </div>
                 <input v-model="recebido" inputmode="decimal" class="w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Recebido">
-                <div class="mt-3 text-xl font-black text-emerald-400">Troco: {{ euros(troco) }}</div>
-                <div v-if="form.errors.ponto_bar || form.errors.valor_recebido" class="mt-3 rounded bg-red-700 p-3 font-bold">{{ form.errors.ponto_bar || form.errors.valor_recebido }}</div>
+                <input v-model="trocoEntregue" inputmode="decimal" class="mt-3 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" :placeholder="`Troco entregue ${euros(troco)}`">
+                <div class="mt-3 grid grid-cols-2 gap-2 text-lg font-black">
+                    <div class="rounded-lg bg-gray-900 p-3 text-emerald-400">Troco: {{ euros(trocoRegistado) }}</div>
+                    <div class="rounded-lg bg-gray-900 p-3 text-amber-300">Doação: {{ euros(doacao) }}</div>
+                </div>
+                <button type="button" class="mt-3 w-full rounded-lg bg-amber-500 p-3 font-black text-gray-950" @click="trocoEntregue = 0">CLIENTE DOA O TROCO</button>
+                <div v-if="form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco" class="mt-3 rounded bg-red-700 p-3 font-bold">{{ form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco }}</div>
                 <button class="mt-4 w-full rounded-lg bg-emerald-600 p-5 text-xl font-black disabled:opacity-50" :disabled="!caixaAberta || !carrinho.length || form.processing" @click="cobrar">
                     COBRAR E TIRAR SENHA
                 </button>
