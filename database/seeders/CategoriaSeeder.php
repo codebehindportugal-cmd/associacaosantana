@@ -16,43 +16,30 @@ class CategoriaSeeder extends Seeder
             'Bebidas' => [
                 'secao' => 'bebidas',
                 'produtos' => [
-                    ['Agua', 1],
-                    ['Cerveja', 1.5],
+                    ['IceTea Pessego', 1.5],
+                    ['IceTea Limao', 1.5],
+                    ['IceTea Manga', 1.5],
+                    ['Sumol Ananas', 1.5],
+                    ['Sumol Laranja', 1.5],
+                    ['Sangria', 3],
                     ['Vinho tinto', 2],
-                    ['Refrigerante', 1.5],
-                    ['Shot', 2.5],
-                    ['Cocktail', 5],
-                    ['Sumo natural', 2],
+                    ['Vinho branco', 2],
                 ],
             ],
             'Comida' => [
                 'secao' => 'comida',
                 'produtos' => [
-                    ['Sopa', 2],
                     ['Frango assado', 8],
-                    ['Bacalhau', 10],
-                    ['Bitoque', 7],
-                    ['Hamburguer no prato', 7.5],
-                    ['Prego no prato', 8],
-                    ['Omelete', 6],
+                    ['Batata frita', 2.5],
                     ['Salada', 3],
                     ['Pao', 0.5],
-                    ['Batata frita', 2.5],
-                    ['Arroz', 2],
-                    ['Entrada mista', 4],
-                ],
-            ],
-            'Sobremesas' => [
-                'secao' => 'sobremesas',
-                'produtos' => [
-                    ['Bolo de chocolate', 2.5],
-                    ['Gelado', 2],
-                    ['Pudim', 2],
-                    ['Mousse', 2.5],
-                    ['Fruta da epoca', 2],
                 ],
             ],
         ];
+
+        $produtosDisponiveis = collect($dados)
+            ->flatMap(fn (array $grupo) => collect($grupo['produtos'])->pluck(0))
+            ->all();
 
         foreach ($dados as $nome => $grupo) {
             $categoria = Categoria::updateOrCreate(['nome' => $nome], ['secao' => $grupo['secao']]);
@@ -64,5 +51,7 @@ class CategoriaSeeder extends Seeder
                 );
             }
         }
+
+        Produto::whereNotIn('nome', $produtosDisponiveis)->update(['disponivel' => false]);
     }
 }
