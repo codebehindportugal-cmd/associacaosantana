@@ -9,14 +9,30 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE mesas MODIFY localizacao ENUM('sala','interior','exterior','bar') DEFAULT 'sala'");
+        if (in_array(Schema::getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE mesas MODIFY localizacao ENUM('sala','interior','exterior','bar') DEFAULT 'sala'");
+        }
 
         Schema::table('mesas', function (Blueprint $table) {
-            $table->foreignId('mesa_principal_id')->nullable()->after('id')->constrained('mesas')->nullOnDelete();
-            $table->string('nome')->nullable()->after('mesa_principal_id');
-            $table->unsignedTinyInteger('lugares_inicio')->nullable()->after('capacidade');
-            $table->unsignedTinyInteger('lugares_fim')->nullable()->after('lugares_inicio');
-            $table->boolean('ativa')->default(true)->after('estado');
+            if (! Schema::hasColumn('mesas', 'mesa_principal_id')) {
+                $table->foreignId('mesa_principal_id')->nullable()->after('id')->constrained('mesas')->nullOnDelete();
+            }
+
+            if (! Schema::hasColumn('mesas', 'nome')) {
+                $table->string('nome')->nullable()->after('mesa_principal_id');
+            }
+
+            if (! Schema::hasColumn('mesas', 'lugares_inicio')) {
+                $table->unsignedTinyInteger('lugares_inicio')->nullable()->after('capacidade');
+            }
+
+            if (! Schema::hasColumn('mesas', 'lugares_fim')) {
+                $table->unsignedTinyInteger('lugares_fim')->nullable()->after('lugares_inicio');
+            }
+
+            if (! Schema::hasColumn('mesas', 'ativa')) {
+                $table->boolean('ativa')->default(true)->after('estado');
+            }
         });
     }
 
@@ -27,6 +43,8 @@ return new class extends Migration
             $table->dropColumn(['mesa_principal_id', 'nome', 'lugares_inicio', 'lugares_fim', 'ativa']);
         });
 
-        DB::statement("ALTER TABLE mesas MODIFY localizacao ENUM('interior','exterior','bar') DEFAULT 'interior'");
+        if (in_array(Schema::getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement("ALTER TABLE mesas MODIFY localizacao ENUM('interior','exterior','bar') DEFAULT 'interior'");
+        }
     }
 };
