@@ -12,13 +12,35 @@ const featured = computed(() => props.upcomingEvents?.[0] ?? null);
 const upcoming = computed(() => props.upcomingEvents ?? []);
 const archived = computed(() => props.pastEvents ?? []);
 const associationLogo = '/images/santana-logo.png';
+const activeSlide = ref(0);
+const slideProgress = ref(0);
+const activeEvent = computed(() => upcoming.value[activeSlide.value] ?? featured.value);
 
 let renderer;
 let scene;
 let camera;
 let animationFrame;
 let observer;
+let sliderTimer;
+let progressTimer;
 let cleanup = () => {};
+
+const selectSlide = (index) => {
+    if (!upcoming.value.length) return;
+    activeSlide.value = (index + upcoming.value.length) % upcoming.value.length;
+    slideProgress.value = 0;
+};
+
+const nextSlide = () => selectSlide(activeSlide.value + 1);
+const previousSlide = () => selectSlide(activeSlide.value - 1);
+
+const startSlider = () => {
+    if (upcoming.value.length < 2) return;
+    sliderTimer = window.setInterval(nextSlide, 6200);
+    progressTimer = window.setInterval(() => {
+        slideProgress.value = slideProgress.value >= 100 ? 0 : slideProgress.value + 1.62;
+    }, 100);
+};
 
 const initScene = async () => {
     if (!canvasHost.value) return;
@@ -194,8 +216,16 @@ const initScene = async () => {
     };
 };
 
-onMounted(initScene);
-onBeforeUnmount(() => cleanup());
+onMounted(() => {
+    initScene();
+    startSlider();
+});
+
+onBeforeUnmount(() => {
+    cleanup();
+    window.clearInterval(sliderTimer);
+    window.clearInterval(progressTimer);
+});
 </script>
 
 <template>
@@ -218,40 +248,83 @@ onBeforeUnmount(() => cleanup());
                 </div>
             </nav>
 
-            <div class="relative z-10 mx-auto flex min-h-[calc(100vh-88px)] max-w-7xl items-center px-5 pb-16 lg:px-8">
-                <div class="max-w-3xl">
-                    <p class="mb-5 inline-flex rounded bg-amber-400 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#04101f]">
+            <div class="relative z-10 mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl items-center gap-10 px-5 pb-16 lg:grid-cols-[1fr_430px] lg:px-8">
+                <div class="hero-copy max-w-3xl">
+                    <p class="mb-5 inline-flex rounded bg-amber-400 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#04101f] shadow-[0_0_34px_rgba(251,191,36,0.35)]">
                         Associacao Recreativa Desportiva Cultural
                     </p>
-                    <h1 class="text-5xl font-black leading-none sm:text-7xl lg:text-8xl">
+                    <h1 class="max-w-4xl text-5xl font-black leading-none sm:text-7xl lg:text-8xl">
                         Santana em modo futuro
                     </h1>
                     <p class="mt-6 max-w-2xl text-xl font-semibold leading-relaxed text-cyan-100">
-                        Uma casa da comunidade em Carvalhal Benfeito, com eventos, cultura, desporto, restaurante e noites que juntam geracoes.
+                        Uma associacao em Carvalhal Benfeito, com eventos, cultura, desporto, restaurante e noites que juntam geracoes.
                     </p>
                     <div class="mt-8 flex flex-wrap gap-3">
-                        <a href="#eventos" class="rounded-md bg-amber-400 px-5 py-3 font-black text-[#04101f] hover:bg-amber-300">Proximos eventos</a>
-                        <a href="#arquivo" class="rounded-md border border-white/30 px-5 py-3 font-black text-white hover:bg-white hover:text-[#04101f]">Arquivo</a>
+                        <a href="#eventos" class="rounded-md bg-amber-400 px-5 py-3 font-black text-[#04101f] shadow-[0_0_30px_rgba(251,191,36,0.28)] transition hover:-translate-y-0.5 hover:bg-amber-300">Proximos eventos</a>
+                        <a href="#arquivo" class="rounded-md border border-white/30 px-5 py-3 font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-[#04101f]">Arquivo</a>
                     </div>
-                    <div v-if="featured" class="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
-                        <div class="border-l-2 border-amber-300 pl-4">
+                    <div v-if="activeEvent" class="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
+                        <div class="stat-line border-l-2 border-amber-300 pl-4">
                             <div class="text-sm font-bold uppercase text-cyan-200">Destaque</div>
-                            <div class="text-xl font-black">{{ featured.title }}</div>
+                            <div class="text-xl font-black">{{ activeEvent.title }}</div>
                         </div>
-                        <div class="border-l-2 border-cyan-300 pl-4">
+                        <div class="stat-line border-l-2 border-cyan-300 pl-4">
                             <div class="text-sm font-bold uppercase text-cyan-200">Data</div>
-                            <div class="text-xl font-black">{{ featured.date }}</div>
+                            <div class="text-xl font-black">{{ activeEvent.date }}</div>
                         </div>
-                        <div class="border-l-2 border-white pl-4">
+                        <div class="stat-line border-l-2 border-white pl-4">
                             <div class="text-sm font-bold uppercase text-cyan-200">Local</div>
-                            <div class="text-xl font-black">{{ featured.subtitle }}</div>
+                            <div class="text-xl font-black">{{ activeEvent.subtitle }}</div>
                         </div>
                     </div>
                 </div>
+
+                <aside v-if="activeEvent" class="hero-slider relative mx-auto w-full max-w-[430px]">
+                    <div class="absolute -inset-4 rounded-[2rem] border border-cyan-300/20 bg-cyan-300/5 blur-xl" aria-hidden="true" />
+                    <div class="relative overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-3 shadow-[0_28px_90px_rgba(0,0,0,0.45)] backdrop-blur">
+                        <Transition name="poster-slide" mode="out-in">
+                            <img :key="activeEvent.poster" :src="activeEvent.poster" :alt="activeEvent.title" class="aspect-[4/5] w-full rounded-xl object-cover shadow-2xl">
+                        </Transition>
+
+                        <div class="absolute inset-x-3 bottom-3 rounded-b-xl bg-gradient-to-t from-black/90 via-black/55 to-transparent p-4 pt-20">
+                            <div class="flex items-end justify-between gap-4">
+                                <div>
+                                    <p class="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{{ activeEvent.badge }}</p>
+                                    <h2 class="mt-1 text-2xl font-black">{{ activeEvent.title }}</h2>
+                                    <p class="text-sm font-bold text-cyan-100">{{ activeEvent.date }}</p>
+                                </div>
+                                <div class="hidden rounded bg-white/15 px-3 py-2 text-right text-xs font-black uppercase tracking-[0.16em] text-white sm:block">
+                                    {{ activeEvent.period }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" class="slider-button left-5" aria-label="Evento anterior" @click="previousSlide">‹</button>
+                        <button type="button" class="slider-button right-5" aria-label="Evento seguinte" @click="nextSlide">›</button>
+                    </div>
+
+                    <div class="mt-5 flex items-center justify-between gap-4">
+                        <div class="flex gap-2">
+                            <button
+                                v-for="(evento, index) in upcoming"
+                                :key="evento.title"
+                                type="button"
+                                class="h-2.5 rounded-full transition-all"
+                                :class="index === activeSlide ? 'w-9 bg-amber-300' : 'w-2.5 bg-white/35 hover:bg-white/70'"
+                                :aria-label="`Abrir ${evento.title}`"
+                                @click="selectSlide(index)"
+                            />
+                        </div>
+                        <div class="h-1 flex-1 overflow-hidden rounded bg-white/15">
+                            <div class="h-full rounded bg-amber-300 transition-all duration-100" :style="{ width: `${slideProgress}%` }" />
+                        </div>
+                    </div>
+                </aside>
             </div>
         </section>
 
-        <section id="eventos" class="bg-[#eef5ff] py-16 text-slate-950">
+        <section id="eventos" class="relative overflow-hidden bg-[#eef5ff] py-16 text-slate-950">
+            <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" aria-hidden="true" />
             <div class="mx-auto max-w-7xl px-5 lg:px-8">
                 <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
                     <div>
@@ -262,9 +335,11 @@ onBeforeUnmount(() => cleanup());
                 </div>
 
                 <div class="grid gap-6 lg:grid-cols-2">
-                    <article v-for="evento in upcoming" :key="evento.title" class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <article v-for="evento in upcoming" :key="evento.title" class="event-card group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                         <div class="grid gap-0 md:grid-cols-[260px_1fr]">
-                            <img :src="evento.poster" :alt="evento.title" class="h-full min-h-80 w-full object-cover">
+                            <div class="overflow-hidden bg-slate-900">
+                                <img :src="evento.poster" :alt="evento.title" class="h-full min-h-80 w-full object-cover transition duration-700 group-hover:scale-105">
+                            </div>
                             <div class="p-5 sm:p-6">
                                 <div class="mb-4 flex flex-wrap items-center gap-2">
                                     <span class="rounded bg-[#0b4ea2] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">{{ evento.badge }}</span>
@@ -275,7 +350,7 @@ onBeforeUnmount(() => cleanup());
                                 <p class="mt-4 leading-relaxed text-slate-700">{{ evento.description }}</p>
 
                                 <div class="mt-5 space-y-3">
-                                    <div v-for="linha in evento.schedule" :key="linha.day" class="rounded-md bg-slate-50 p-3 ring-1 ring-slate-200">
+                                    <div v-for="linha in evento.schedule" :key="linha.day" class="rounded-md bg-slate-50 p-3 ring-1 ring-slate-200 transition group-hover:bg-white">
                                         <div class="flex flex-wrap items-center gap-2">
                                             <strong class="text-[#0b4ea2]">{{ linha.day }}</strong>
                                             <span class="text-sm font-bold uppercase text-slate-500">{{ linha.label }}</span>
@@ -323,3 +398,118 @@ onBeforeUnmount(() => cleanup());
         </footer>
     </main>
 </template>
+
+<style scoped>
+.hero-copy {
+    animation: rise-in 760ms ease-out both;
+}
+
+.hero-slider {
+    animation: float-in 900ms ease-out 120ms both;
+}
+
+.stat-line {
+    animation: fade-up 620ms ease-out both;
+}
+
+.stat-line:nth-child(2) {
+    animation-delay: 90ms;
+}
+
+.stat-line:nth-child(3) {
+    animation-delay: 180ms;
+}
+
+.slider-button {
+    position: absolute;
+    top: 50%;
+    display: grid;
+    height: 2.75rem;
+    width: 2.75rem;
+    transform: translateY(-50%);
+    place-items: center;
+    border-radius: 999px;
+    border: 1px solid rgb(255 255 255 / 0.3);
+    background: rgb(4 16 31 / 0.72);
+    color: white;
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+    transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.slider-button:hover {
+    transform: translateY(-50%) scale(1.06);
+    background: rgb(251 191 36);
+    color: #04101f;
+}
+
+.poster-slide-enter-active,
+.poster-slide-leave-active {
+    transition: opacity 360ms ease, transform 520ms cubic-bezier(0.22, 1, 0.36, 1), filter 360ms ease;
+}
+
+.poster-slide-enter-from {
+    opacity: 0;
+    transform: translateX(2rem) rotateY(-16deg) scale(0.96);
+    filter: blur(10px);
+}
+
+.poster-slide-leave-to {
+    opacity: 0;
+    transform: translateX(-1.5rem) rotateY(10deg) scale(0.98);
+    filter: blur(8px);
+}
+
+.event-card {
+    animation: fade-up 720ms ease-out both;
+    transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.event-card:nth-child(2) {
+    animation-delay: 110ms;
+}
+
+.event-card:hover {
+    transform: translateY(-6px);
+    border-color: rgb(14 116 144 / 0.28);
+    box-shadow: 0 24px 65px rgb(15 23 42 / 0.16);
+}
+
+@keyframes rise-in {
+    from {
+        opacity: 0;
+        transform: translateY(28px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes float-in {
+    from {
+        opacity: 0;
+        transform: translateY(34px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
