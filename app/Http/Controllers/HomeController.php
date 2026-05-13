@@ -17,7 +17,7 @@ class HomeController extends Controller
                     'date' => '10, 11, 12 e 13 de Julho',
                     'period' => 'Julho 2026',
                     'location' => 'Santana, Carvalhal Benfeito',
-                    'poster' => '/images/events/santana-2026.svg',
+                    'poster' => '/images/events/santana-2026-cartaz.png',
                     'badge' => 'Próximo evento',
                     'description' => 'Quatro noites de festa com música ao vivo, DJs, restaurante e o famoso frango assado.',
                     'schedule' => [
@@ -33,7 +33,7 @@ class HomeController extends Controller
                     'date' => '22 de Maio',
                     'period' => 'Maio',
                     'location' => 'Associação de Santana',
-                    'poster' => '/images/events/afro-tropical-night.svg',
+                    'poster' => '/images/events/afro-tropical-night-cartaz.png',
                     'badge' => 'Noite temática',
                     'description' => 'Uma noite tropical dedicada aos ritmos afro, com Foko e Filipexs.',
                     'schedule' => [

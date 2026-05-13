@@ -11,6 +11,7 @@ const canvasHost = ref(null);
 const featured = computed(() => props.upcomingEvents?.[0] ?? null);
 const upcoming = computed(() => props.upcomingEvents ?? []);
 const archived = computed(() => props.pastEvents ?? []);
+const associationLogo = '/images/santana-logo.png';
 
 let renderer;
 let scene;
@@ -101,6 +102,17 @@ const initScene = async () => {
     group.add(shield);
 
     const loader = new THREE.TextureLoader();
+    const logoTexture = loader.load(associationLogo);
+    logoTexture.colorSpace = THREE.SRGBColorSpace;
+    const logoPanel = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.1, 2.65),
+        new THREE.MeshStandardMaterial({ map: logoTexture, roughness: 0.32, metalness: 0.08 }),
+    );
+    logoPanel.position.set(-2.9, 0.15, 0.28);
+    logoPanel.rotation.y = 0.36;
+    logoPanel.rotation.z = -0.02;
+    group.add(logoPanel);
+
     const posterGroup = new THREE.Group();
     (upcoming.value ?? []).slice(0, 2).forEach((event, index) => {
         const texture = loader.load(event.poster);
@@ -197,7 +209,7 @@ onBeforeUnmount(() => cleanup());
 
             <nav class="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
                 <Link href="/" class="flex items-center gap-3">
-                    <span class="grid h-12 w-12 place-items-center rounded bg-white text-base font-black text-[#0b4ea2]">AR</span>
+                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-14 w-14 rounded bg-white object-contain p-1 shadow-[0_0_24px_rgba(59,130,246,0.35)]">
                     <span class="text-sm font-black uppercase tracking-[0.24em] text-amber-300">ARDC Santana</span>
                 </Link>
                 <div class="flex items-center gap-2">
@@ -302,7 +314,10 @@ onBeforeUnmount(() => cleanup());
 
         <footer class="border-t border-white/10 bg-[#040A19] py-8">
             <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 text-sm font-semibold text-blue-100 lg:px-8">
-                <span>Associacao Recreativa Desportiva Cultural de Santana</span>
+                <span class="inline-flex items-center gap-3">
+                    <img :src="associationLogo" alt="" class="h-10 w-10 rounded bg-white object-contain p-1">
+                    Associacao Recreativa Desportiva Cultural de Santana
+                </span>
                 <span>Carvalhal Benfeito</span>
             </div>
         </footer>
