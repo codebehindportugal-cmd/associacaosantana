@@ -15,6 +15,8 @@ const categorias = computed(() => Object.keys(props.produtos ?? {}));
 const lista = computed(() => props.produtos?.[categoriaAtual.value] ?? []);
 const total = computed(() => (props.pedido?.items ?? []).reduce((s, i) => s + Number(i.preco_unitario) * i.quantidade, 0));
 const troco = computed(() => Math.max(0, Number(recebido.value || total.value) - total.value));
+const mesaDividida = computed(() => !props.mesa?.mesa_principal_id && props.mesa?.submesas?.length > 0);
+const podeEscolherLugares = computed(() => !props.pedido && !mesaDividida.value && Number(props.mesa?.capacidade ?? 0) > 1);
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const secaoClasse = (produto) => ({ bebidas: 'bg-blue-600', cozinha: 'bg-orange-600', comida: 'bg-orange-600', acompanhamentos: 'bg-orange-600', sobremesas: 'bg-purple-600' }[produto.categoria?.secao] || 'bg-gray-700');
 const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
@@ -52,17 +54,20 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                     </button>
                 </div>
                 <div v-if="!pedido" class="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-950/80 p-6">
-                    <div class="text-center"><div class="mb-4 text-3xl font-black">Abrir pedido nesta mesa?</div><button class="rounded-lg bg-emerald-600 px-8 py-5 text-xl font-black" @click="abrirPedido">ABRIR PEDIDO</button></div>
+                    <div class="text-center">
+                        <div class="mb-4 text-3xl font-black">{{ mesaDividida ? 'Escolhe uma submesa' : 'Abrir pedido nesta mesa?' }}</div>
+                        <button v-if="!mesaDividida" class="rounded-lg bg-emerald-600 px-8 py-5 text-xl font-black" @click="abrirPedido">ABRIR PEDIDO</button>
+                    </div>
                 </div>
             </section>
             <aside class="rounded-lg bg-gray-800 p-4">
                 <h2 class="text-4xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
                 <div v-if="!pedido" class="mt-6 rounded-lg bg-gray-900 p-4">
                     <p class="mb-4 text-center font-bold text-gray-300">Mesa livre - abre pedido na mesa completa ou numa submesa.</p>
-                    <label v-if="!mesa.mesa_principal_id && !mesa.submesas?.length" class="mb-4 block font-black">Lugares ocupados
+                    <label v-if="podeEscolherLugares" class="mb-4 block font-black">Lugares ocupados
                         <input v-model="lugaresOcupados" type="number" min="1" :max="mesa.capacidade - 1" class="mt-1 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-white" placeholder="Vazio = mesa completa">
                     </label>
-                    <button class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="abrirPedido()">ABRIR PEDIDO</button>
+                    <button v-if="!mesaDividida" class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="abrirPedido()">ABRIR PEDIDO</button>
                     <div v-if="mesa.submesas?.length" class="mt-4 space-y-2">
                         <Link v-for="submesa in mesa.submesas" :key="submesa.id" :href="route('pos.rest.mesa', submesa.id)" class="block rounded-lg p-3 font-black" :class="submesa.estado === 'ocupada' ? 'bg-red-700' : 'bg-gray-700'">
                             {{ submesa.designacao }} · {{ submesa.capacidade }} lugares · {{ submesa.estado }}

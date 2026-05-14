@@ -1,0 +1,61 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Impressora;
+use App\Models\Pedido;
+use App\Models\PrintJob;
+
+class PrintJobService
+{
+    public function criarPedido(Pedido $pedido, ?string $secao = null, string $tipo = 'pedido'): ?PrintJob
+    {
+        $impressora = Impressora::query()
+            ->where('ativa', true)
+            ->when($secao, fn ($query) => $query->where('secao', $secao))
+            ->orderBy('id')
+            ->first();
+
+        if (! $impressora) {
+            return null;
+        }
+
+        $pedido->loadMissing('mesa.mesaPrincipal', 'items.produto.categoria');
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $pedido::class,
+            'printable_id' => $pedido->id,
+            'tipo' => $tipo,
+            'payload' => [
+                'titulo' => 'ARDC Santana',
+                'subtitulo' => strtoupper($tipo),
+                'linhas' => $this->linhasPedido($pedido, $secao),
+                'cortar' => true,
+            ],
+        ]);
+    }
+
+    private function linhasPedido(Pedido $pedido, ?string $secao): array
+    {
+        $mesa = $pedido->mesa?->mesaPrincipal ?: $pedido->mesa;
+        $items = $pedido->items
+            ->filter(fn ($item) => ! $secao || $item->secao === $secao)
+            ->map(fn ($item) => [
+                'quantidade' => $item->quantidade,
+                'nome' => $item->produto?->nome ?? 'Produto',
+                'observacoes' => $item->observacoes,
+            ])
+            ->values();
+
+        return [
+            'Pedido #'.$pedido->id,
+            'Tipo: '.$pedido->tipo,
+            $mesa ? 'Mesa: '.$mesa->numero : 'Balcao',
+            'Hora: '.now()->format('H:i'),
+            '------------------------------',
+            ...$items->map(fn ($item) => $item['quantidade'].'x '.$item['nome'].($item['observacoes'] ? ' - '.$item['observacoes'] : ''))->all(),
+            '------------------------------',
+        ];
+    }
+}

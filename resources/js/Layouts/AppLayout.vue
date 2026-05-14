@@ -14,6 +14,7 @@ const links = [
     ['Caixas', 'caixa.index', 'caixa.ver', 'Caixas'],
     ['Produtos', 'produtos.index', 'produtos.ver', 'Produtos'],
     ['Reservas', 'reservas.index', 'reservas.ver', 'Reservas'],
+    ['Eventos', 'eventos.index', null, 'Eventos'],
     ['Sócios', 'socios.index', 'socios.ver', 'Sócios'],
     ['Cotas', 'cotas.index', 'cotas.ver', 'Cotas'],
     ['Relatórios', 'relatorios.index', 'relatorios.ver', 'Relatórios'],
@@ -36,7 +37,7 @@ onBeforeUnmount(() => clearInterval(polling));
                 <div class="mt-1 text-xs text-slate-500">Gestão interna</div>
             </div>
             <nav class="space-y-1 p-3 xl:p-4">
-                <Link v-for="link in links" v-show="can(link[2])" :key="link[1]" :href="route(link[1])" class="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium hover:bg-slate-100 xl:text-sm" :class="{ 'bg-slate-900 text-white hover:bg-slate-900': ativo(link[1]) }">
+                <Link v-for="link in links" v-show="link[2] ? can(link[2]) : podeGerir()" :key="link[1]" :href="route(link[1])" class="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium hover:bg-slate-100 xl:text-sm" :class="{ 'bg-slate-900 text-white hover:bg-slate-900': ativo(link[1]) }">
                     <span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="rounded-full bg-amber-600 px-2 py-0.5 text-[11px] text-white">{{ urgentes() }} a terminar</span>
                 </Link>
                 <Link v-if="hasRole('admin')" :href="route('users.index')" class="block rounded-md px-3 py-2 text-xs font-medium hover:bg-slate-100 xl:text-sm">Utilizadores</Link>
@@ -53,7 +54,7 @@ onBeforeUnmount(() => clearInterval(polling));
         <div v-if="drawerAberto" class="fixed inset-0 z-40 bg-slate-950/40 md:hidden" @click="drawerAberto = false"></div>
         <aside class="fixed inset-y-0 left-0 z-50 w-72 transform bg-white p-4 shadow-xl transition md:hidden" :class="drawerAberto ? 'translate-x-0' : '-translate-x-full'">
             <div class="mb-4 flex items-center justify-between"><strong>Menu</strong><button class="rounded-md border px-3 py-2" @click="drawerAberto = false">Fechar</button></div>
-            <Link v-for="link in links" v-show="can(link[2])" :key="link[1]" :href="route(link[1])" class="mb-2 flex justify-between rounded-lg px-3 py-3 font-bold hover:bg-slate-100" @click="drawerAberto = false"><span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="text-amber-700">{{ urgentes() }} a terminar</span></Link>
+            <Link v-for="link in links" v-show="link[2] ? can(link[2]) : podeGerir()" :key="link[1]" :href="route(link[1])" class="mb-2 flex justify-between rounded-lg px-3 py-3 font-bold hover:bg-slate-100" @click="drawerAberto = false"><span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="text-amber-700">{{ urgentes() }} a terminar</span></Link>
         </aside>
 
         <main class="md:pl-56 xl:pl-64">
@@ -66,7 +67,7 @@ onBeforeUnmount(() => clearInterval(polling));
         </main>
 
         <nav class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white p-2 md:hidden">
-            <Link v-for="link in links.slice(0, 4)" v-show="can(link[2])" :key="link[1]" :href="route(link[1])" class="rounded-lg px-2 py-2 text-center text-xs font-black" :class="ativo(link[1]) ? 'bg-slate-900 text-white' : 'text-slate-600'">{{ link[3] }}</Link>
+            <Link v-for="link in links.slice(0, 4)" v-show="link[2] ? can(link[2]) : podeGerir()" :key="link[1]" :href="route(link[1])" class="rounded-lg px-2 py-2 text-center text-xs font-black" :class="ativo(link[1]) ? 'bg-slate-900 text-white' : 'text-slate-600'">{{ link[3] }}</Link>
             <button class="rounded-lg px-2 py-2 text-xs font-black text-slate-600" @click="drawerAberto = true">Menu</button>
         </nav>
     </div>

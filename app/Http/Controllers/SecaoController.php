@@ -6,6 +6,7 @@ use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\Mesa;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -50,6 +51,7 @@ class SecaoController extends Controller
             ->orderBy('numero_senha')
             ->get()
             ->map(fn ($pedido) => [
+                'pedido_id' => $pedido->id,
                 'mesa' => 'Senha #'.$pedido->numero_senha,
                 'urgente' => false,
                 'items' => $pedido->items->values(),
@@ -90,14 +92,38 @@ class SecaoController extends Controller
         ]);
     }
 
-    public function pronto(PedidoItem $pedidoItem): RedirectResponse
+    public function pronto(Request $request, PedidoItem $pedidoItem): RedirectResponse
     {
-        $pedidoItem->load('pedido.mesa', 'produto')->update(['estado' => 'pronto']);
+        $data = $request->validate([
+            'quantidade' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $pedidoItem->load('pedido.mesa', 'produto');
+        $quantidadePronta = min((int) ($data['quantidade'] ?? $pedidoItem->quantidade), (int) $pedidoItem->quantidade);
+
+        if ($quantidadePronta < $pedidoItem->quantidade) {
+            $itemPronto = $pedidoItem->replicate();
+            $itemPronto->quantidade = $quantidadePronta;
+            $itemPronto->estado = 'pronto';
+            $itemPronto->save();
+
+            $pedidoItem->decrement('quantidade', $quantidadePronta);
+        } else {
+            $pedidoItem->update(['estado' => 'pronto']);
+        }
 
         if (strcasecmp($pedidoItem->produto?->nome, 'Limpar mesa') === 0) {
             $pedidoItem->pedido->update(['estado' => 'entregue']);
             $this->libertarMesaDoPedido($pedidoItem->pedido);
         }
+
+        return back();
+    }
+
+    public function retirar(Pedido $pedido): RedirectResponse
+    {
+        $pedido->update(['estado' => 'entregue']);
+        $this->libertarMesaDoPedido($pedido);
 
         return back();
     }

@@ -24,6 +24,7 @@ class RoleSeeder extends Seeder
             'socios.ver', 'socios.criar', 'socios.editar', 'socios.apagar',
             'cotas.ver', 'cotas.criar', 'cotas.editar', 'cotas.apagar', 'cotas.gerar', 'cotas.exportar',
             'reservas.ver', 'reservas.criar', 'reservas.editar', 'reservas.apagar',
+            'eventos.ver', 'eventos.gerir',
             'dashboard.ver', 'relatorios.ver',
             'users.ver', 'users.criar', 'users.editar', 'users.apagar',
         ];

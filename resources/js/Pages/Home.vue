@@ -7,509 +7,799 @@ const props = defineProps({
     pastEvents: Array,
 });
 
-const canvasHost = ref(null);
-const featured = computed(() => props.upcomingEvents?.[0] ?? null);
+const associationLogo = '/images/santana-logo.png';
+const santaAnaImage = '/images/santa-ana.png';
+const contactEmail = 'ardcsantana@outlook.com';
+
+const menuOpen = ref(false);
+const selectedEventTab = ref('todos');
+const selectedNeed = ref('Caminhadas e natureza');
+const activeHeroSlide = ref(0);
+const lightboxItem = ref(null);
+const openFaq = ref(0);
+const formSent = ref(false);
+const form = ref({
+    name: '',
+    email: '',
+    phone: '',
+    message: '',
+});
+const errors = ref({});
+
 const upcoming = computed(() => props.upcomingEvents ?? []);
 const archived = computed(() => props.pastEvents ?? []);
-const associationLogo = '/images/santana-logo.png';
-const activeSlide = ref(0);
-const slideProgress = ref(0);
-const activeEvent = computed(() => upcoming.value[activeSlide.value] ?? featured.value);
+const allEvents = computed(() => [...upcoming.value, ...archived.value]);
+const heroEvents = computed(() => upcoming.value);
+const activeHeroEvent = computed(() => heroEvents.value[activeHeroSlide.value] ?? null);
 
-let renderer;
-let scene;
-let camera;
-let animationFrame;
-let observer;
-let sliderTimer;
-let progressTimer;
-let cleanup = () => {};
+let heroSliderTimer;
 
-const selectSlide = (index) => {
-    if (!upcoming.value.length) return;
-    activeSlide.value = (index + upcoming.value.length) % upcoming.value.length;
-    slideProgress.value = 0;
-};
+const navLinks = [
+    ['Sobre', '#sobre'],
+    ['Eventos', '#eventos'],
+    ['Galeria', '#galeria'],
+    ['Sócios', '#socios'],
+    ['Contactos', '#contactos'],
+];
 
-const nextSlide = () => selectSlide(activeSlide.value + 1);
-const previousSlide = () => selectSlide(activeSlide.value - 1);
+const pillars = [
+    ['Cultura', 'Mantemos vivas as tradições, as festas e os momentos que contam a história de Santana.'],
+    ['Desporto', 'Criamos oportunidades para caminhar, mexer, participar e juntar gerações.'],
+    ['Convívio', 'A associação é uma casa aberta para sócios, famílias, amigos e visitantes.'],
+];
 
-const startSlider = () => {
-    if (upcoming.value.length < 2) return;
-    sliderTimer = window.setInterval(nextSlide, 6200);
-    progressTimer = window.setInterval(() => {
-        slideProgress.value = slideProgress.value >= 100 ? 0 : slideProgress.value + 1.62;
-    }, 100);
-};
+const eventTabs = computed(() => {
+    const badges = allEvents.value
+        .map((event) => event.badge)
+        .filter(Boolean);
 
-const initScene = async () => {
-    if (!canvasHost.value) return;
-    const THREE = await import('three');
+    return [
+        { key: 'todos', label: 'Todos' },
+        { key: 'proximos', label: 'Próximos' },
+        { key: 'anteriores', label: 'Anteriores' },
+        ...[...new Set(badges)].map((badge) => ({ key: `badge:${badge}`, label: badge })),
+    ];
+});
 
-    scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x061536, 8, 34);
-
-    camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
-    camera.position.set(0, 1.2, 11);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    canvasHost.value.appendChild(renderer.domElement);
-
-    const group = new THREE.Group();
-    scene.add(group);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const blueLight = new THREE.PointLight(0x3aa7ff, 120, 26);
-    blueLight.position.set(-5, 4, 6);
-    scene.add(blueLight);
-    const goldLight = new THREE.PointLight(0xffc84a, 100, 22);
-    goldLight.position.set(5, -1, 6);
-    scene.add(goldLight);
-
-    const grid = new THREE.GridHelper(28, 42, 0x2b78d0, 0x133d72);
-    grid.position.y = -3.2;
-    grid.material.transparent = true;
-    grid.material.opacity = 0.38;
-    group.add(grid);
-
-    const ringMaterial = new THREE.MeshStandardMaterial({
-        color: 0xf4b52a,
-        emissive: 0x8f5b00,
-        emissiveIntensity: 0.35,
-        metalness: 0.7,
-        roughness: 0.22,
-    });
-
-    [3.2, 4.45, 5.7].forEach((radius, index) => {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.025, 12, 160), ringMaterial);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.y = -1.3 - index * 0.18;
-        group.add(ring);
-    });
-
-    const shield = new THREE.Group();
-    const shieldShape = new THREE.Shape();
-    shieldShape.moveTo(0, 1.8);
-    shieldShape.lineTo(1.45, 1.15);
-    shieldShape.lineTo(1.18, -1.3);
-    shieldShape.quadraticCurveTo(0.55, -2.0, 0, -2.25);
-    shieldShape.quadraticCurveTo(-0.55, -2.0, -1.18, -1.3);
-    shieldShape.lineTo(-1.45, 1.15);
-    shieldShape.lineTo(0, 1.8);
-    const shieldMesh = new THREE.Mesh(
-        new THREE.ExtrudeGeometry(shieldShape, { depth: 0.16, bevelEnabled: true, bevelSize: 0.045, bevelThickness: 0.04 }),
-        new THREE.MeshStandardMaterial({ color: 0xf8fbff, metalness: 0.22, roughness: 0.28 }),
-    );
-    shieldMesh.position.z = -0.08;
-    shield.add(shieldMesh);
-
-    const stripe = new THREE.Mesh(
-        new THREE.BoxGeometry(0.34, 4.4, 0.2),
-        new THREE.MeshStandardMaterial({ color: 0x0b4ea2, emissive: 0x07306b, emissiveIntensity: 0.28 }),
-    );
-    stripe.rotation.z = -0.78;
-    stripe.position.z = 0.08;
-    shield.add(stripe);
-
-    const crestText = new THREE.Mesh(
-        new THREE.TorusGeometry(0.52, 0.025, 8, 64),
-        new THREE.MeshStandardMaterial({ color: 0x0b4ea2, emissive: 0x0b4ea2, emissiveIntensity: 0.4 }),
-    );
-    crestText.position.set(0, 0.05, 0.17);
-    shield.add(crestText);
-    shield.position.set(-2.9, 0.1, 0);
-    shield.rotation.y = 0.36;
-    group.add(shield);
-
-    const loader = new THREE.TextureLoader();
-    const logoTexture = loader.load(associationLogo);
-    logoTexture.colorSpace = THREE.SRGBColorSpace;
-    const logoPanel = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.1, 2.65),
-        new THREE.MeshStandardMaterial({ map: logoTexture, roughness: 0.32, metalness: 0.08 }),
-    );
-    logoPanel.position.set(-2.9, 0.15, 0.28);
-    logoPanel.rotation.y = 0.36;
-    logoPanel.rotation.z = -0.02;
-    group.add(logoPanel);
-
-    const posterGroup = new THREE.Group();
-    (upcoming.value ?? []).slice(0, 2).forEach((event, index) => {
-        const texture = loader.load(event.poster);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        const panel = new THREE.Mesh(
-            new THREE.PlaneGeometry(2.45, 3.28),
-            new THREE.MeshStandardMaterial({ map: texture, roughness: 0.35, metalness: 0.08 }),
-        );
-        panel.position.set(index === 0 ? 1.15 : 3.75, index === 0 ? 0.25 : -0.1, index === 0 ? 0 : -1.2);
-        panel.rotation.y = index === 0 ? -0.28 : -0.48;
-        panel.rotation.z = index === 0 ? 0.02 : -0.03;
-        posterGroup.add(panel);
-
-        const frame = new THREE.Mesh(
-            new THREE.BoxGeometry(2.6, 3.42, 0.08),
-            new THREE.MeshStandardMaterial({ color: 0xf4b52a, metalness: 0.72, roughness: 0.18 }),
-        );
-        frame.position.copy(panel.position);
-        frame.position.z -= 0.08;
-        frame.rotation.copy(panel.rotation);
-        posterGroup.add(frame);
-    });
-    group.add(posterGroup);
-
-    const particleGeometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(420 * 3);
-    for (let i = 0; i < positions.length; i += 3) {
-        positions[i] = (Math.random() - 0.5) * 22;
-        positions[i + 1] = (Math.random() - 0.5) * 10;
-        positions[i + 2] = (Math.random() - 0.5) * 18;
+const filteredEvents = computed(() => {
+    if (selectedEventTab.value === 'proximos') return upcoming.value;
+    if (selectedEventTab.value === 'anteriores') return archived.value;
+    if (selectedEventTab.value.startsWith('badge:')) {
+        const badge = selectedEventTab.value.replace('badge:', '');
+        return allEvents.value.filter((event) => event.badge === badge);
     }
-    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const particles = new THREE.Points(
-        particleGeometry,
-        new THREE.PointsMaterial({ color: 0x8fd6ff, size: 0.035, transparent: true, opacity: 0.75 }),
-    );
-    scene.add(particles);
 
-    const resize = () => {
-        const rect = canvasHost.value.getBoundingClientRect();
-        renderer.setSize(rect.width, rect.height, false);
-        camera.aspect = rect.width / Math.max(1, rect.height);
-        camera.updateProjectionMatrix();
-    };
+    return allEvents.value;
+});
 
-    observer = new ResizeObserver(resize);
-    observer.observe(canvasHost.value);
-    resize();
+const quizOptions = [
+    'Caminhadas e natureza',
+    'Música e festas',
+    'Almoços e convívios',
+    'Atividades para família',
+    'Apoiar a associação',
+];
 
-    const clock = new THREE.Clock();
-    const animate = () => {
-        const elapsed = clock.getElapsedTime();
-        group.rotation.y = Math.sin(elapsed * 0.22) * 0.08;
-        shield.rotation.y = 0.36 + Math.sin(elapsed * 0.8) * 0.08;
-        posterGroup.children.forEach((child, index) => {
-            child.position.y += Math.sin(elapsed * 0.9 + index) * 0.0008;
-        });
-        particles.rotation.y = elapsed * 0.025;
-        particles.rotation.x = Math.sin(elapsed * 0.2) * 0.08;
-        renderer.render(scene, camera);
-        animationFrame = requestAnimationFrame(animate);
-    };
-    animate();
+const recommendedEvents = computed(() => {
+    const terms = {
+        'Caminhadas e natureza': ['caminhada', 'passeio', 'natureza', 'desporto'],
+        'Música e festas': ['festa', 'música', 'musica', 'dj', 'banda', 'noite'],
+        'Almoços e convívios': ['almoço', 'almoco', 'convívio', 'convivio', 'restaurante'],
+        'Atividades para família': ['família', 'familia', 'comunidade', 'sócios', 'socios'],
+        'Apoiar a associação': ['sócio', 'socio', 'associação', 'associacao', 'voluntariado'],
+    }[selectedNeed.value];
 
-    cleanup = () => {
-        cancelAnimationFrame(animationFrame);
-        observer?.disconnect();
-        scene.traverse((object) => {
-            object.geometry?.dispose?.();
-            if (Array.isArray(object.material)) {
-                object.material.forEach((material) => material.dispose?.());
-            } else {
-                object.material?.map?.dispose?.();
-                object.material?.dispose?.();
-            }
-        });
-        renderer?.dispose();
-        renderer?.domElement?.remove();
+    const availableEvents = upcoming.value.length ? upcoming.value : allEvents.value;
+    const matches = availableEvents.filter((event) => {
+        const haystack = `${event.title} ${event.badge} ${event.description} ${event.subtitle}`.toLowerCase();
+        return terms.some((term) => haystack.includes(term));
+    });
+
+    return (matches.length ? matches : availableEvents).slice(0, 3);
+});
+
+const galleryItems = computed(() => {
+    const media = allEvents.value
+        .flatMap((event) => (event.media ?? []).map((item) => ({
+            ...item,
+            event: event.title,
+            category: event.badge || 'Momentos especiais',
+        })))
+        .filter((item) => item.tipo === 'foto');
+
+    const posters = allEvents.value
+        .filter((event) => event.poster)
+        .map((event) => ({
+            tipo: 'foto',
+            caminho: event.poster,
+            titulo: event.title,
+            event: event.date,
+            category: event.badge || 'Comunidade',
+        }));
+
+    return [...media, ...posters].slice(0, 9);
+});
+
+const pastPhotoItems = computed(() => archived.value
+    .flatMap((event) => (event.media ?? []).map((item) => ({
+        ...item,
+        event: event.title,
+        date: event.date,
+        category: event.badge || 'Evento anterior',
+    })))
+    .filter((item) => item.tipo === 'foto'));
+
+const supportOptions = [
+    'Participar em eventos',
+    'Tornar-se sócio',
+    'Voluntariado',
+    'Apoio a iniciativas',
+    'Partilhar nas redes sociais',
+];
+
+const faqs = [
+    ['Como posso tornar-me sócio?', 'Preenche o formulário nesta página ou contacta a associação por email, telefone ou redes sociais.'],
+    ['Os eventos são abertos a não sócios?', 'Muitas iniciativas são abertas à comunidade. Quando existir inscrição obrigatória, essa indicação aparece no evento.'],
+    ['Posso ajudar como voluntário?', 'Sim. Toda a ajuda conta: preparação de eventos, apoio no bar, divulgação e novas ideias para a associação.'],
+    ['Onde acompanho novidades?', 'Segue a ARDC Santana no Facebook e Instagram para veres cartazes, fotografias e avisos recentes.'],
+];
+
+const scrollTo = (target) => {
+    menuOpen.value = false;
+    document.querySelector(target)?.scrollIntoView({ behavior: 'smooth' });
+};
+
+const calendarHref = (event) => {
+    const title = encodeURIComponent(event.title);
+    const details = encodeURIComponent(event.description || 'Evento ARDC Santana');
+    const location = encodeURIComponent(event.location || event.subtitle || 'ARDC Santana');
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
+};
+
+const eventHref = (event) => route('eventos.public.show', event.id);
+
+const selectHeroSlide = (index) => {
+    if (!heroEvents.value.length) return;
+    activeHeroSlide.value = (index + heroEvents.value.length) % heroEvents.value.length;
+};
+
+const nextHeroSlide = () => selectHeroSlide(activeHeroSlide.value + 1);
+const previousHeroSlide = () => selectHeroSlide(activeHeroSlide.value - 1);
+
+const validateForm = () => {
+    errors.value = {};
+
+    if (!form.value.name.trim()) errors.value.name = 'Indica o teu nome.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email)) errors.value.email = 'Indica um email válido.';
+    if (!form.value.phone.trim()) errors.value.phone = 'Indica um telefone.';
+    if (form.value.message.trim().length < 8) errors.value.message = 'Escreve uma mensagem curta.';
+
+    if (Object.keys(errors.value).length) return;
+
+    formSent.value = true;
+    form.value = {
+        name: '',
+        email: '',
+        phone: '',
+        message: '',
     };
 };
 
 onMounted(() => {
-    initScene();
-    startSlider();
+    const items = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) entry.target.classList.add('is-visible');
+        });
+    }, { threshold: 0.16 });
+
+    items.forEach((item) => observer.observe(item));
+
+    if (heroEvents.value.length > 1) {
+        heroSliderTimer = window.setInterval(nextHeroSlide, 6500);
+    }
 });
 
 onBeforeUnmount(() => {
-    cleanup();
-    window.clearInterval(sliderTimer);
-    window.clearInterval(progressTimer);
+    window.clearInterval(heroSliderTimer);
 });
 </script>
 
 <template>
-    <Head title="Associacao de Santana" />
+    <Head title="ARDC Santana | Associação Recreativa, Desportiva e Cultural">
+        <meta
+            head-key="description"
+            name="description"
+            content="Conhece a ARDC Santana, participa nos nossos eventos, torna-te sócio e ajuda a manter viva a comunidade."
+        >
+    </Head>
 
-    <main class="min-h-screen bg-[#04101f] text-white">
-        <section class="relative min-h-screen overflow-hidden">
-            <div ref="canvasHost" class="absolute inset-0" aria-hidden="true" />
-            <div class="absolute inset-0 bg-[linear-gradient(90deg,rgba(4,16,31,0.96)_0%,rgba(4,16,31,0.74)_42%,rgba(4,16,31,0.34)_100%)]" />
-            <div class="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#04101f] to-transparent" />
-
-            <nav class="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
+    <main class="min-h-screen scroll-smooth bg-[#fbfaf4] text-[#18231d]">
+        <header class="fixed inset-x-0 top-0 z-50 border-b border-black/5 bg-[#fbfaf4]/90 backdrop-blur-xl">
+            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8">
                 <Link href="/" class="flex items-center gap-3">
-                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-14 w-14 rounded bg-white object-contain p-1 shadow-[0_0_24px_rgba(59,130,246,0.35)]">
-                    <span class="text-sm font-black uppercase tracking-[0.24em] text-amber-300">ARDC Santana</span>
+                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-12 w-12 rounded-md bg-white object-contain p-1 shadow-sm">
+                    <span class="text-sm font-black uppercase tracking-[0.18em] text-[#214c38]">ARDC Santana</span>
                 </Link>
-                <div class="flex items-center gap-2">
-                    <Link :href="route('login')" class="rounded-md border border-white/25 px-4 py-2 text-sm font-bold text-white hover:bg-white hover:text-[#04101f]">Area reservada</Link>
-                    <Link :href="route('pos.login')" class="hidden rounded-md bg-amber-400 px-4 py-2 text-sm font-black text-[#04101f] hover:bg-amber-300 sm:inline-flex">POS</Link>
+
+                <div class="hidden items-center gap-1 md:flex">
+                    <button
+                        v-for="link in navLinks"
+                        :key="link[0]"
+                        type="button"
+                        class="rounded-md px-4 py-2 text-sm font-bold text-[#335041] transition hover:bg-[#e8efe5]"
+                        @click="scrollTo(link[1])"
+                    >
+                        {{ link[0] }}
+                    </button>
                 </div>
+
+                <a :href="`mailto:${contactEmail}`" class="hidden rounded-md bg-[#214c38] px-4 py-2 text-sm font-black text-white transition hover:bg-[#173629] lg:inline-flex">
+                    Contactar
+                </a>
+
+                <button type="button" class="grid h-11 w-11 place-items-center rounded-md bg-[#214c38] text-white md:hidden" aria-label="Abrir menu" @click="menuOpen = !menuOpen">
+                    <span class="menu-icon" :class="{ open: menuOpen }" />
+                </button>
             </nav>
 
-            <div class="relative z-10 mx-auto grid min-h-[calc(100vh-88px)] max-w-7xl items-center gap-10 px-5 pb-16 lg:grid-cols-[1fr_430px] lg:px-8">
-                <div class="hero-copy max-w-3xl">
-                    <p class="mb-5 inline-flex rounded bg-amber-400 px-4 py-2 text-sm font-black uppercase tracking-[0.18em] text-[#04101f] shadow-[0_0_34px_rgba(251,191,36,0.35)]">
-                        Associacao Recreativa Desportiva Cultural
+            <Transition name="mobile-menu">
+                <div v-if="menuOpen" class="border-t border-black/5 bg-[#fbfaf4] px-5 py-4 shadow-xl md:hidden">
+                    <button
+                        v-for="link in navLinks"
+                        :key="link[0]"
+                        type="button"
+                        class="block w-full rounded-md px-3 py-3 text-left font-black text-[#214c38] hover:bg-[#e8efe5]"
+                        @click="scrollTo(link[1])"
+                    >
+                        {{ link[0] }}
+                    </button>
+                </div>
+            </Transition>
+        </header>
+
+        <section class="relative isolate overflow-hidden pt-24">
+            <Transition name="hero-bg" mode="out-in">
+                <img :key="activeHeroEvent?.poster || santaAnaImage" :src="activeHeroEvent?.poster || santaAnaImage" alt="" class="absolute inset-0 h-full w-full object-cover opacity-25" aria-hidden="true">
+            </Transition>
+            <div class="absolute inset-0 bg-[linear-gradient(90deg,#fbfaf4_0%,rgba(251,250,244,0.94)_43%,rgba(251,250,244,0.72)_100%)]" />
+
+            <div class="relative mx-auto grid min-h-[calc(100vh-6rem)] max-w-7xl items-center gap-10 px-5 pb-16 pt-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
+                <div class="reveal max-w-3xl">
+                    <p class="inline-flex rounded-md bg-[#e5b84b] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#18231d]">
+                        Associação Recreativa, Desportiva e Cultural
                     </p>
-                    <h1 class="max-w-4xl text-5xl font-black leading-none sm:text-7xl lg:text-8xl">
-                        Santana 
+                    <h1 class="mt-5 text-5xl font-black leading-[0.95] text-[#17241d] sm:text-7xl lg:text-8xl">
+                        ARDC Santana
                     </h1>
-                    <p class="mt-6 max-w-2xl text-xl font-semibold leading-relaxed text-cyan-100">
-                        Uma associacao em Carvalhal Benfeito, com eventos, cultura, desporto, restaurante e noites que juntam geracoes.
+                    <p class="mt-5 text-2xl font-black text-[#214c38] sm:text-3xl">
+                        Cultura, desporto e comunidade em Santana
                     </p>
+                    <p class="mt-6 max-w-2xl text-lg font-semibold leading-relaxed text-[#4b5d52]">
+                        Uma associação feita por pessoas, para pessoas. Juntamos gerações através de eventos, convívios, caminhadas, festas e iniciativas locais.
+                    </p>
+
                     <div class="mt-8 flex flex-wrap gap-3">
-                        <a href="#eventos" class="rounded-md bg-amber-400 px-5 py-3 font-black text-[#04101f] shadow-[0_0_30px_rgba(251,191,36,0.28)] transition hover:-translate-y-0.5 hover:bg-amber-300">Proximos eventos</a>
-                        <a href="#arquivo" class="rounded-md border border-white/30 px-5 py-3 font-black text-white transition hover:-translate-y-0.5 hover:bg-white hover:text-[#04101f]">Arquivo</a>
+                        <button type="button" class="rounded-md bg-[#214c38] px-5 py-3 font-black text-white shadow-lg shadow-[#214c38]/20 transition hover:-translate-y-1 hover:bg-[#173629]" @click="scrollTo('#eventos')">
+                            Ver próximos eventos
+                        </button>
+                        <button type="button" class="rounded-md bg-[#e5b84b] px-5 py-3 font-black text-[#18231d] transition hover:-translate-y-1 hover:bg-[#f0c85b]" @click="scrollTo('#socios')">
+                            Tornar-me sócio
+                        </button>
+                        <button type="button" class="rounded-md border border-[#214c38]/25 px-5 py-3 font-black text-[#214c38] transition hover:-translate-y-1 hover:bg-white" @click="scrollTo('#contactos')">
+                            Contactar associação
+                        </button>
                     </div>
-                    <div v-if="activeEvent" class="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
-                        <div class="stat-line border-l-2 border-amber-300 pl-4">
-                            <div class="text-sm font-bold uppercase text-cyan-200">Destaque</div>
-                            <div class="text-xl font-black">{{ activeEvent.title }}</div>
+
+                    <div class="mt-10 grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-md border border-[#214c38]/10 bg-white/80 p-4 shadow-sm">
+                            <strong class="block text-2xl text-[#214c38]">1991</strong>
+                            <span class="text-sm font-bold text-[#647267]">Fundada em 10 de Abril</span>
                         </div>
-                        <div class="stat-line border-l-2 border-cyan-300 pl-4">
-                            <div class="text-sm font-bold uppercase text-cyan-200">Data</div>
-                            <div class="text-xl font-black">{{ activeEvent.date }}</div>
+                        <div class="rounded-md border border-[#214c38]/10 bg-white/80 p-4 shadow-sm">
+                            <strong class="block text-2xl text-[#214c38]">Santana</strong>
+                            <span class="text-sm font-bold text-[#647267]">Carvalhal Benfeito</span>
                         </div>
-                        <div class="stat-line border-l-2 border-white pl-4">
-                            <div class="text-sm font-bold uppercase text-cyan-200">Local</div>
-                            <div class="text-xl font-black">{{ activeEvent.subtitle }}</div>
+                        <div class="rounded-md border border-[#214c38]/10 bg-white/80 p-4 shadow-sm">
+                            <strong class="block text-2xl text-[#214c38]">Comunidade</strong>
+                            <span class="text-sm font-bold text-[#647267]">Cultura, desporto e convívio</span>
                         </div>
                     </div>
                 </div>
 
-                <aside v-if="activeEvent" class="hero-slider relative mx-auto w-full max-w-[430px]">
-                    <div class="absolute -inset-4 rounded-[2rem] border border-cyan-300/20 bg-cyan-300/5 blur-xl" aria-hidden="true" />
-                    <div class="relative overflow-hidden rounded-2xl border border-white/20 bg-white/10 p-3 shadow-[0_28px_90px_rgba(0,0,0,0.45)] backdrop-blur">
-                        <Transition name="poster-slide" mode="out-in">
-                            <img :key="activeEvent.poster" :src="activeEvent.poster" :alt="activeEvent.title" class="aspect-[4/5] w-full rounded-xl object-cover shadow-2xl">
-                        </Transition>
+                <aside v-if="activeHeroEvent" class="reveal relative">
+                    <div class="overflow-hidden rounded-lg bg-[#214c38] shadow-2xl shadow-[#214c38]/25">
+                        <div class="relative bg-[#17241d]">
+                            <Transition name="hero-slide" mode="out-in">
+                                <img :key="activeHeroEvent.poster" :src="activeHeroEvent.poster || associationLogo" :alt="activeHeroEvent.title" class="aspect-[4/3] w-full object-cover">
+                            </Transition>
 
-                        <div class="absolute inset-x-3 bottom-3 rounded-b-xl bg-gradient-to-t from-black/90 via-black/55 to-transparent p-4 pt-20">
-                            <div class="flex items-end justify-between gap-4">
-                                <div>
-                                    <p class="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{{ activeEvent.badge }}</p>
-                                    <h2 class="mt-1 text-2xl font-black">{{ activeEvent.title }}</h2>
-                                    <p class="text-sm font-bold text-cyan-100">{{ activeEvent.date }}</p>
-                                </div>
-                                <div class="hidden rounded bg-white/15 px-3 py-2 text-right text-xs font-black uppercase tracking-[0.16em] text-white sm:block">
-                                    {{ activeEvent.period }}
-                                </div>
+                            <div v-if="heroEvents.length > 1" class="absolute inset-x-3 top-3 flex items-center justify-between">
+                                <button type="button" class="hero-nav-button" aria-label="Evento anterior" @click="previousHeroSlide">‹</button>
+                                <button type="button" class="hero-nav-button" aria-label="Evento seguinte" @click="nextHeroSlide">›</button>
                             </div>
                         </div>
 
-                        <button type="button" class="slider-button left-5" aria-label="Evento anterior" @click="previousSlide">‹</button>
-                        <button type="button" class="slider-button right-5" aria-label="Evento seguinte" @click="nextSlide">›</button>
-                    </div>
+                        <div class="p-5 text-white">
+                            <p class="text-xs font-black uppercase tracking-[0.18em] text-[#f0c85b]">{{ activeHeroEvent.badge || 'Próximo evento' }}</p>
+                            <h2 class="mt-2 text-3xl font-black">{{ activeHeroEvent.title }}</h2>
+                            <p class="mt-2 font-bold text-white/75">{{ activeHeroEvent.date }} · {{ activeHeroEvent.location || activeHeroEvent.subtitle }}</p>
+                            <p class="mt-4 leading-relaxed text-white/85">{{ activeHeroEvent.description }}</p>
 
-                    <div class="mt-5 flex items-center justify-between gap-4">
-                        <div class="flex gap-2">
-                            <button
-                                v-for="(evento, index) in upcoming"
-                                :key="evento.title"
-                                type="button"
-                                class="h-2.5 rounded-full transition-all"
-                                :class="index === activeSlide ? 'w-9 bg-amber-300' : 'w-2.5 bg-white/35 hover:bg-white/70'"
-                                :aria-label="`Abrir ${evento.title}`"
-                                @click="selectSlide(index)"
-                            />
-                        </div>
-                        <div class="h-1 flex-1 overflow-hidden rounded bg-white/15">
-                            <div class="h-full rounded bg-amber-300 transition-all duration-100" :style="{ width: `${slideProgress}%` }" />
+                            <div class="mt-5 flex flex-wrap gap-2">
+                                <Link v-if="activeHeroEvent.id" :href="eventHref(activeHeroEvent)" class="rounded-md bg-[#e5b84b] px-4 py-2 text-sm font-black text-[#18231d]">
+                                    Ver evento
+                                </Link>
+                                <button type="button" class="rounded-md border border-white/20 px-4 py-2 text-sm font-black text-white hover:bg-white hover:text-[#214c38]" @click="scrollTo('#eventos')">
+                                    Ver agenda
+                                </button>
+                            </div>
+
+                            <div v-if="heroEvents.length > 1" class="mt-5 flex gap-2">
+                                <button
+                                    v-for="(event, index) in heroEvents"
+                                    :key="event.id || event.title"
+                                    type="button"
+                                    class="h-2.5 flex-1 rounded-full transition"
+                                    :class="activeHeroSlide === index ? 'bg-[#e5b84b]' : 'bg-white/25 hover:bg-white/50'"
+                                    :aria-label="`Mostrar evento ${index + 1}`"
+                                    @click="selectHeroSlide(index)"
+                                />
+                            </div>
                         </div>
                     </div>
+                </aside>
+
+                <aside v-else class="reveal rounded-lg border border-[#d8e2d5] bg-white/80 p-6 shadow-xl shadow-black/10">
+                    <p class="text-xs font-black uppercase tracking-[0.18em] text-[#9a7621]">Próximos eventos</p>
+                    <h2 class="mt-2 text-3xl font-black text-[#17241d]">Ainda não há próximos eventos publicados.</h2>
+                    <p class="mt-3 leading-relaxed text-[#536458]">Quando forem criados e publicados no backoffice, aparecem aqui automaticamente em formato slider.</p>
+                    <button type="button" class="mt-5 rounded-md bg-[#214c38] px-4 py-2 font-black text-white" @click="scrollTo('#eventos')">
+                        Ver agenda
+                    </button>
                 </aside>
             </div>
         </section>
 
-        <section id="eventos" class="relative overflow-hidden bg-[#eef5ff] py-16 text-slate-950">
-            <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400 to-transparent" aria-hidden="true" />
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <p class="font-black uppercase tracking-[0.2em] text-[#0b4ea2]">Agenda</p>
-                        <h2 class="mt-2 text-4xl font-black">Proximos Eventos</h2>
-                    </div>
-                    <p class="max-w-xl font-semibold text-slate-600">Cartazes, horarios e destaques da associacao.</p>
-                </div>
-
-                <div class="grid gap-6 lg:grid-cols-2">
-                    <article v-for="evento in upcoming" :key="evento.title" class="event-card group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-                        <div class="grid gap-0 md:grid-cols-[260px_1fr]">
-                            <div class="overflow-hidden bg-slate-900">
-                                <img :src="evento.poster" :alt="evento.title" class="h-full min-h-80 w-full object-cover transition duration-700 group-hover:scale-105">
-                            </div>
-                            <div class="p-5 sm:p-6">
-                                <div class="mb-4 flex flex-wrap items-center gap-2">
-                                    <span class="rounded bg-[#0b4ea2] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-white">{{ evento.badge }}</span>
-                                    <span class="font-black text-amber-700">{{ evento.date }}</span>
-                                </div>
-                                <h3 class="text-3xl font-black">{{ evento.title }}</h3>
-                                <p class="mt-1 font-bold text-slate-500">{{ evento.subtitle }} · {{ evento.location }}</p>
-                                <p class="mt-4 leading-relaxed text-slate-700">{{ evento.description }}</p>
-
-                                <div class="mt-5 space-y-3">
-                                    <div v-for="linha in evento.schedule" :key="linha.day" class="rounded-md bg-slate-50 p-3 ring-1 ring-slate-200 transition group-hover:bg-white">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <strong class="text-[#0b4ea2]">{{ linha.day }}</strong>
-                                            <span class="text-sm font-bold uppercase text-slate-500">{{ linha.label }}</span>
-                                        </div>
-                                        <div class="mt-2 flex flex-wrap gap-2">
-                                            <span v-for="item in linha.items" :key="item" class="rounded bg-amber-100 px-2 py-1 text-sm font-black text-amber-900">{{ item }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-                </div>
-            </div>
-        </section>
-
-        <section id="arquivo" class="bg-[#07122C] py-16">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="mb-8">
-                    <p class="font-black uppercase tracking-[0.2em] text-amber-300">Memoria</p>
-                    <h2 class="mt-2 text-4xl font-black">Eventos Antigos</h2>
+        <section id="sobre" class="section-pad bg-white">
+            <div class="mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+                <div class="reveal">
+                    <p class="eyebrow">Sobre nós</p>
+                    <h2 class="section-title">Uma casa local com memória, palco e futuro.</h2>
+                    <p class="mt-5 text-lg leading-relaxed text-[#536458]">
+                        A ARDC Santana é uma associação recreativa, desportiva e cultural. Nasceu da vontade de criar um ponto de encontro para a terra e continua a ser uma casa aberta para sócios, vizinhos, famílias e amigos.
+                    </p>
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-3">
-                    <article v-for="evento in archived" :key="evento.title" class="rounded-lg border border-white/10 bg-white/5 p-5">
-                        <p class="text-sm font-black uppercase tracking-[0.16em] text-amber-300">{{ evento.date }}</p>
-                        <h3 class="mt-3 text-2xl font-black">{{ evento.title }}</h3>
-                        <p class="mt-3 text-sm leading-relaxed text-blue-100">{{ evento.description }}</p>
-                        <div class="mt-5 flex flex-wrap gap-2">
-                            <span v-for="stat in evento.stats" :key="stat" class="rounded bg-white/10 px-3 py-1 text-sm font-bold text-white">{{ stat }}</span>
-                        </div>
+                    <article v-for="pillar in pillars" :key="pillar[0]" class="reveal rounded-lg border border-[#dfe7dc] bg-[#fbfaf4] p-5 transition hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10">
+                        <div class="mb-5 grid h-12 w-12 place-items-center rounded-md bg-[#214c38] text-xl font-black text-white">{{ pillar[0].slice(0, 1) }}</div>
+                        <h3 class="text-2xl font-black text-[#17241d]">{{ pillar[0] }}</h3>
+                        <p class="mt-3 leading-relaxed text-[#5a695f]">{{ pillar[1] }}</p>
                     </article>
                 </div>
             </div>
         </section>
 
-        <footer class="border-t border-white/10 bg-[#040A19] py-8">
-            <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 text-sm font-semibold text-blue-100 lg:px-8">
-                <span class="inline-flex items-center gap-3">
-                    <img :src="associationLogo" alt="" class="h-10 w-10 rounded bg-white object-contain p-1">
-                    Associacao Recreativa Desportiva Cultural de Santana
-                </span>
-                <span>Carvalhal Benfeito</span>
+        <section id="eventos" class="section-pad bg-[#eef4ea]">
+            <div class="mx-auto max-w-7xl px-5 lg:px-8">
+                <div class="reveal mb-8 flex flex-wrap items-end justify-between gap-5">
+                    <div>
+                        <p class="eyebrow">Próximos eventos</p>
+                        <h2 class="section-title">O que está a acontecer na associação.</h2>
+                    </div>
+                    <div v-if="eventTabs.length" class="flex flex-wrap gap-2">
+                        <button
+                            v-for="tab in eventTabs"
+                            :key="tab.key"
+                            type="button"
+                            class="rounded-md border px-4 py-2 text-sm font-black transition"
+                            :class="selectedEventTab === tab.key ? 'border-[#214c38] bg-[#214c38] text-white' : 'border-[#cddac9] bg-white text-[#335041] hover:border-[#214c38]'"
+                            @click="selectedEventTab = tab.key"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="filteredEvents.length" class="grid gap-5 lg:grid-cols-3">
+                    <article v-for="event in filteredEvents" :key="event.id || event.title" class="group overflow-hidden rounded-lg border border-[#d8e2d5] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-[#214c38]/10">
+                        <img :src="event.poster || associationLogo" :alt="event.title" class="aspect-[4/3] w-full bg-[#214c38] object-cover transition duration-700 group-hover:scale-105">
+                        <div class="p-5">
+                            <div class="mb-3 flex flex-wrap items-center gap-2">
+                                <span class="rounded bg-[#e5b84b] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#18231d]">{{ event.badge || 'Evento' }}</span>
+                                <span class="font-black text-[#214c38]">{{ event.date || event.period }}</span>
+                            </div>
+                            <h3 class="text-2xl font-black text-[#17241d]">{{ event.title }}</h3>
+                            <p class="mt-1 font-bold text-[#67756b]">{{ event.location || event.subtitle || 'ARDC Santana' }}</p>
+                            <p class="mt-4 leading-relaxed text-[#536458]">{{ event.description }}</p>
+                            <div class="mt-5 flex flex-wrap gap-2">
+                                <a :href="calendarHref(event)" target="_blank" rel="noreferrer" class="rounded-md bg-[#214c38] px-3 py-2 text-sm font-black text-white">Adicionar ao calendário</a>
+                                <button type="button" class="rounded-md border border-[#214c38]/20 px-3 py-2 text-sm font-black text-[#214c38]" @click="scrollTo('#socios')">Inscrever-me</button>
+                                <Link v-if="event.id" :href="eventHref(event)" class="rounded-md border border-[#214c38]/20 px-3 py-2 text-sm font-black text-[#214c38]">Saber mais</Link>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div v-else class="rounded-lg border border-[#d8e2d5] bg-white p-6 text-[#536458]">
+                    Ainda não existem eventos publicados no backoffice para mostrar nesta área.
+                </div>
+            </div>
+        </section>
+
+        <section class="section-pad bg-[#214c38] text-white">
+            <div class="mx-auto grid max-w-7xl gap-8 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+                <div class="reveal">
+                    <p class="text-xs font-black uppercase tracking-[0.2em] text-[#f0c85b]">Encontra o evento ideal</p>
+                    <h2 class="mt-3 text-4xl font-black sm:text-5xl">O que procuras?</h2>
+                    <div class="mt-6 flex flex-wrap gap-2">
+                        <button
+                            v-for="option in quizOptions"
+                            :key="option"
+                            type="button"
+                            class="rounded-md border px-4 py-2 text-sm font-black transition"
+                            :class="selectedNeed === option ? 'border-[#f0c85b] bg-[#f0c85b] text-[#18231d]' : 'border-white/20 bg-white/10 text-white hover:bg-white/20'"
+                            @click="selectedNeed = option"
+                        >
+                            {{ option }}
+                        </button>
+                    </div>
+                </div>
+
+                <div v-if="recommendedEvents.length" class="grid gap-3">
+                    <article v-for="event in recommendedEvents" :key="event.id || event.title" class="rounded-lg bg-white p-4 text-[#17241d]">
+                        <p class="text-xs font-black uppercase tracking-[0.16em] text-[#9a7621]">{{ event.badge || 'Recomendado' }}</p>
+                        <h3 class="mt-1 text-xl font-black">{{ event.title }}</h3>
+                        <p class="mt-1 text-sm font-bold text-[#647267]">{{ event.date }} · {{ event.location || event.subtitle }}</p>
+                    </article>
+                </div>
+                <div v-else class="rounded-lg bg-white p-4 font-bold text-[#536458]">
+                    Publica eventos no backoffice para ativar recomendações automáticas nesta área.
+                </div>
+            </div>
+        </section>
+
+        <section id="galeria" class="section-pad bg-white">
+            <div class="mx-auto max-w-7xl px-5 lg:px-8">
+                <div class="reveal mb-8">
+                    <p class="eyebrow">Galeria</p>
+                    <h2 class="section-title">Caminhadas, festas, convívios e momentos especiais.</h2>
+                </div>
+
+                <div v-if="galleryItems.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <button
+                        v-for="item in galleryItems"
+                        :key="`${item.caminho}-${item.titulo}`"
+                        type="button"
+                        class="group relative overflow-hidden rounded-lg bg-[#214c38] text-left"
+                        @click="lightboxItem = item"
+                    >
+                        <img :src="item.caminho" :alt="item.titulo || item.event" class="aspect-[4/3] w-full object-cover transition duration-700 group-hover:scale-105">
+                        <span class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-16 text-white">
+                            <span class="block text-xs font-black uppercase tracking-[0.16em] text-[#f0c85b]">{{ item.category }}</span>
+                            <span class="mt-1 block text-lg font-black">{{ item.titulo || item.event }}</span>
+                        </span>
+                    </button>
+                </div>
+
+                <div v-else class="rounded-lg border border-[#dfe7dc] bg-[#fbfaf4] p-6 text-[#536458]">
+                    Ainda não existem fotografias ou cartazes publicados no backoffice.
+                </div>
+            </div>
+        </section>
+
+        <section id="arquivo-fotos" class="section-pad bg-[#fbfaf4]">
+            <div class="mx-auto max-w-7xl px-5 lg:px-8">
+                <div class="reveal mb-8">
+                    <p class="eyebrow">Eventos anteriores</p>
+                    <h2 class="section-title">Fotografias adicionadas pelo backoffice.</h2>
+                </div>
+
+                <div v-if="pastPhotoItems.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <button
+                        v-for="item in pastPhotoItems"
+                        :key="`${item.caminho}-${item.event}`"
+                        type="button"
+                        class="group relative overflow-hidden rounded-lg bg-[#214c38] text-left"
+                        @click="lightboxItem = item"
+                    >
+                        <img :src="item.caminho" :alt="item.titulo || item.event" class="aspect-square w-full object-cover transition duration-700 group-hover:scale-105">
+                        <span class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-3 pt-14 text-white">
+                            <span class="block text-xs font-black uppercase tracking-[0.14em] text-[#f0c85b]">{{ item.date }}</span>
+                            <span class="mt-1 block truncate font-black">{{ item.event }}</span>
+                        </span>
+                    </button>
+                </div>
+
+                <div v-else class="rounded-lg border border-[#dfe7dc] bg-white p-6 text-[#536458]">
+                    Ainda não existem fotografias de eventos anteriores publicadas no backoffice.
+                </div>
+            </div>
+        </section>
+
+        <section id="socios" class="section-pad bg-[#fbfaf4]">
+            <div class="mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+                <div class="reveal">
+                    <p class="eyebrow">Torna-te sócio</p>
+                    <h2 class="section-title">Faz parte da vida da associação.</h2>
+                    <p class="mt-5 text-lg leading-relaxed text-[#536458]">
+                        Ser sócio é participar, apoiar a manutenção da associação, ter acesso a iniciativas e ajudar a manter viva esta casa comunitária.
+                    </p>
+                    <div class="mt-6 grid gap-3">
+                        <div v-for="item in supportOptions" :key="item" class="rounded-md border border-[#dfe7dc] bg-white p-4 font-black text-[#214c38]">{{ item }}</div>
+                    </div>
+                </div>
+
+                <form class="reveal rounded-lg bg-white p-5 shadow-xl shadow-black/10" novalidate @submit.prevent="validateForm">
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <label class="form-field">
+                            Nome
+                            <input v-model="form.name" type="text" autocomplete="name">
+                            <span v-if="errors.name">{{ errors.name }}</span>
+                        </label>
+                        <label class="form-field">
+                            Email
+                            <input v-model="form.email" type="email" autocomplete="email">
+                            <span v-if="errors.email">{{ errors.email }}</span>
+                        </label>
+                        <label class="form-field sm:col-span-2">
+                            Telefone
+                            <input v-model="form.phone" type="tel" autocomplete="tel">
+                            <span v-if="errors.phone">{{ errors.phone }}</span>
+                        </label>
+                        <label class="form-field sm:col-span-2">
+                            Mensagem
+                            <textarea v-model="form.message" rows="5" />
+                            <span v-if="errors.message">{{ errors.message }}</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="mt-5 w-full rounded-md bg-[#214c38] px-5 py-3 font-black text-white transition hover:bg-[#173629]">
+                        Quero ser sócio
+                    </button>
+                    <p v-if="formSent" class="mt-4 rounded-md bg-[#eef4ea] p-3 text-sm font-bold text-[#214c38]">
+                        Obrigado. A tua mensagem ficou pronta para ser encaminhada pela associação.
+                    </p>
+                </form>
+            </div>
+        </section>
+
+        <section class="bg-[#17241d] py-14 text-white">
+            <div class="mx-auto max-w-7xl px-5 lg:px-8">
+                <div class="reveal rounded-lg border border-white/10 p-6 md:p-8">
+                    <p class="text-2xl font-black md:text-4xl">A tua participação ajuda a manter viva a nossa associação.</p>
+                    <div class="mt-6 flex flex-wrap gap-2">
+                        <span v-for="item in supportOptions" :key="item" class="rounded-md bg-white/10 px-4 py-2 text-sm font-black text-white">{{ item }}</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section-pad bg-white">
+            <div class="mx-auto max-w-4xl px-5 lg:px-8">
+                <div class="reveal mb-8">
+                    <p class="eyebrow">Perguntas frequentes</p>
+                    <h2 class="section-title">Respostas rápidas para participar melhor.</h2>
+                </div>
+                <div class="space-y-3">
+                    <article v-for="(faq, index) in faqs" :key="faq[0]" class="reveal rounded-lg border border-[#dfe7dc]">
+                        <button type="button" class="flex w-full items-center justify-between gap-4 p-4 text-left font-black text-[#17241d]" @click="openFaq = openFaq === index ? null : index">
+                            {{ faq[0] }}
+                            <span class="text-2xl text-[#214c38]">{{ openFaq === index ? '-' : '+' }}</span>
+                        </button>
+                        <p v-if="openFaq === index" class="px-4 pb-4 leading-relaxed text-[#536458]">{{ faq[1] }}</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="contactos" class="section-pad bg-[#eef4ea]">
+            <div class="mx-auto grid max-w-7xl gap-8 px-5 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
+                <div class="reveal">
+                    <p class="eyebrow">Contactos</p>
+                    <h2 class="section-title">Fala connosco ou passa pela associação.</h2>
+                    <div class="mt-6 space-y-3 text-lg font-bold text-[#536458]">
+                        <p>Santana, Carvalhal Benfeito, Caldas da Rainha</p>
+                        <p><a :href="`mailto:${contactEmail}`" class="text-[#214c38]">{{ contactEmail }}</a></p>
+                    </div>
+                    <div class="mt-6 flex flex-wrap gap-3">
+                        <a href="https://www.facebook.com/ardcsantana" target="_blank" rel="noreferrer" class="rounded-md bg-[#214c38] px-4 py-2 font-black text-white">Facebook</a>
+                        <a href="https://www.instagram.com/ardcsantana/" target="_blank" rel="noreferrer" class="rounded-md bg-[#e5b84b] px-4 py-2 font-black text-[#18231d]">Instagram</a>
+                    </div>
+                </div>
+
+                <div class="reveal overflow-hidden rounded-lg border border-[#d8e2d5] bg-white shadow-xl shadow-black/10">
+                    <iframe
+                        title="Localização da ARDC Santana"
+                        class="h-[420px] w-full"
+                        loading="lazy"
+                        src="https://www.google.com/maps?q=Santana%20Carvalhal%20Benfeito%20Caldas%20da%20Rainha&output=embed"
+                    />
+                </div>
+            </div>
+        </section>
+
+        <footer class="bg-[#17241d] py-8 text-white">
+            <div class="mx-auto grid max-w-7xl gap-6 px-5 md:grid-cols-[1fr_auto] lg:px-8">
+                <div>
+                    <div class="flex items-center gap-3 font-black">
+                        <img :src="associationLogo" alt="" class="h-11 w-11 rounded-md bg-white object-contain p-1">
+                        ARDC Santana
+                    </div>
+                    <p class="mt-3 text-sm font-semibold text-white/70">Juntos mantemos viva a nossa associação.</p>
+                </div>
+                <div class="flex flex-wrap gap-3 text-sm font-black md:justify-end">
+                    <button v-for="link in navLinks" :key="link[0]" type="button" class="text-white/75 hover:text-[#f0c85b]" @click="scrollTo(link[1])">{{ link[0] }}</button>
+                </div>
             </div>
         </footer>
+
+        <Transition name="lightbox">
+            <div v-if="lightboxItem" class="fixed inset-0 z-[60] grid place-items-center bg-black/80 p-5" @click.self="lightboxItem = null">
+                <div class="max-w-4xl overflow-hidden rounded-lg bg-white">
+                    <img :src="lightboxItem.caminho" :alt="lightboxItem.titulo || lightboxItem.event" class="max-h-[76vh] w-full object-contain bg-black">
+                    <div class="flex items-center justify-between gap-4 p-4">
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-[0.16em] text-[#9a7621]">{{ lightboxItem.category }}</p>
+                            <h3 class="text-xl font-black text-[#17241d]">{{ lightboxItem.titulo || lightboxItem.event }}</h3>
+                        </div>
+                        <button type="button" class="rounded-md bg-[#214c38] px-4 py-2 font-black text-white" @click="lightboxItem = null">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
     </main>
 </template>
 
 <style scoped>
-.hero-copy {
-    animation: rise-in 760ms ease-out both;
+.section-pad {
+    padding-bottom: 5rem;
+    padding-top: 5rem;
 }
 
-.hero-slider {
-    animation: float-in 900ms ease-out 120ms both;
+.eyebrow {
+    color: #9a7621;
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
 }
 
-.stat-line {
-    animation: fade-up 620ms ease-out both;
+.section-title {
+    color: #17241d;
+    font-size: clamp(2.25rem, 5vw, 4rem);
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1;
+    margin-top: 0.75rem;
 }
 
-.stat-line:nth-child(2) {
-    animation-delay: 90ms;
-}
-
-.stat-line:nth-child(3) {
-    animation-delay: 180ms;
-}
-
-.slider-button {
-    position: absolute;
-    top: 50%;
+.hero-nav-button {
     display: grid;
     height: 2.75rem;
-    width: 2.75rem;
-    transform: translateY(-50%);
     place-items: center;
+    width: 2.75rem;
     border-radius: 999px;
-    border: 1px solid rgb(255 255 255 / 0.3);
-    background: rgb(4 16 31 / 0.72);
-    color: white;
+    background: rgb(255 255 255 / 0.88);
+    color: #214c38;
     font-size: 2rem;
     font-weight: 900;
     line-height: 1;
-    box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
-    transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+    transition: transform 180ms ease, background 180ms ease;
 }
 
-.slider-button:hover {
-    transform: translateY(-50%) scale(1.06);
-    background: rgb(251 191 36);
-    color: #04101f;
+.hero-nav-button:hover {
+    background: #e5b84b;
+    transform: scale(1.06);
 }
 
-.poster-slide-enter-active,
-.poster-slide-leave-active {
-    transition: opacity 360ms ease, transform 520ms cubic-bezier(0.22, 1, 0.36, 1), filter 360ms ease;
+.menu-icon,
+.menu-icon::before,
+.menu-icon::after {
+    background: currentColor;
+    border-radius: 999px;
+    content: '';
+    display: block;
+    height: 2px;
+    transition: transform 180ms ease, opacity 180ms ease;
+    width: 1.3rem;
 }
 
-.poster-slide-enter-from {
+.menu-icon::before {
+    transform: translateY(-7px);
+}
+
+.menu-icon::after {
+    transform: translateY(5px);
+}
+
+.menu-icon.open {
+    background: transparent;
+}
+
+.menu-icon.open::before {
+    transform: translateY(2px) rotate(45deg);
+}
+
+.menu-icon.open::after {
+    transform: translateY(0) rotate(-45deg);
+}
+
+.form-field {
+    color: #214c38;
+    display: grid;
+    font-size: 0.9rem;
+    font-weight: 900;
+    gap: 0.45rem;
+}
+
+.form-field input,
+.form-field textarea {
+    border: 1px solid #cddac9;
+    border-radius: 0.5rem;
+    color: #17241d;
+    font-weight: 700;
+    width: 100%;
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+    border-color: #214c38;
+    box-shadow: 0 0 0 3px rgb(33 76 56 / 0.12);
+    outline: none;
+}
+
+.form-field span {
+    color: #a33a2b;
+    font-size: 0.8rem;
+}
+
+.reveal {
     opacity: 0;
-    transform: translateX(2rem) rotateY(-16deg) scale(0.96);
-    filter: blur(10px);
+    transform: translateY(20px);
+    transition: opacity 600ms ease, transform 600ms ease;
 }
 
-.poster-slide-leave-to {
+.reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.mobile-menu-enter-active,
+.mobile-menu-leave-active,
+.lightbox-enter-active,
+.lightbox-leave-active,
+.hero-bg-enter-active,
+.hero-bg-leave-active,
+.hero-slide-enter-active,
+.hero-slide-leave-active {
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.mobile-menu-enter-from,
+.mobile-menu-leave-to {
     opacity: 0;
-    transform: translateX(-1.5rem) rotateY(10deg) scale(0.98);
-    filter: blur(8px);
+    transform: translateY(-0.75rem);
 }
 
-.event-card {
-    animation: fade-up 720ms ease-out both;
-    transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+.lightbox-enter-from,
+.lightbox-leave-to {
+    opacity: 0;
+    transform: scale(0.98);
 }
 
-.event-card:nth-child(2) {
-    animation-delay: 110ms;
+.hero-bg-enter-from,
+.hero-bg-leave-to,
+.hero-slide-enter-from,
+.hero-slide-leave-to {
+    opacity: 0;
 }
 
-.event-card:hover {
-    transform: translateY(-6px);
-    border-color: rgb(14 116 144 / 0.28);
-    box-shadow: 0 24px 65px rgb(15 23 42 / 0.16);
+.hero-slide-enter-from {
+    transform: translateX(1rem) scale(1.02);
 }
 
-@keyframes rise-in {
-    from {
-        opacity: 0;
-        transform: translateY(28px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes float-in {
-    from {
-        opacity: 0;
-        transform: translateY(34px) scale(0.96);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-@keyframes fade-up {
-    from {
-        opacity: 0;
-        transform: translateY(18px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.hero-slide-leave-to {
+    transform: translateX(-1rem) scale(0.98);
 }
 </style>

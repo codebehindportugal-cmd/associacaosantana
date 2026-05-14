@@ -4,6 +4,7 @@ use App\Http\Controllers\BarController;
 use App\Http\Controllers\CaixaDiariaController;
 use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EventoController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MesaController;
 use App\Http\Controllers\PedidoController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
 Route::post('/pos/login', [PosLoginController::class, 'store'])->name('pos.login.store');
@@ -66,6 +68,7 @@ Route::get('/secao/acompanhamentos', [SecaoController::class, 'acompanhamentos']
 Route::get('/secao/servico', [SecaoController::class, 'servico'])->name('secao.servico');
 Route::get('/secao/bar', [SecaoController::class, 'bar'])->name('secao.bar');
 Route::patch('/secao/items/{pedidoItem}/pronto', [SecaoController::class, 'pronto'])->name('secao.items.pronto');
+Route::patch('/secao/pedidos/{pedido}/retirar', [SecaoController::class, 'retirar'])->name('secao.pedidos.retirar');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -81,6 +84,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('mesas/{mesa}/libertar', [MesaController::class, 'libertar'])->name('mesas.libertar');
     Route::patch('reservas/{reserva}/sentar', [ReservaController::class, 'sentar'])->name('reservas.sentar');
     Route::resource('reservas', ReservaController::class);
+    Route::resource('eventos', EventoController::class)->except(['create']);
+    Route::post('eventos/{evento}/media', [EventoController::class, 'storeMedia'])->name('eventos.media.store');
+    Route::delete('eventos/media/{media}', [EventoController::class, 'destroyMedia'])->name('eventos.media.destroy');
     Route::get('relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
     Route::get('relatorios/periodo', [RelatorioController::class, 'porPeriodo'])->name('relatorios.periodo');
     Route::get('relatorios/exportar', [RelatorioController::class, 'exportarPDF'])->name('relatorios.pdf');
