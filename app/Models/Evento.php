@@ -21,6 +21,7 @@ class Evento extends Model
         'badge',
         'descricao',
         'cartaz',
+        'facebook_post_url',
         'programa',
         'estado',
         'destaque',

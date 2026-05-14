@@ -19,6 +19,7 @@ const form = useForm({
     localizacao: props.evento.localizacao ?? '',
     badge: props.evento.badge ?? '',
     descricao: props.evento.descricao ?? '',
+    facebook_post_url: props.evento.facebook_post_url ?? '',
     estado: props.evento.estado ?? 'publicado',
     destaque: Boolean(props.evento.destaque),
     ordem: props.evento.ordem ?? 0,
@@ -94,6 +95,7 @@ const apagarMedia = (media) => {
                     <input v-model="form.data_fim" type="date" class="rounded-md border-slate-300">
                     <input v-model="form.periodo" placeholder="Periodo" class="rounded-md border-slate-300">
                     <input v-model="form.badge" placeholder="Etiqueta" class="rounded-md border-slate-300">
+                    <input v-model="form.facebook_post_url" type="url" placeholder="URL do post do Facebook" class="rounded-md border-slate-300 md:col-span-2">
                     <select v-model="form.estado" class="rounded-md border-slate-300">
                         <option value="publicado">Publicado</option>
                         <option value="rascunho">Rascunho</option>

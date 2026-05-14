@@ -88,6 +88,16 @@ const mediaSeguinte = () => {
                     <p class="mt-2 text-lg font-bold text-amber-200">{{ evento.subtitulo || evento.localizacao }}</p>
                     <p class="mt-5 max-w-3xl leading-relaxed text-slate-200">{{ evento.descricao || 'Sem descricao registada.' }}</p>
 
+                    <a
+                        v-if="evento.facebook_post_url"
+                        :href="evento.facebook_post_url"
+                        target="_blank"
+                        rel="noreferrer"
+                        class="mt-5 inline-flex rounded-md bg-blue-500 px-4 py-2 text-sm font-black text-white hover:bg-blue-400"
+                    >
+                        Ver post do Facebook
+                    </a>
+
                     <div class="mt-8 grid gap-3 sm:grid-cols-3">
                         <div class="rounded-md bg-white/10 p-4">
                             <p class="text-xs font-black uppercase text-slate-400">Data</p>

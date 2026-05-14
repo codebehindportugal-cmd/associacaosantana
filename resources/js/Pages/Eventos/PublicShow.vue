@@ -12,6 +12,16 @@ const activeLightbox = ref(null);
 const media = computed(() => props.evento.media ?? []);
 const photos = computed(() => media.value.filter((item) => item.tipo === 'foto'));
 const videos = computed(() => media.value.filter((item) => item.tipo === 'video'));
+const facebookEmbedUrl = computed(() => {
+    if (!props.evento.facebook_post_url) return null;
+
+    const url = new URL('https://www.facebook.com/plugins/post.php');
+    url.searchParams.set('href', props.evento.facebook_post_url);
+    url.searchParams.set('show_text', 'true');
+    url.searchParams.set('width', '500');
+
+    return url.toString();
+});
 const slides = computed(() => {
     const eventMedia = media.value.map((item) => ({
         ...item,
@@ -95,7 +105,7 @@ const closeLightbox = () => {
                         </div>
                         <div class="rounded-md bg-white/10 p-4">
                             <p class="text-xs font-black uppercase text-white/55">Memórias</p>
-                            <p class="mt-1 font-black">{{ media.length }} ficheiros</p>
+                            <p class="mt-1 font-black">{{ facebookEmbedUrl ? 'Facebook' : `${media.length} ficheiros` }}</p>
                         </div>
                     </div>
                 </div>
@@ -134,7 +144,34 @@ const closeLightbox = () => {
             </div>
         </section>
 
-        <section class="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+        <section v-if="facebookEmbedUrl" class="bg-white">
+            <div class="mx-auto grid max-w-7xl gap-8 px-5 py-14 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
+                <div>
+                    <p class="text-xs font-black uppercase tracking-[0.18em] text-[#9a7621]">Facebook</p>
+                    <h2 class="mt-2 text-4xl font-black text-[#17241d]">Fotos e vídeos no post original.</h2>
+                    <p class="mt-4 leading-relaxed text-[#536458]">
+                        As memórias deste evento estão alojadas no Facebook, para manter o site mais leve e rápido.
+                    </p>
+                    <a :href="evento.facebook_post_url" target="_blank" rel="noreferrer" class="mt-6 inline-flex rounded-md bg-[#214c38] px-5 py-3 font-black text-white">
+                        Abrir no Facebook
+                    </a>
+                </div>
+
+                <div class="overflow-hidden rounded-lg border border-[#dfe7dc] bg-[#f4f7f1] p-4">
+                    <iframe
+                        :src="facebookEmbedUrl"
+                        title="Post do Facebook do evento"
+                        class="mx-auto min-h-[560px] w-full max-w-[500px] border-0"
+                        scrolling="no"
+                        frameborder="0"
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                        allowfullscreen
+                    />
+                </div>
+            </div>
+        </section>
+
+        <section v-if="!facebookEmbedUrl" class="mx-auto max-w-7xl px-5 py-14 lg:px-8">
             <div class="mb-8">
                 <p class="text-xs font-black uppercase tracking-[0.18em] text-[#9a7621]">Fotografias</p>
                 <h2 class="mt-2 text-4xl font-black text-[#17241d]">Momentos registados durante o evento.</h2>
@@ -159,7 +196,7 @@ const closeLightbox = () => {
             </div>
         </section>
 
-        <section class="bg-white">
+        <section v-if="!facebookEmbedUrl" class="bg-white">
             <div class="mx-auto max-w-7xl px-5 py-14 lg:px-8">
                 <div class="mb-8">
                     <p class="text-xs font-black uppercase tracking-[0.18em] text-[#9a7621]">Vídeos</p>
