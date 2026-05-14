@@ -21,8 +21,10 @@ const uploadMedia = (event) => {
     const ficheiros = Array.from(event.target.files ?? []);
     if (!ficheiros.length) return;
 
-    router.post(route('eventos.media.store', props.evento.id), { ficheiros }, {
-        forceFormData: true,
+    const data = new FormData();
+    ficheiros.forEach((ficheiro) => data.append('ficheiros[]', ficheiro));
+
+    router.post(route('eventos.media.store', props.evento.id), data, {
         preserveScroll: true,
         onFinish: () => {
             event.target.value = '';

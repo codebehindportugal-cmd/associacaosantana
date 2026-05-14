@@ -95,12 +95,14 @@ class EventoController extends Controller
             'ficheiros.*' => ['file', 'mimes:jpg,jpeg,png,webp,mp4,mov,webm', 'max:51200'],
         ]);
 
+        $ordemInicial = $evento->media()->count();
+
         foreach ($request->file('ficheiros', []) as $index => $ficheiro) {
             $evento->media()->create([
                 'tipo' => str_starts_with((string) $ficheiro->getMimeType(), 'video/') ? 'video' : 'foto',
                 'caminho' => $this->moverUpload($ficheiro, 'events/uploads'),
                 'titulo' => pathinfo($ficheiro->getClientOriginalName(), PATHINFO_FILENAME),
-                'ordem' => $evento->media()->count() + $index,
+                'ordem' => $ordemInicial + $index,
             ]);
         }
 
