@@ -1,5 +1,5 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const props = defineProps({
@@ -18,7 +18,7 @@ const activeHeroSlide = ref(0);
 const lightboxItem = ref(null);
 const openFaq = ref(0);
 const formSent = ref(false);
-const form = ref({
+const form = useForm({
     name: '',
     email: '',
     phone: '',
@@ -169,20 +169,23 @@ const previousHeroSlide = () => selectHeroSlide(activeHeroSlide.value - 1);
 const validateForm = () => {
     errors.value = {};
 
-    if (!form.value.name.trim()) errors.value.name = 'Indica o teu nome.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email)) errors.value.email = 'Indica um email válido.';
-    if (!form.value.phone.trim()) errors.value.phone = 'Indica um telefone.';
-    if (form.value.message.trim().length < 8) errors.value.message = 'Escreve uma mensagem curta.';
+    if (!form.name.trim()) errors.value.name = 'Indica o teu nome.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.value.email = 'Indica um email válido.';
+    if (!form.phone.trim()) errors.value.phone = 'Indica um telefone.';
+    if (form.message.trim().length < 8) errors.value.message = 'Escreve uma mensagem curta.';
 
     if (Object.keys(errors.value).length) return;
 
-    formSent.value = true;
-    form.value = {
-        name: '',
-        email: '',
-        phone: '',
-        message: '',
-    };
+    form.post(route('contacto.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            formSent.value = true;
+            form.reset();
+        },
+        onError: () => {
+            errors.value = form.errors;
+        },
+    });
 };
 
 onMounted(() => {
@@ -554,11 +557,11 @@ onBeforeUnmount(() => {
                             <span v-if="errors.message">{{ errors.message }}</span>
                         </label>
                     </div>
-                    <button type="submit" class="mt-5 w-full rounded-md bg-[#214c38] px-5 py-3 font-black text-white transition hover:bg-[#173629]">
-                        Quero ser sócio
+                    <button type="submit" class="mt-5 w-full rounded-md bg-[#214c38] px-5 py-3 font-black text-white transition hover:bg-[#173629] disabled:cursor-not-allowed disabled:opacity-60" :disabled="form.processing">
+                        {{ form.processing ? 'A enviar...' : 'Quero ser sócio' }}
                     </button>
                     <p v-if="formSent" class="mt-4 rounded-md bg-[#eef4ea] p-3 text-sm font-bold text-[#214c38]">
-                        Obrigado. A tua mensagem ficou pronta para ser encaminhada pela associação.
+                        Obrigado. A tua mensagem foi enviada para a associação e receberás uma confirmação por email.
                     </p>
                 </form>
             </div>

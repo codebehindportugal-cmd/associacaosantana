@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BarController;
 use App\Http\Controllers\CaixaDiariaController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventoController;
@@ -22,6 +23,7 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+Route::post('/contacto', ContactController::class)->name('contacto.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
