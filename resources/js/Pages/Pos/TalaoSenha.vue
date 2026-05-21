@@ -5,12 +5,12 @@ import { onMounted } from 'vue';
 const props = defineProps({ pedido: Object });
 const data = () => new Date(props.pedido.created_at).toLocaleString('pt-PT');
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
-onMounted(() => setTimeout(() => window.print(), 300));
+onMounted(() => setTimeout(() => window.print(), 500));
 </script>
 
 <template>
-    <main class="min-h-screen bg-slate-100 p-4 text-slate-950 print:bg-white print:p-0">
-        <section class="mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
+    <main class="thermal-ticket-page min-h-screen bg-slate-100 p-4 text-slate-950 print:bg-white print:p-0">
+        <section class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
             <h1 class="text-center text-lg font-black">Associação de Santana</h1>
             <div class="text-center font-black">{{ pedido.ponto_bar }}</div>
             <div class="my-4 border-y border-dashed border-slate-400 py-4 text-center">
@@ -32,9 +32,55 @@ onMounted(() => setTimeout(() => window.print(), 300));
             <div class="mt-4 text-center text-xs">{{ data() }}</div>
             <div class="mt-3 text-center font-black">Obrigado!</div>
         </section>
-        <div class="mx-auto mt-4 flex max-w-[300px] gap-2 print:hidden">
+        <div class="no-print mx-auto mt-4 flex max-w-[300px] gap-2 print:hidden">
             <button class="flex-1 rounded-xl bg-slate-900 px-4 py-3 font-black text-white" @click="window.print()">Imprimir</button>
             <Link :href="route('pos.index')" class="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white">Nova Senha</Link>
         </div>
     </main>
 </template>
+
+<style>
+@page {
+    size: 80mm auto;
+    margin: 0;
+}
+
+@media print {
+    html,
+    body,
+    #app {
+        width: 80mm;
+        min-width: 80mm;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+    }
+
+    body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    .thermal-ticket-page {
+        width: 80mm;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+    }
+
+    .thermal-ticket {
+        width: 72mm;
+        max-width: 72mm;
+        margin: 0;
+        padding: 3mm 2mm;
+        box-shadow: none;
+    }
+
+    .no-print,
+    .no-print *,
+    a[href]::after {
+        display: none !important;
+        content: none !important;
+    }
+}
+</style>
