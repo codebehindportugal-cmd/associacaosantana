@@ -1,11 +1,22 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const props = defineProps({ pedido: Object });
 const ticketRef = ref(null);
 const data = () => new Date(props.pedido.created_at).toLocaleString('pt-PT');
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
+const itemsImpressao = computed(() =>
+    (props.pedido.items || []).flatMap((item) => {
+        const quantidade = Math.max(1, Math.floor(Number(item.quantidade || 1)));
+
+        return Array.from({ length: quantidade }, (_, index) => ({
+            ...item,
+            printKey: `${item.id}-${index}`,
+        }));
+    }),
+);
+
 const updatePrintPageSize = () => {
     if (!ticketRef.value) return;
 
@@ -55,9 +66,9 @@ onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageS
                 <div class="ticket-number text-5xl font-black">#{{ pedido.numero_senha || pedido.id }}</div>
             </div>
             <div class="ticket-items space-y-2 text-lg font-black">
-                <div v-for="item in pedido.items" :key="item.id" class="flex justify-between gap-2">
+                <div v-for="item in itemsImpressao" :key="item.printKey" class="flex justify-between gap-2">
                     <span>{{ item.produto?.nome }}</span>
-                    <span>{{ item.quantidade }} un.</span>
+                    <span>1 un.</span>
                 </div>
             </div>
             <div class="ticket-totals mt-4 border-t border-dashed border-slate-400 pt-3 text-sm">
