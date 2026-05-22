@@ -8,11 +8,11 @@ onMounted(() => setTimeout(() => window.print(), 500));
 </script>
 
 <template>
-    <main class="thermal-ticket-page min-h-screen bg-slate-100 p-4 text-slate-950 print:bg-white print:p-0">
+    <main class="thermal-ticket-page min-h-screen bg-slate-100 p-4 text-slate-950 print:min-h-0 print:bg-white print:p-0">
         <section class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
             <h1 class="text-center text-lg font-black">Associação de Santana</h1>
             <div class="text-center font-black">BAR</div>
-            <div class="my-4 border-y border-dashed border-slate-400 py-4 text-center"><div class="text-xs uppercase">Número da senha</div><div class="text-6xl font-black">#{{ pedido.numero_senha || pedido.id }}</div></div>
+            <div class="my-4 border-y border-dashed border-slate-400 py-4 text-center"><div class="text-xs uppercase">Número da senha</div><div class="ticket-number text-5xl font-black">#{{ pedido.numero_senha || pedido.id }}</div></div>
             <div class="space-y-2 text-lg font-black">
                 <div v-for="item in pedido.items" :key="item.id" class="flex justify-between gap-2">
                     <span>{{ item.produto?.nome }}</span>
@@ -43,9 +43,12 @@ onMounted(() => setTimeout(() => window.print(), 500));
     #app {
         width: 80mm;
         min-width: 80mm;
+        height: auto !important;
+        min-height: auto !important;
         margin: 0;
         padding: 0;
         background: #fff;
+        overflow: visible;
     }
 
     body {
@@ -55,17 +58,29 @@ onMounted(() => setTimeout(() => window.print(), 500));
 
     .thermal-ticket-page {
         width: 80mm;
-        min-height: 0;
+        height: auto !important;
+        min-height: auto !important;
         margin: 0;
         padding: 0;
+        break-after: avoid;
+        page-break-after: avoid;
     }
 
     .thermal-ticket {
-        width: 72mm;
-        max-width: 72mm;
+        box-sizing: border-box;
+        width: 80mm;
+        max-width: 80mm;
+        height: auto !important;
+        min-height: auto !important;
         margin: 0;
-        padding: 3mm 2mm;
+        padding: 2mm 1mm;
         box-shadow: none;
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    .ticket-number {
+        line-height: 1;
     }
 
     .no-print,
