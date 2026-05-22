@@ -1,15 +1,52 @@
 ﻿<script setup>
 import { Link } from '@inertiajs/vue3';
-import { onMounted } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 const props = defineProps({ pedido: Object });
+const ticketRef = ref(null);
 const data = () => new Date(props.pedido.created_at).toLocaleString('pt-PT');
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
-onMounted(() => setTimeout(() => window.print(), 500));
+const updatePrintPageSize = () => {
+    if (!ticketRef.value) return;
+
+    const heightPx = ticketRef.value.getBoundingClientRect().height;
+    const heightMm = Math.max(35, Math.ceil((heightPx * 25.4) / 96) + 2);
+    let style = document.getElementById('thermal-ticket-page-size');
+
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'thermal-ticket-page-size';
+        document.head.appendChild(style);
+    }
+
+    style.textContent = `
+        @page { size: 80mm ${heightMm}mm; margin: 0; }
+        @media print {
+            html, body, #app, .thermal-ticket-page {
+                height: ${heightMm}mm !important;
+                min-height: 0 !important;
+                max-height: ${heightMm}mm !important;
+            }
+        }
+    `;
+};
+
+const printTicket = async () => {
+    await nextTick();
+    updatePrintPageSize();
+    window.print();
+};
+
+onMounted(() => {
+    window.addEventListener('beforeprint', updatePrintPageSize);
+    setTimeout(printTicket, 500);
+});
+
+onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageSize));
 </script>
 
 <template>
     <main class="thermal-ticket-page min-h-screen bg-slate-100 p-4 text-slate-950 print:min-h-0 print:bg-white print:p-0">
-        <section class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
+        <section ref="ticketRef" class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
             <h1 class="text-center text-lg font-black">Associação de Santana</h1>
             <div class="text-center font-black">BAR</div>
             <div class="ticket-token my-4 border-y border-dashed border-slate-400 py-4 text-center"><div class="text-xs uppercase">Número da senha</div><div class="ticket-number text-5xl font-black">#{{ pedido.numero_senha || pedido.id }}</div></div>
@@ -27,7 +64,7 @@ onMounted(() => setTimeout(() => window.print(), 500));
             </div>
             <div class="ticket-date mt-4 text-center text-xs">{{ data() }}</div><div class="ticket-thanks mt-3 text-center font-black">Obrigado!</div>
         </section>
-        <div class="no-print mx-auto mt-4 flex max-w-[300px] gap-2 print:hidden"><button class="flex-1 rounded-xl bg-slate-900 px-4 py-3 font-black text-white" @click="window.print()">Imprimir</button><Link :href="route('bar.prepago')" class="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white">Novo Pedido</Link></div>
+        <div class="no-print mx-auto mt-4 flex max-w-[300px] gap-2 print:hidden"><button class="flex-1 rounded-xl bg-slate-900 px-4 py-3 font-black text-white" @click="printTicket">Imprimir</button><Link :href="route('bar.prepago')" class="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white">Novo Pedido</Link></div>
     </main>
 </template>
 
