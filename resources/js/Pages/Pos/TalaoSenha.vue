@@ -13,24 +13,24 @@ onMounted(() => setTimeout(() => window.print(), 500));
         <section class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
             <h1 class="text-center text-lg font-black">Associação de Santana</h1>
             <div class="text-center font-black">{{ pedido.ponto_bar }}</div>
-            <div class="my-4 border-y border-dashed border-slate-400 py-4 text-center">
+            <div class="ticket-token my-4 border-y border-dashed border-slate-400 py-4 text-center">
                 <div class="text-xs uppercase">Número da senha</div>
                 <div class="ticket-number text-5xl font-black">#{{ pedido.numero_senha || pedido.id }}</div>
             </div>
-            <div class="space-y-2 text-lg font-black">
+            <div class="ticket-items space-y-2 text-lg font-black">
                 <div v-for="item in pedido.items" :key="item.id" class="flex justify-between gap-2">
                     <span>{{ item.produto?.nome }}</span>
                     <span>{{ item.quantidade }} un.</span>
                 </div>
             </div>
-            <div class="mt-4 border-t border-dashed border-slate-400 pt-3 text-sm">
+            <div class="ticket-totals mt-4 border-t border-dashed border-slate-400 pt-3 text-sm">
                 <div class="flex justify-between"><span>Total</span><strong>{{ euros(pedido.total) }}</strong></div>
                 <div class="flex justify-between"><span>Recebido</span><strong>{{ euros(pedido.valor_recebido) }}</strong></div>
                 <div class="flex justify-between"><span>Troco</span><strong>{{ euros(pedido.troco) }}</strong></div>
                 <div v-if="Number(pedido.doacao || 0) > 0" class="flex justify-between"><span>Doação</span><strong>{{ euros(pedido.doacao) }}</strong></div>
             </div>
-            <div class="mt-4 text-center text-xs">{{ data() }}</div>
-            <div class="mt-3 text-center font-black">Obrigado!</div>
+            <div class="ticket-date mt-4 text-center text-xs">{{ data() }}</div>
+            <div class="ticket-thanks mt-3 text-center font-black">Obrigado!</div>
         </section>
         <div class="no-print mx-auto mt-4 flex max-w-[300px] gap-2 print:hidden">
             <button class="flex-1 rounded-xl bg-slate-900 px-4 py-3 font-black text-white" @click="window.print()">Imprimir</button>
@@ -51,7 +51,7 @@ onMounted(() => setTimeout(() => window.print(), 500));
     #app {
         width: 80mm;
         min-width: 80mm;
-        height: auto !important;
+        height: fit-content !important;
         min-height: auto !important;
         margin: 0;
         padding: 0;
@@ -60,13 +60,19 @@ onMounted(() => setTimeout(() => window.print(), 500));
     }
 
     body {
+        display: inline-block;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
+    #app {
+        display: inline-block;
+    }
+
     .thermal-ticket-page {
+        display: inline-block;
         width: 80mm;
-        height: auto !important;
+        height: fit-content !important;
         min-height: auto !important;
         margin: 0;
         padding: 0;
@@ -78,10 +84,10 @@ onMounted(() => setTimeout(() => window.print(), 500));
         box-sizing: border-box;
         width: 80mm;
         max-width: 80mm;
-        height: auto !important;
+        height: fit-content !important;
         min-height: auto !important;
         margin: 0;
-        padding: 2mm 1mm;
+        padding: 1mm;
         box-shadow: none;
         break-after: avoid;
         page-break-after: avoid;
@@ -89,6 +95,31 @@ onMounted(() => setTimeout(() => window.print(), 500));
 
     .ticket-number {
         line-height: 1;
+    }
+
+    .ticket-token {
+        margin-top: 2mm !important;
+        margin-bottom: 2mm !important;
+        padding-top: 2mm !important;
+        padding-bottom: 2mm !important;
+    }
+
+    .ticket-items > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 1mm !important;
+    }
+
+    .ticket-totals {
+        margin-top: 2mm !important;
+        padding-top: 1.5mm !important;
+    }
+
+    .ticket-date {
+        margin-top: 2mm !important;
+    }
+
+    .ticket-thanks {
+        margin-top: 1.5mm !important;
+        margin-bottom: 0 !important;
     }
 
     .no-print,
