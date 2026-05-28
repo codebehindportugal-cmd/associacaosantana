@@ -217,12 +217,12 @@ onBeforeUnmount(() => {
         >
     </Head>
 
-    <main class="min-h-screen scroll-smooth bg-[#fbfaf4] text-[#18231d]">
-        <header class="fixed inset-x-0 top-0 z-50 border-b border-black/5 bg-[#fbfaf4]/90 backdrop-blur-xl">
-            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8">
+    <main class="min-h-screen scroll-smooth bg-white text-slate-900">
+        <header class="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
                 <Link href="/" class="flex items-center gap-3">
-                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-12 w-12 rounded-md bg-white object-contain p-1 shadow-sm">
-                    <span class="text-sm font-black uppercase tracking-[0.18em] text-[#214c38]">ARDC Santana</span>
+                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-10 w-10 rounded bg-slate-100 object-contain p-2">
+                    <span class="text-base font-semibold text-slate-900">ARDC Santana</span>
                 </Link>
 
                 <div class="hidden items-center gap-1 md:flex">
@@ -230,29 +230,29 @@ onBeforeUnmount(() => {
                         v-for="link in navLinks"
                         :key="link[0]"
                         type="button"
-                        class="rounded-md px-4 py-2 text-sm font-bold text-[#335041] transition hover:bg-[#e8efe5]"
+                        class="rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-slate-900 hover:bg-slate-100"
                         @click="scrollTo(link[1])"
                     >
                         {{ link[0] }}
                     </button>
                 </div>
 
-                <a :href="`mailto:${contactEmail}`" class="hidden rounded-md bg-[#214c38] px-4 py-2 text-sm font-black text-white transition hover:bg-[#173629] lg:inline-flex">
+                <a :href="`mailto:${contactEmail}`" class="hidden rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 lg:inline-flex">
                     Contactar
                 </a>
 
-                <button type="button" class="grid h-11 w-11 place-items-center rounded-md bg-[#214c38] text-white md:hidden" aria-label="Abrir menu" @click="menuOpen = !menuOpen">
+                <button type="button" class="grid h-10 w-10 place-items-center rounded-md text-slate-600 hover:bg-slate-100 md:hidden" aria-label="Abrir menu" @click="menuOpen = !menuOpen">
                     <span class="menu-icon" :class="{ open: menuOpen }" />
                 </button>
             </nav>
 
             <Transition name="mobile-menu">
-                <div v-if="menuOpen" class="border-t border-black/5 bg-[#fbfaf4] px-5 py-4 shadow-xl md:hidden">
+                <div v-if="menuOpen" class="border-t border-slate-200 bg-white px-5 py-4 md:hidden">
                     <button
                         v-for="link in navLinks"
                         :key="link[0]"
                         type="button"
-                        class="block w-full rounded-md px-3 py-3 text-left font-black text-[#214c38] hover:bg-[#e8efe5]"
+                        class="block w-full rounded-md px-3 py-2 text-left font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                         @click="scrollTo(link[1])"
                     >
                         {{ link[0] }}
@@ -261,213 +261,179 @@ onBeforeUnmount(() => {
             </Transition>
         </header>
 
-        <section class="relative isolate overflow-hidden pt-24">
-            <Transition name="hero-bg" mode="out-in">
-                <img :key="activeHeroEvent?.poster || santaAnaImage" :src="activeHeroEvent?.poster || santaAnaImage" alt="" class="absolute inset-0 h-full w-full object-cover opacity-25" aria-hidden="true">
-            </Transition>
-            <div class="absolute inset-0 bg-[linear-gradient(90deg,#fbfaf4_0%,rgba(251,250,244,0.94)_43%,rgba(251,250,244,0.72)_100%)]" />
-
-            <div class="relative mx-auto grid min-h-[calc(100vh-6rem)] max-w-7xl items-center gap-10 px-5 pb-16 pt-10 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
-                <div class="reveal max-w-3xl">
-                    <p class="inline-flex rounded-md bg-[#e5b84b] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#18231d]">
-                        Associação Recreativa, Desportiva e Cultural
-                    </p>
-                    <h1 class="mt-5 text-5xl font-black leading-[0.95] text-[#17241d] sm:text-7xl lg:text-8xl">
+        <section class="relative isolate overflow-hidden pt-20 pb-16">
+            <div class="absolute inset-0 -z-10 bg-gradient-to-b from-slate-50 to-white" />
+            
+            <div class="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-7xl items-center gap-12 px-5 lg:grid-cols-[1fr_1fr] lg:px-8">
+                <div class="reveal">
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Bem-vindo à associação</p>
+                    <h1 class="mt-3 text-5xl font-bold leading-tight text-slate-900 sm:text-6xl lg:text-7xl">
                         ARDC Santana
                     </h1>
-                    <p class="mt-5 text-2xl font-black text-[#214c38] sm:text-3xl">
-                        Cultura, desporto e comunidade em Santana
+                    <p class="mt-5 text-xl text-slate-600">
+                        Cultura, desporto e comunidade. Uma casa feita por pessoas, para pessoas.
                     </p>
-                    <p class="mt-6 max-w-2xl text-lg font-semibold leading-relaxed text-[#4b5d52]">
-                        Uma associação feita por pessoas, para pessoas. Juntamos gerações através de eventos, convívios, caminhadas, festas e iniciativas locais.
+                    <p class="mt-4 max-w-2xl text-slate-600 leading-relaxed">
+                        Fundada em 1991, somos um ponto de encontro para eventos, convívios, caminhadas e iniciativas que mantêm Santana viva e unida.
                     </p>
 
                     <div class="mt-8 flex flex-wrap gap-3">
-                        <button type="button" class="rounded-md bg-[#214c38] px-5 py-3 font-black text-white shadow-lg shadow-[#214c38]/20 transition hover:-translate-y-1 hover:bg-[#173629]" @click="scrollTo('#eventos')">
+                        <button type="button" class="rounded-lg bg-slate-900 px-6 py-3 font-semibold text-white transition hover:bg-slate-800" @click="scrollTo('#eventos')">
                             Ver próximos eventos
                         </button>
-                        <button type="button" class="rounded-md bg-[#e5b84b] px-5 py-3 font-black text-[#18231d] transition hover:-translate-y-1 hover:bg-[#f0c85b]" @click="scrollTo('#socios')">
+                        <button type="button" class="rounded-lg border border-slate-300 px-6 py-3 font-semibold text-slate-900 transition hover:bg-slate-50" @click="scrollTo('#socios')">
                             Tornar-me sócio
-                        </button>
-                        <button type="button" class="rounded-md border border-[#214c38]/25 px-5 py-3 font-black text-[#214c38] transition hover:-translate-y-1 hover:bg-white" @click="scrollTo('#contactos')">
-                            Contactar associação
                         </button>
                     </div>
 
-                    <div class="mt-10 grid gap-3 sm:grid-cols-3">
-                        <div class="rounded-md border border-[#214c38]/10 bg-white/80 p-4 shadow-sm">
-                            <strong class="block text-2xl text-[#214c38]">1991</strong>
-                            <span class="text-sm font-bold text-[#647267]">Fundada em 10 de Abril</span>
+                    <div class="mt-10 grid gap-4 sm:grid-cols-3">
+                        <div class="rounded-lg bg-slate-50 p-4 border border-slate-200">
+                            <div class="text-2xl font-bold text-slate-900">1991</div>
+                            <div class="text-sm text-slate-600">Fundada</div>
                         </div>
-                        <div class="rounded-md border border-[#214c38]/10 bg-white/80 p-4 shadow-sm">
-                            <strong class="block text-2xl text-[#214c38]">Santana</strong>
-                            <span class="text-sm font-bold text-[#647267]">Carvalhal Benfeito</span>
+                        <div class="rounded-lg bg-slate-50 p-4 border border-slate-200">
+                            <div class="text-2xl font-bold text-slate-900">Santana</div>
+                            <div class="text-sm text-slate-600">Carvalhal Benfeito</div>
                         </div>
-                        <div class="rounded-md border border-[#214c38]/10 bg-white/80 p-4 shadow-sm">
-                            <strong class="block text-2xl text-[#214c38]">Comunidade</strong>
-                            <span class="text-sm font-bold text-[#647267]">Cultura, desporto e convívio</span>
+                        <div class="rounded-lg bg-slate-50 p-4 border border-slate-200">
+                            <div class="text-2xl font-bold text-slate-900">Comunidade</div>
+                            <div class="text-sm text-slate-600">Cultura e desporto</div>
                         </div>
                     </div>
                 </div>
 
-                <aside v-if="activeHeroEvent" class="reveal relative">
-                    <div class="overflow-hidden rounded-lg bg-[#214c38] shadow-2xl shadow-[#214c38]/25">
-                        <div class="relative bg-[#17241d]">
-                            <Transition name="hero-slide" mode="out-in">
-                                <img :key="activeHeroEvent.poster" :src="activeHeroEvent.poster || associationLogo" :alt="activeHeroEvent.title" class="aspect-[4/3] w-full object-cover">
-                            </Transition>
+                <aside v-if="activeHeroEvent" class="reveal hidden lg:block">
+                    <div class="overflow-hidden rounded-lg shadow-lg border border-slate-200">
+                        <Transition name="hero-slide" mode="out-in">
+                            <img :key="activeHeroEvent.poster" :src="activeHeroEvent.poster || associationLogo" :alt="activeHeroEvent.title" class="aspect-[4/3] w-full object-cover">
+                        </Transition>
 
-                            <div v-if="heroEvents.length > 1" class="absolute inset-x-3 top-3 flex items-center justify-between">
-                                <button type="button" class="hero-nav-button" aria-label="Evento anterior" @click="previousHeroSlide">‹</button>
-                                <button type="button" class="hero-nav-button" aria-label="Evento seguinte" @click="nextHeroSlide">›</button>
-                            </div>
-                        </div>
+                        <div class="p-5 bg-white">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">{{ activeHeroEvent.badge || 'Próximo evento' }}</p>
+                            <h2 class="mt-2 text-2xl font-bold text-slate-900">{{ activeHeroEvent.title }}</h2>
+                            <p class="mt-2 font-medium text-slate-600">{{ activeHeroEvent.date }} · {{ activeHeroEvent.location || activeHeroEvent.subtitle }}</p>
+                            <p class="mt-3 text-slate-600 leading-relaxed text-sm">{{ activeHeroEvent.description }}</p>
 
-                        <div class="p-5 text-white">
-                            <p class="text-xs font-black uppercase tracking-[0.18em] text-[#f0c85b]">{{ activeHeroEvent.badge || 'Próximo evento' }}</p>
-                            <h2 class="mt-2 text-3xl font-black">{{ activeHeroEvent.title }}</h2>
-                            <p class="mt-2 font-bold text-white/75">{{ activeHeroEvent.date }} · {{ activeHeroEvent.location || activeHeroEvent.subtitle }}</p>
-                            <p class="mt-4 leading-relaxed text-white/85">{{ activeHeroEvent.description }}</p>
-
-                            <div class="mt-5 flex flex-wrap gap-2">
-                                <Link v-if="activeHeroEvent.id" :href="eventHref(activeHeroEvent)" class="rounded-md bg-[#e5b84b] px-4 py-2 text-sm font-black text-[#18231d]">
-                                    Ver evento
-                                </Link>
-                                <button type="button" class="rounded-md border border-white/20 px-4 py-2 text-sm font-black text-white hover:bg-white hover:text-[#214c38]" @click="scrollTo('#eventos')">
-                                    Ver agenda
-                                </button>
-                            </div>
-
-                            <div v-if="heroEvents.length > 1" class="mt-5 flex gap-2">
+                            <div v-if="heroEvents.length > 1" class="mt-4 flex gap-2">
                                 <button
                                     v-for="(event, index) in heroEvents"
                                     :key="event.id || event.title"
                                     type="button"
-                                    class="h-2.5 flex-1 rounded-full transition"
-                                    :class="activeHeroSlide === index ? 'bg-[#e5b84b]' : 'bg-white/25 hover:bg-white/50'"
-                                    :aria-label="`Mostrar evento ${index + 1}`"
+                                    class="h-2 flex-1 rounded-full transition bg-slate-200"
+                                    :class="activeHeroSlide === index ? 'bg-slate-900' : 'hover:bg-slate-300'"
                                     @click="selectHeroSlide(index)"
                                 />
                             </div>
                         </div>
                     </div>
                 </aside>
-
-                <aside v-else class="reveal rounded-lg border border-[#d8e2d5] bg-white/80 p-6 shadow-xl shadow-black/10">
-                    <p class="text-xs font-black uppercase tracking-[0.18em] text-[#9a7621]">Próximos eventos</p>
-                    <h2 class="mt-2 text-3xl font-black text-[#17241d]">Ainda não há próximos eventos publicados.</h2>
-                    <p class="mt-3 leading-relaxed text-[#536458]">Quando forem criados e publicados no backoffice, aparecem aqui automaticamente em formato slider.</p>
-                    <button type="button" class="mt-5 rounded-md bg-[#214c38] px-4 py-2 font-black text-white" @click="scrollTo('#eventos')">
-                        Ver agenda
-                    </button>
-                </aside>
             </div>
         </section>
 
-        <section id="sobre" class="section-pad bg-white">
-            <div class="mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-                <div class="reveal">
-                    <p class="eyebrow">Sobre nós</p>
-                    <h2 class="section-title">Uma casa local com memória, palco e futuro.</h2>
-                    <p class="mt-5 text-lg leading-relaxed text-[#536458]">
+        <section id="sobre" class="py-16 bg-slate-50 border-y border-slate-200">
+            <div class="mx-auto max-w-7xl px-5 lg:px-8">
+                <div class="reveal max-w-3xl">
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Sobre nós</p>
+                    <h2 class="mt-3 text-4xl font-bold text-slate-900">Uma casa local com memória e futuro.</h2>
+                    <p class="mt-5 text-lg text-slate-600 leading-relaxed">
                         A ARDC Santana é uma associação recreativa, desportiva e cultural. Nasceu da vontade de criar um ponto de encontro para a terra e continua a ser uma casa aberta para sócios, vizinhos, famílias e amigos.
                     </p>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-3">
-                    <article v-for="pillar in pillars" :key="pillar[0]" class="reveal rounded-lg border border-[#dfe7dc] bg-[#fbfaf4] p-5 transition hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10">
-                        <div class="mb-5 grid h-12 w-12 place-items-center rounded-md bg-[#214c38] text-xl font-black text-white">{{ pillar[0].slice(0, 1) }}</div>
-                        <h3 class="text-2xl font-black text-[#17241d]">{{ pillar[0] }}</h3>
-                        <p class="mt-3 leading-relaxed text-[#5a695f]">{{ pillar[1] }}</p>
+                <div class="mt-10 grid gap-6 sm:grid-cols-3">
+                    <article v-for="pillar in pillars" :key="pillar[0]" class="reveal rounded-lg bg-white p-6 border border-slate-200 hover:shadow-md transition">
+                        <div class="inline-block mb-3 text-2xl font-bold text-slate-900">{{ pillar[0].slice(0, 1) }}</div>
+                        <h3 class="text-xl font-bold text-slate-900">{{ pillar[0] }}</h3>
+                        <p class="mt-3 text-slate-600 leading-relaxed">{{ pillar[1] }}</p>
                     </article>
                 </div>
             </div>
         </section>
 
-        <section id="eventos" class="section-pad bg-[#eef4ea]">
+        <section id="eventos" class="py-16">
             <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal mb-8 flex flex-wrap items-end justify-between gap-5">
-                    <div>
-                        <p class="eyebrow">Próximos eventos</p>
-                        <h2 class="section-title">O que está a acontecer na associação.</h2>
-                    </div>
-                    <div v-if="eventTabs.length" class="flex flex-wrap gap-2">
-                        <button
-                            v-for="tab in eventTabs"
-                            :key="tab.key"
-                            type="button"
-                            class="rounded-md border px-4 py-2 text-sm font-black transition"
-                            :class="selectedEventTab === tab.key ? 'border-[#214c38] bg-[#214c38] text-white' : 'border-[#cddac9] bg-white text-[#335041] hover:border-[#214c38]'"
-                            @click="selectedEventTab = tab.key"
-                        >
-                            {{ tab.label }}
-                        </button>
-                    </div>
+                <div class="reveal mb-8">
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Próximos eventos</p>
+                    <h2 class="mt-3 text-4xl font-bold text-slate-900">O que está a acontecer.</h2>
                 </div>
 
-                <div v-if="filteredEvents.length" class="grid gap-5 lg:grid-cols-3">
-                    <article v-for="event in filteredEvents" :key="event.id || event.title" class="group overflow-hidden rounded-lg border border-[#d8e2d5] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-[#214c38]/10">
-                        <img :src="event.poster || associationLogo" :alt="event.title" class="aspect-[4/3] w-full bg-[#214c38] object-cover transition duration-700 group-hover:scale-105">
-                        <div class="p-5">
-                            <div class="mb-3 flex flex-wrap items-center gap-2">
-                                <span class="rounded bg-[#e5b84b] px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-[#18231d]">{{ event.badge || 'Evento' }}</span>
-                                <span class="font-black text-[#214c38]">{{ event.date || event.period }}</span>
+                <div v-if="eventTabs.length" class="mb-8 flex flex-wrap gap-2">
+                    <button
+                        v-for="tab in eventTabs"
+                        :key="tab.key"
+                        type="button"
+                        class="rounded-lg px-4 py-2 text-sm font-medium border transition"
+                        :class="selectedEventTab === tab.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'"
+                        @click="selectedEventTab = tab.key"
+                    >
+                        {{ tab.label }}
+                    </button>
+                </div>
+
+                <div v-if="filteredEvents.length" class="grid gap-6 lg:grid-cols-3">
+                    <article v-for="event in filteredEvents" :key="event.id || event.title" class="reveal group overflow-hidden rounded-lg bg-white border border-slate-200 hover:shadow-lg transition">
+                        <img :src="event.poster || associationLogo" :alt="event.title" class="aspect-[4/3] w-full object-cover group-hover:scale-105 transition duration-300">
+                        <div class="p-6">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded">{{ event.badge || 'Evento' }}</span>
+                                <span class="text-sm font-medium text-slate-600">{{ event.date }}</span>
                             </div>
-                            <h3 class="text-2xl font-black text-[#17241d]">{{ event.title }}</h3>
-                            <p class="mt-1 font-bold text-[#67756b]">{{ event.location || event.subtitle || 'ARDC Santana' }}</p>
-                            <p class="mt-4 leading-relaxed text-[#536458]">{{ event.description }}</p>
-                            <div class="mt-5 flex flex-wrap gap-2">
-                                <a :href="calendarHref(event)" target="_blank" rel="noreferrer" class="rounded-md bg-[#214c38] px-3 py-2 text-sm font-black text-white">Adicionar ao calendário</a>
-                                <button type="button" class="rounded-md border border-[#214c38]/20 px-3 py-2 text-sm font-black text-[#214c38]" @click="scrollTo('#socios')">Inscrever-me</button>
-                                <Link v-if="event.id" :href="eventHref(event)" class="rounded-md border border-[#214c38]/20 px-3 py-2 text-sm font-black text-[#214c38]">Saber mais</Link>
+                            <h3 class="text-xl font-bold text-slate-900">{{ event.title }}</h3>
+                            <p class="mt-1 text-sm font-medium text-slate-600">{{ event.location || event.subtitle }}</p>
+                            <p class="mt-3 text-slate-600 text-sm leading-relaxed">{{ event.description }}</p>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <a :href="calendarHref(event)" target="_blank" rel="noreferrer" class="text-sm font-medium text-slate-900 hover:underline">+ Adicionar calendário</a>
+                                <Link v-if="event.id" :href="eventHref(event)" class="text-sm font-medium text-slate-900 hover:underline">+ Saber mais</Link>
                             </div>
                         </div>
                     </article>
                 </div>
 
-                <div v-else class="rounded-lg border border-[#d8e2d5] bg-white p-6 text-[#536458]">
-                    Ainda não existem eventos publicados no backoffice para mostrar nesta área.
+                <div v-else class="rounded-lg bg-slate-50 p-8 text-center border border-slate-200">
+                    <p class="text-slate-600">Ainda não há eventos publicados. Consulta-nos em breve.</p>
                 </div>
             </div>
         </section>
 
-        <section class="section-pad bg-[#214c38] text-white">
-            <div class="mx-auto grid max-w-7xl gap-8 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
-                <div class="reveal">
-                    <p class="text-xs font-black uppercase tracking-[0.2em] text-[#f0c85b]">Encontra o evento ideal</p>
-                    <h2 class="mt-3 text-4xl font-black sm:text-5xl">O que procuras?</h2>
-                    <div class="mt-6 flex flex-wrap gap-2">
-                        <button
-                            v-for="option in quizOptions"
-                            :key="option"
-                            type="button"
-                            class="rounded-md border px-4 py-2 text-sm font-black transition"
-                            :class="selectedNeed === option ? 'border-[#f0c85b] bg-[#f0c85b] text-[#18231d]' : 'border-white/20 bg-white/10 text-white hover:bg-white/20'"
-                            @click="selectedNeed = option"
-                        >
-                            {{ option }}
-                        </button>
+        <section class="py-16 bg-slate-900 text-white">
+            <div class="mx-auto max-w-7xl px-5 lg:px-8">
+                <div class="reveal grid lg:grid-cols-[0.9fr_1.1fr] gap-8">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Encontra o evento ideal</p>
+                        <h2 class="mt-3 text-4xl font-bold">O que procuras?</h2>
+                        <div class="mt-6 flex flex-wrap gap-2">
+                            <button
+                                v-for="option in quizOptions"
+                                :key="option"
+                                type="button"
+                                class="rounded-lg border px-4 py-2 text-sm font-medium transition"
+                                :class="selectedNeed === option ? 'bg-slate-100 text-slate-900 border-slate-100' : 'border-slate-700 text-white hover:border-slate-600'"
+                                @click="selectedNeed = option"
+                            >
+                                {{ option }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="recommendedEvents.length" class="grid gap-3">
+                        <article v-for="event in recommendedEvents" :key="event.id || event.title" class="rounded-lg bg-slate-800 p-4 border border-slate-700">
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">{{ event.badge || 'Recomendado' }}</p>
+                            <h3 class="mt-2 text-lg font-bold">{{ event.title }}</h3>
+                            <p class="mt-1 text-sm text-slate-300">{{ event.date }} · {{ event.location || event.subtitle }}</p>
+                        </article>
+                    </div>
+                    <div v-else class="rounded-lg bg-slate-800 p-4 border border-slate-700 font-medium text-slate-300">
+                        Publica eventos no backoffice para ativar recomendações.
                     </div>
                 </div>
-
-                <div v-if="recommendedEvents.length" class="grid gap-3">
-                    <article v-for="event in recommendedEvents" :key="event.id || event.title" class="rounded-lg bg-white p-4 text-[#17241d]">
-                        <p class="text-xs font-black uppercase tracking-[0.16em] text-[#9a7621]">{{ event.badge || 'Recomendado' }}</p>
-                        <h3 class="mt-1 text-xl font-black">{{ event.title }}</h3>
-                        <p class="mt-1 text-sm font-bold text-[#647267]">{{ event.date }} · {{ event.location || event.subtitle }}</p>
-                    </article>
-                </div>
-                <div v-else class="rounded-lg bg-white p-4 font-bold text-[#536458]">
-                    Publica eventos no backoffice para ativar recomendações automáticas nesta área.
-                </div>
             </div>
         </section>
 
-        <section id="galeria" class="section-pad bg-white">
+        <section id="galeria" class="py-16">
             <div class="mx-auto max-w-7xl px-5 lg:px-8">
                 <div class="reveal mb-8">
-                    <p class="eyebrow">Galeria</p>
-                    <h2 class="section-title">Caminhadas, festas, convívios e momentos especiais.</h2>
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Galeria</p>
+                    <h2 class="mt-3 text-4xl font-bold text-slate-900">Momentos especiais.</h2>
                 </div>
 
                 <div v-if="galleryItems.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -475,143 +441,112 @@ onBeforeUnmount(() => {
                         v-for="item in galleryItems"
                         :key="`${item.caminho}-${item.titulo}`"
                         type="button"
-                        class="group relative overflow-hidden rounded-lg bg-[#214c38] text-left"
+                        class="group relative overflow-hidden rounded-lg"
                         @click="lightboxItem = item"
                     >
-                        <img :src="item.caminho" :alt="item.titulo || item.event" class="aspect-[4/3] w-full object-cover transition duration-700 group-hover:scale-105">
-                        <span class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-16 text-white">
-                            <span class="block text-xs font-black uppercase tracking-[0.16em] text-[#f0c85b]">{{ item.category }}</span>
-                            <span class="mt-1 block text-lg font-black">{{ item.titulo || item.event }}</span>
-                        </span>
+                        <img :src="item.caminho" :alt="item.titulo || item.event" class="aspect-[4/3] w-full object-cover group-hover:scale-105 transition duration-300">
+                        <span class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition" />
                     </button>
                 </div>
 
-                <div v-else class="rounded-lg border border-[#dfe7dc] bg-[#fbfaf4] p-6 text-[#536458]">
-                    Ainda não existem fotografias ou cartazes publicados no backoffice.
+                <div v-else class="rounded-lg bg-slate-50 p-8 text-center border border-slate-200">
+                    <p class="text-slate-600">Ainda não há fotografias publicadas.</p>
                 </div>
             </div>
         </section>
 
-        <section id="arquivo-fotos" class="section-pad bg-[#fbfaf4]">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal mb-8">
-                    <p class="eyebrow">Eventos anteriores</p>
-                    <h2 class="section-title">Fotografias adicionadas pelo backoffice.</h2>
-                </div>
-
-                <div v-if="pastPhotoItems.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <button
-                        v-for="item in pastPhotoItems"
-                        :key="`${item.caminho}-${item.event}`"
-                        type="button"
-                        class="group relative overflow-hidden rounded-lg bg-[#214c38] text-left"
-                        @click="lightboxItem = item"
-                    >
-                        <img :src="item.caminho" :alt="item.titulo || item.event" class="aspect-square w-full object-cover transition duration-700 group-hover:scale-105">
-                        <span class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-3 pt-14 text-white">
-                            <span class="block text-xs font-black uppercase tracking-[0.14em] text-[#f0c85b]">{{ item.date }}</span>
-                            <span class="mt-1 block truncate font-black">{{ item.event }}</span>
-                        </span>
-                    </button>
-                </div>
-
-                <div v-else class="rounded-lg border border-[#dfe7dc] bg-white p-6 text-[#536458]">
-                    Ainda não existem fotografias de eventos anteriores publicadas no backoffice.
-                </div>
-            </div>
-        </section>
-
-        <section id="socios" class="section-pad bg-[#fbfaf4]">
+        <section id="socios" class="py-16 bg-slate-50 border-y border-slate-200">
             <div class="mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
                 <div class="reveal">
-                    <p class="eyebrow">Torna-te sócio</p>
-                    <h2 class="section-title">Faz parte da vida da associação.</h2>
-                    <p class="mt-5 text-lg leading-relaxed text-[#536458]">
-                        Ser sócio é participar, apoiar a manutenção da associação, ter acesso a iniciativas e ajudar a manter viva esta casa comunitária.
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Torna-te sócio</p>
+                    <h2 class="mt-3 text-4xl font-bold text-slate-900">Faz parte da associação.</h2>
+                    <p class="mt-5 text-lg text-slate-600 leading-relaxed">
+                        Ser sócio é participar, apoiar a manutenção da associação e ajudar a manter viva esta casa comunitária.
                     </p>
                     <div class="mt-6 grid gap-3">
-                        <div v-for="item in supportOptions" :key="item" class="rounded-md border border-[#dfe7dc] bg-white p-4 font-black text-[#214c38]">{{ item }}</div>
+                        <div v-for="item in supportOptions" :key="item" class="rounded-lg bg-white p-4 font-medium text-slate-600 border border-slate-200">{{ item }}</div>
                     </div>
                 </div>
 
-                <form class="reveal rounded-lg bg-white p-5 shadow-xl shadow-black/10" novalidate @submit.prevent="validateForm">
+                <form class="reveal rounded-lg bg-white p-6 shadow-md border border-slate-200" novalidate @submit.prevent="validateForm">
+                    <h3 class="text-xl font-bold text-slate-900 mb-4">Contacta-nos</h3>
                     <div class="grid gap-4 sm:grid-cols-2">
                         <label class="form-field">
-                            Nome
-                            <input v-model="form.name" type="text" autocomplete="name">
-                            <span v-if="errors.name">{{ errors.name }}</span>
+                            <span class="block text-sm font-medium text-slate-700 mb-1">Nome</span>
+                            <input v-model="form.name" type="text" autocomplete="name" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-slate-900 focus:ring-1 focus:ring-slate-900">
+                            <span v-if="errors.name" class="text-xs text-red-600 mt-1">{{ errors.name }}</span>
                         </label>
                         <label class="form-field">
-                            Email
-                            <input v-model="form.email" type="email" autocomplete="email">
-                            <span v-if="errors.email">{{ errors.email }}</span>
+                            <span class="block text-sm font-medium text-slate-700 mb-1">Email</span>
+                            <input v-model="form.email" type="email" autocomplete="email" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-slate-900 focus:ring-1 focus:ring-slate-900">
+                            <span v-if="errors.email" class="text-xs text-red-600 mt-1">{{ errors.email }}</span>
                         </label>
                         <label class="form-field sm:col-span-2">
-                            Telefone
-                            <input v-model="form.phone" type="tel" autocomplete="tel">
-                            <span v-if="errors.phone">{{ errors.phone }}</span>
+                            <span class="block text-sm font-medium text-slate-700 mb-1">Telefone</span>
+                            <input v-model="form.phone" type="tel" autocomplete="tel" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-slate-900 focus:ring-1 focus:ring-slate-900">
+                            <span v-if="errors.phone" class="text-xs text-red-600 mt-1">{{ errors.phone }}</span>
                         </label>
                         <label class="form-field sm:col-span-2">
-                            Mensagem
-                            <textarea v-model="form.message" rows="5" />
-                            <span v-if="errors.message">{{ errors.message }}</span>
+                            <span class="block text-sm font-medium text-slate-700 mb-1">Mensagem</span>
+                            <textarea v-model="form.message" rows="4" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-slate-900 focus:ring-1 focus:ring-slate-900"></textarea>
+                            <span v-if="errors.message" class="text-xs text-red-600 mt-1">{{ errors.message }}</span>
                         </label>
                     </div>
-                    <button type="submit" class="mt-5 w-full rounded-md bg-[#214c38] px-5 py-3 font-black text-white transition hover:bg-[#173629] disabled:cursor-not-allowed disabled:opacity-60" :disabled="form.processing">
-                        {{ form.processing ? 'A enviar...' : 'Quero ser sócio' }}
+                    <button type="submit" class="mt-4 w-full rounded-lg bg-slate-900 px-5 py-2.5 font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60" :disabled="form.processing">
+                        {{ form.processing ? 'A enviar...' : 'Enviar' }}
                     </button>
-                    <p v-if="formSent" class="mt-4 rounded-md bg-[#eef4ea] p-3 text-sm font-bold text-[#214c38]">
-                        Obrigado. A tua mensagem foi enviada para a associação e receberás uma confirmação por email.
+                    <p v-if="formSent" class="mt-3 rounded-lg bg-emerald-100 p-3 text-sm font-medium text-emerald-900">
+                        Obrigado. A tua mensagem foi recebida.
                     </p>
                 </form>
             </div>
         </section>
 
-        <section class="bg-[#17241d] py-14 text-white">
+        <section class="py-12 bg-slate-900 text-white border-y border-slate-800">
             <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal rounded-lg border border-white/10 p-6 md:p-8">
-                    <p class="text-2xl font-black md:text-4xl">A tua participação ajuda a manter viva a nossa associação.</p>
-                    <div class="mt-6 flex flex-wrap gap-2">
-                        <span v-for="item in supportOptions" :key="item" class="rounded-md bg-white/10 px-4 py-2 text-sm font-black text-white">{{ item }}</span>
+                <div class="reveal rounded-lg p-6 text-center">
+                    <p class="text-2xl font-bold">A tua participação é importante para a associação.</p>
+                    <div class="mt-4 flex flex-wrap justify-center gap-2">
+                        <span v-for="item in supportOptions" :key="item" class="rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium">{{ item }}</span>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section class="section-pad bg-white">
+        <section class="py-16">
             <div class="mx-auto max-w-4xl px-5 lg:px-8">
                 <div class="reveal mb-8">
-                    <p class="eyebrow">Perguntas frequentes</p>
-                    <h2 class="section-title">Respostas rápidas para participar melhor.</h2>
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">FAQ</p>
+                    <h2 class="mt-3 text-4xl font-bold text-slate-900">Perguntas frequentes.</h2>
                 </div>
                 <div class="space-y-3">
-                    <article v-for="(faq, index) in faqs" :key="faq[0]" class="reveal rounded-lg border border-[#dfe7dc]">
-                        <button type="button" class="flex w-full items-center justify-between gap-4 p-4 text-left font-black text-[#17241d]" @click="openFaq = openFaq === index ? null : index">
+                    <article v-for="(faq, index) in faqs" :key="faq[0]" class="reveal rounded-lg border border-slate-200 bg-white overflow-hidden">
+                        <button type="button" class="flex w-full items-center justify-between gap-4 p-5 text-left font-semibold text-slate-900 hover:bg-slate-50" @click="openFaq = openFaq === index ? null : index">
                             {{ faq[0] }}
-                            <span class="text-2xl text-[#214c38]">{{ openFaq === index ? '-' : '+' }}</span>
+                            <span class="text-xl text-slate-600 flex-shrink-0">{{ openFaq === index ? '−' : '+' }}</span>
                         </button>
-                        <p v-if="openFaq === index" class="px-4 pb-4 leading-relaxed text-[#536458]">{{ faq[1] }}</p>
+                        <p v-if="openFaq === index" class="px-5 pb-5 leading-relaxed text-slate-600 border-t border-slate-200">{{ faq[1] }}</p>
                     </article>
                 </div>
             </div>
         </section>
 
-        <section id="contactos" class="section-pad bg-[#eef4ea]">
+        <section id="contactos" class="py-16 bg-slate-50 border-y border-slate-200">
             <div class="mx-auto grid max-w-7xl gap-8 px-5 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
                 <div class="reveal">
-                    <p class="eyebrow">Contactos</p>
-                    <h2 class="section-title">Fala connosco ou passa pela associação.</h2>
-                    <div class="mt-6 space-y-3 text-lg font-bold text-[#536458]">
-                        <p>Santana, Carvalhal Benfeito, Caldas da Rainha</p>
-                        <p><a :href="`mailto:${contactEmail}`" class="text-[#214c38]">{{ contactEmail }}</a></p>
+                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Contactos</p>
+                    <h2 class="mt-3 text-4xl font-bold text-slate-900">Fala connosco.</h2>
+                    <div class="mt-6 space-y-3 text-slate-600">
+                        <p class="text-lg font-medium">Santana, Carvalhal Benfeito, Caldas da Rainha</p>
+                        <p><a :href="`mailto:${contactEmail}`" class="font-medium text-slate-900 hover:underline">{{ contactEmail }}</a></p>
                     </div>
                     <div class="mt-6 flex flex-wrap gap-3">
-                        <a href="https://www.facebook.com/ardcsantana" target="_blank" rel="noreferrer" class="rounded-md bg-[#214c38] px-4 py-2 font-black text-white">Facebook</a>
-                        <a href="https://www.instagram.com/ardcsantana/" target="_blank" rel="noreferrer" class="rounded-md bg-[#e5b84b] px-4 py-2 font-black text-[#18231d]">Instagram</a>
+                        <a href="https://www.facebook.com/ardcsantana" target="_blank" rel="noreferrer" class="rounded-lg bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-800">Facebook</a>
+                        <a href="https://www.instagram.com/ardcsantana/" target="_blank" rel="noreferrer" class="rounded-lg bg-slate-900 px-4 py-2 font-medium text-white hover:bg-slate-800">Instagram</a>
                     </div>
                 </div>
 
-                <div class="reveal overflow-hidden rounded-lg border border-[#d8e2d5] bg-white shadow-xl shadow-black/10">
+                <div class="reveal overflow-hidden rounded-lg border border-slate-200 shadow-md">
                     <iframe
                         title="Localização da ARDC Santana"
                         class="h-[420px] w-full"
@@ -622,17 +557,17 @@ onBeforeUnmount(() => {
             </div>
         </section>
 
-        <footer class="bg-[#17241d] py-8 text-white">
+        <footer class="bg-slate-900 text-white py-8 border-t border-slate-800">
             <div class="mx-auto grid max-w-7xl gap-6 px-5 md:grid-cols-[1fr_auto] lg:px-8">
                 <div>
-                    <div class="flex items-center gap-3 font-black">
-                        <img :src="associationLogo" alt="" class="h-11 w-11 rounded-md bg-white object-contain p-1">
+                    <div class="flex items-center gap-3 font-semibold">
+                        <img :src="associationLogo" alt="" class="h-10 w-10 rounded bg-slate-700 object-contain p-2">
                         ARDC Santana
                     </div>
-                    <p class="mt-3 text-sm font-semibold text-white/70">Juntos mantemos viva a nossa associação.</p>
+                    <p class="mt-3 text-sm text-slate-400">Juntos mantemos viva a nossa associação.</p>
                 </div>
-                <div class="flex flex-wrap gap-3 text-sm font-black md:justify-end">
-                    <button v-for="link in navLinks" :key="link[0]" type="button" class="text-white/75 hover:text-[#f0c85b]" @click="scrollTo(link[1])">{{ link[0] }}</button>
+                <div class="flex flex-wrap gap-4 text-sm font-medium md:justify-end">
+                    <button v-for="link in navLinks" :key="link[0]" type="button" class="text-slate-400 hover:text-white" @click="scrollTo(link[1])">{{ link[0] }}</button>
                 </div>
             </div>
         </footer>
@@ -643,10 +578,10 @@ onBeforeUnmount(() => {
                     <img :src="lightboxItem.caminho" :alt="lightboxItem.titulo || lightboxItem.event" class="max-h-[76vh] w-full object-contain bg-black">
                     <div class="flex items-center justify-between gap-4 p-4">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-[0.16em] text-[#9a7621]">{{ lightboxItem.category }}</p>
-                            <h3 class="text-xl font-black text-[#17241d]">{{ lightboxItem.titulo || lightboxItem.event }}</h3>
+                            <p class="text-xs font-semibold text-slate-600 uppercase tracking-wide">{{ lightboxItem.category }}</p>
+                            <h3 class="text-lg font-bold text-slate-900">{{ lightboxItem.titulo || lightboxItem.event }}</h3>
                         </div>
-                        <button type="button" class="rounded-md bg-[#214c38] px-4 py-2 font-black text-white" @click="lightboxItem = null">Fechar</button>
+                        <button type="button" class="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white" @click="lightboxItem = null">Fechar</button>
                     </div>
                 </div>
             </div>

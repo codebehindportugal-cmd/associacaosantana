@@ -7,6 +7,7 @@ use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventoController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ImpressoraController;
 use App\Http\Controllers\MesaController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PedidoItemController;
@@ -111,6 +112,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('pedidos/{pedido}/estado', [PedidoController::class, 'atualizarEstado'])->name('pedidos.estado');
     Route::resource('pedido-items', PedidoItemController::class)->parameters(['pedido-items' => 'pedidoItem'])->except(['index', 'create', 'show', 'edit']);
     Route::resource('produtos', ProdutoController::class)->except(['create', 'show', 'edit']);
+    Route::resource('impressoras', ImpressoraController::class)->except(['create', 'show', 'edit']);
     Route::resource('users', UserController::class)->except(['create', 'show']);
     Route::post('users/pos', [UserController::class, 'storePos'])->name('users.pos.store');
     Route::put('users/pos/{pos}', [UserController::class, 'updatePos'])->name('users.pos.update');

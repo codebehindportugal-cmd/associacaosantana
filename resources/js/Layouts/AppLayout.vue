@@ -14,6 +14,7 @@ const links = [
     ['Pedidos', 'pedidos.index', 'pedidos.ver', 'Pedidos'],
     ['Caixas', 'caixa.index', 'caixa.ver', 'Caixas'],
     ['Produtos', 'produtos.index', 'produtos.ver', 'Produtos'],
+    ['Impressoras', 'impressoras.index', null, 'Impressoras'],
     ['Reservas', 'reservas.index', 'reservas.ver', 'Reservas'],
     ['Eventos', 'eventos.index', null, 'Eventos'],
     ['Sócios', 'socios.index', 'socios.ver', 'Sócios'],
