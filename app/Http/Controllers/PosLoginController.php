@@ -30,6 +30,7 @@ class PosLoginController extends Controller
     {
         $data = $request->validate([
             'terminal_id' => ['required', 'exists:pos_sessions,id'],
+            'operador_nome' => ['required', 'string', 'max:255'],
             'pin' => ['required', 'string'],
         ]);
 
@@ -44,6 +45,7 @@ class PosLoginController extends Controller
             'pos_nome' => $terminal->nome,
             'pos_tipo' => $terminal->tipo,
             'pos_localizacao' => $terminal->localizacao,
+            'pos_operador' => $data['operador_nome'],
         ]);
 
         return redirect($this->urlPorTipo($terminal->tipo));
@@ -51,7 +53,7 @@ class PosLoginController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
-        $request->session()->forget(['pos_id', 'pos_nome', 'pos_tipo', 'pos_localizacao']);
+        $request->session()->forget(['pos_id', 'pos_nome', 'pos_tipo', 'pos_localizacao', 'pos_operador']);
 
         return redirect()->route('pos.login');
     }

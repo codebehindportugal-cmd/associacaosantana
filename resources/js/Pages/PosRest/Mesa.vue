@@ -17,6 +17,7 @@ const total = computed(() => (props.pedido?.items ?? []).reduce((s, i) => s + Nu
 const troco = computed(() => Math.max(0, Number(recebido.value || total.value) - total.value));
 const mesaDividida = computed(() => !props.mesa?.mesa_principal_id && props.mesa?.submesas?.length > 0);
 const podeEscolherLugares = computed(() => !props.pedido && !mesaDividida.value && Number(props.mesa?.capacidade ?? 0) > 1);
+const pedidoAutor = computed(() => props.pedido?.operador_nome ?? props.pedido?.user?.name ?? props.pedido?.pos?.nome ?? 'Sem utilizador');
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const secaoClasse = (produto) => ({ bebidas: 'bg-blue-600', cozinha: 'bg-orange-600', comida: 'bg-orange-600', acompanhamentos: 'bg-orange-600', sobremesas: 'bg-purple-600' }[produto.categoria?.secao] || 'bg-gray-700');
 const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
@@ -65,7 +66,7 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                 <div v-if="!pedido" class="mt-6 rounded-lg bg-gray-900 p-4">
                     <p class="mb-4 text-center font-bold text-gray-300">Mesa livre - abre pedido na mesa completa ou numa submesa.</p>
                     <label v-if="podeEscolherLugares" class="mb-4 block font-black">Lugares ocupados
-                        <input v-model="lugaresOcupados" type="number" min="1" :max="mesa.capacidade - 1" class="mt-1 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-white" placeholder="Vazio = mesa completa">
+                        <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-1 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-white" placeholder="Vazio = mesa completa">
                     </label>
                     <button v-if="!mesaDividida" class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="abrirPedido()">ABRIR PEDIDO</button>
                     <div v-if="mesa.submesas?.length" class="mt-4 space-y-2">
@@ -77,6 +78,10 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                 </div>
                 <div v-else>
                     <div class="my-4 inline-flex rounded bg-blue-600 px-3 py-1 text-sm font-black uppercase">{{ pedido.estado }}</div>
+                    <div class="mb-4 rounded-lg bg-gray-900 p-3">
+                        <div class="text-sm font-bold text-gray-400">Pedido feito por</div>
+                        <div class="text-xl font-black">{{ pedidoAutor }}</div>
+                    </div>
                     <div class="space-y-3">
                         <div v-for="item in pedido.items" :key="item.id" class="rounded-lg border bg-gray-900 p-3" :class="item.prioridade ? 'animate-pulse border-amber-500' : 'border-gray-700'">
                             <div class="flex items-start justify-between gap-3"><strong>{{ item.produto?.nome }}</strong><button class="rounded bg-red-700 px-3 py-2 font-black" @click="remover(item)">×</button></div>

@@ -69,6 +69,7 @@ Route::get('/secao/sobremesas', [SecaoController::class, 'sobremesas'])->name('s
 Route::get('/secao/acompanhamentos', [SecaoController::class, 'acompanhamentos'])->name('secao.acompanhamentos');
 Route::get('/secao/servico', [SecaoController::class, 'servico'])->name('secao.servico');
 Route::get('/secao/bar', [SecaoController::class, 'bar'])->name('secao.bar');
+Route::get('/secao/sala/{codigo}', [SecaoController::class, 'sala'])->name('secao.sala');
 Route::patch('/secao/items/{pedidoItem}/pronto', [SecaoController::class, 'pronto'])->name('secao.items.pronto');
 Route::patch('/secao/pedidos/{pedido}/retirar', [SecaoController::class, 'retirar'])->name('secao.pedidos.retirar');
 
@@ -79,6 +80,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('exportar/socios-atraso', [SocioController::class, 'exportarPDF'])->name('socios.pdf');
     Route::resource('cotas', CotaController::class);
     Route::post('cotas/gerar', [CotaController::class, 'gerarCotas'])->name('cotas.gerar');
+    Route::get('sala', [MesaController::class, 'sala'])->name('sala.index');
     Route::resource('mesas', MesaController::class);
     Route::patch('mesas/mapa/guardar', [MesaController::class, 'guardarMapa'])->name('mesas.mapa.guardar');
     Route::post('mesas/{mesa}/dividir', [MesaController::class, 'dividir'])->name('mesas.dividir');
@@ -110,6 +112,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('pedido-items', PedidoItemController::class)->parameters(['pedido-items' => 'pedidoItem'])->except(['index', 'create', 'show', 'edit']);
     Route::resource('produtos', ProdutoController::class)->except(['create', 'show', 'edit']);
     Route::resource('users', UserController::class)->except(['create', 'show']);
+    Route::post('users/pos', [UserController::class, 'storePos'])->name('users.pos.store');
+    Route::put('users/pos/{pos}', [UserController::class, 'updatePos'])->name('users.pos.update');
+    Route::delete('users/pos/{pos}', [UserController::class, 'destroyPos'])->name('users.pos.destroy');
 });
 
 require __DIR__.'/auth.php';

@@ -37,6 +37,11 @@ class Mesa extends Model
         return $this->hasMany(Pedido::class);
     }
 
+    public function pedidosGrupo()
+    {
+        return $this->belongsToMany(Pedido::class, 'pedido_mesa_grupos')->withTimestamps();
+    }
+
     public function mesaPrincipal()
     {
         return $this->belongsTo(Mesa::class, 'mesa_principal_id');

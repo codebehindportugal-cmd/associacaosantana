@@ -21,43 +21,25 @@ class CaixaDiariaController extends Controller
     public function index(Request $request): Response
     {
         $caixas = CaixaDiaria::with('user', 'fechadoPor')
-            ->whereDate('data', today())
+            ->where(function ($query) {
+                $query->whereDate('data', today())
+                    ->orWhere('estado', 'aberta');
+            })
             ->when(! $request->user()->can('bar.ver'), fn ($query) => $query->where('ponto', 'Restaurante'))
             ->orderBy('ponto')
+            ->orderByDesc('data')
             ->get();
-
-        $vendasBar = collect();
-        if ($request->user()->can('bar.ver')) {
-            $vendasBar = Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
-                ->whereDate('created_at', today())
-                ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
-                ->select('ponto_bar', DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
-                ->groupBy('ponto_bar')
-                ->get()
-                ->keyBy(fn ($linha) => $linha->ponto_bar ?: 'Sem ponto definido');
-        }
-
-        $vendasRestaurante = Pedido::where('tipo', 'restaurante')
-            ->whereDate('created_at', today())
-            ->where('estado', 'entregue')
-            ->select(DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
-            ->first();
-
-        $vendas = $vendasBar;
-        $vendas->put('Restaurante', (object) [
-            'total' => $vendasRestaurante?->total ?? 0,
-            'pedidos' => $vendasRestaurante?->pedidos ?? 0,
-        ]);
 
         return Inertia::render('Caixa/Index', [
             'data' => today()->toDateString(),
             'pontos_padrao' => $request->user()->can('bar.ver') ? $this->pontosPadrao() : ['Restaurante'],
-            'caixas' => $caixas->map(function (CaixaDiaria $caixa) use ($vendas) {
-                $venda = $vendas->get($caixa->ponto);
+            'caixas' => $caixas->map(function (CaixaDiaria $caixa) {
+                $venda = $this->vendasDoPonto($caixa);
                 $esperado = (float) $caixa->fundo_maneio + (float) ($venda->total ?? 0);
 
                 return [
                     'id' => $caixa->id,
+                    'data' => $caixa->data->toDateString(),
                     'ponto' => $caixa->ponto,
                     'fundo_maneio' => (float) $caixa->fundo_maneio,
                     'estado' => $caixa->estado,
@@ -85,26 +67,32 @@ class CaixaDiariaController extends Controller
 
         abort_if($data['ponto'] !== 'Restaurante' && ! $request->user()->can('bar.ver'), 403);
 
-        CaixaDiaria::updateOrCreate(
-            ['data' => today()->toDateString(), 'ponto' => $data['ponto']],
-            [
-                'fundo_maneio' => round((float) $data['fundo_maneio'], 2),
-                'estado' => 'aberta',
-                'valor_contado' => null,
-                'diferenca' => 0,
-                'observacoes_fecho' => null,
-                'user_id' => $request->user()->id,
-                'fechado_user_id' => null,
-                'fechado_at' => null,
-            ]
-        );
+        $caixa = CaixaDiaria::abertaParaPonto($data['ponto']);
+
+        if (! $caixa) {
+            $caixa = CaixaDiaria::firstOrNew([
+                'data' => today()->toDateString(),
+                'ponto' => $data['ponto'],
+            ]);
+        }
+
+        $caixa->fill([
+            'fundo_maneio' => round((float) $data['fundo_maneio'], 2),
+            'estado' => 'aberta',
+            'valor_contado' => null,
+            'diferenca' => 0,
+            'observacoes_fecho' => null,
+            'user_id' => $request->user()->id,
+            'fechado_user_id' => null,
+            'fechado_at' => null,
+        ])->save();
 
         return back()->with('success', 'Caixa aberta para '.$data['ponto'].'.');
     }
 
     public function fechar(Request $request, CaixaDiaria $caixa): RedirectResponse
     {
-        abort_unless($caixa->data->isSameDay(today()), 404);
+        abort_unless($caixa->estado === 'aberta', 404);
         abort_if($caixa->ponto !== 'Restaurante' && ! $request->user()->can('bar.ver'), 403);
 
         $data = $request->validate([
@@ -112,8 +100,8 @@ class CaixaDiariaController extends Controller
             'observacoes_fecho' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $vendas = $this->vendasDoPonto($caixa->ponto);
-        $esperado = round((float) $caixa->fundo_maneio + $vendas, 2);
+        $vendas = $this->vendasDoPonto($caixa)->total;
+        $esperado = round((float) $caixa->fundo_maneio + (float) $vendas, 2);
         $valorContado = round((float) $data['valor_contado'], 2);
 
         $caixa->update([
@@ -128,20 +116,24 @@ class CaixaDiariaController extends Controller
         return back()->with('success', 'Caixa fechada para '.$caixa->ponto.'.');
     }
 
-    private function vendasDoPonto(string $ponto): float
+    private function vendasDoPonto(CaixaDiaria $caixa): object
     {
-        if ($ponto === 'Restaurante') {
-            return (float) Pedido::where('tipo', 'restaurante')
-                ->whereDate('created_at', today())
+        if ($caixa->ponto === 'Restaurante') {
+            return Pedido::where('tipo', 'restaurante')
+                ->where('created_at', '>=', $caixa->created_at)
+                ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
                 ->where('estado', 'entregue')
-                ->sum('total');
+                ->select(DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
+                ->first();
         }
 
-        return (float) Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
-            ->whereDate('created_at', today())
-            ->where('ponto_bar', $ponto)
+        return Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
+            ->where('created_at', '>=', $caixa->created_at)
+            ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
+            ->where('ponto_bar', $caixa->ponto)
             ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
-            ->sum('total');
+            ->select(DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
+            ->first();
     }
 
     private function pontosPadrao(): array

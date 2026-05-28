@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 
 const props = defineProps({ terminais: Array, tipoSelecionado: String });
 const escolhido = ref(null);
-const form = useForm({ terminal_id: '', pin: '' });
+const form = useForm({ terminal_id: '', operador_nome: '', pin: '' });
 const icone = (tipo) => ({ bar: 'BAR', cafe: 'CAFE', restaurante: 'REST', cotas: 'COTAS' }[tipo] || 'POS');
 const tituloTipo = (tipo) => ({ bar: 'Bar', cafe: 'Café', restaurante: 'Restaurante', cotas: 'Cotas' }[tipo] || tipo);
 const tituloPagina = computed(() => props.tipoSelecionado ? `Login ${tituloTipo(props.tipoSelecionado)}` : 'POS Associação de Santana');
@@ -32,7 +32,9 @@ const entrar = () => form.post(route('pos.login.store'));
             </div>
             <form v-if="terminal" class="mx-auto mt-6 max-w-md rounded-lg bg-gray-800 p-5" @submit.prevent="entrar">
                 <h2 class="mb-4 text-center text-2xl font-black">{{ terminal.nome }}</h2>
+                <input v-model="form.operador_nome" type="text" autocomplete="name" class="mb-3 w-full rounded-lg border-gray-600 bg-gray-900 p-4 text-center text-2xl font-black text-white" placeholder="Nome de quem atende">
                 <input v-model="form.pin" type="password" inputmode="numeric" autocomplete="off" autofocus class="w-full rounded-lg border-gray-600 bg-gray-900 p-4 text-center text-3xl font-black text-white" placeholder="PIN">
+                <div v-if="form.errors.operador_nome" class="mt-3 rounded bg-red-600 p-3 text-center font-bold">{{ form.errors.operador_nome }}</div>
                 <div v-if="form.errors.pin" class="mt-3 rounded bg-red-600 p-3 text-center font-bold">{{ form.errors.pin }}</div>
                 <button class="mt-4 w-full rounded-lg bg-emerald-600 p-5 text-xl font-black disabled:opacity-50" :disabled="form.processing">ENTRAR</button>
             </form>

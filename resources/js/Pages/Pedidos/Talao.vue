@@ -8,6 +8,7 @@ const total = computed(() => Number(props.pedido?.total ?? props.pedido?.total_c
 const valorRecebido = computed(() => Number(props.pedido?.valor_recebido ?? total.value));
 const troco = computed(() => Number(props.pedido?.troco ?? 0));
 const doacao = computed(() => Number(props.pedido?.doacao ?? 0));
+const operador = computed(() => props.pedido?.operador_nome ?? props.pedido?.user?.name ?? props.pedido?.pos?.nome ?? 'Sem operador');
 const itensComValor = computed(() => (props.pedido?.items ?? []).filter((item) => Number(item.preco_unitario) > 0));
 const servicos = computed(() => (props.pedido?.items ?? []).filter((item) => Number(item.preco_unitario) === 0));
 
@@ -36,6 +37,7 @@ onMounted(() => {
                 <div class="flex justify-between"><span>Pedido</span><strong>#{{ pedido.id }}</strong></div>
                 <div class="flex justify-between"><span>{{ pedido.mesa ? 'Mesa' : 'Tipo' }}</span><strong>{{ pedido.mesa?.designacao ?? 'Para levar' }}</strong></div>
                 <div class="flex justify-between"><span>Data</span><strong>{{ agora }}</strong></div>
+                <div class="flex justify-between"><span>Operador</span><strong>{{ operador }}</strong></div>
                 <div class="flex justify-between"><span>Estado</span><strong>{{ pedido.estado }}</strong></div>
             </div>
 

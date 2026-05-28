@@ -9,6 +9,7 @@ use App\Models\Produto;
 use App\Models\CaixaDiaria;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,12 +30,19 @@ class PosRestController extends Controller
         $pedidosAtivos = fn ($query) => $query
             ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
             ->with('items.produto');
+        $pedidosGrupoAtivos = fn ($query) => $query
+            ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+            ->with('items.produto');
 
         $mesas = Mesa::principais()
             ->ativas()
             ->with([
                 'pedidos' => $pedidosAtivos,
-                'submesas' => fn ($query) => $query->ativas()->with(['pedidos' => $pedidosAtivos])->orderBy('numero'),
+                'pedidosGrupo' => $pedidosGrupoAtivos,
+                'submesas' => fn ($query) => $query->ativas()->with([
+                    'pedidos' => $pedidosAtivos,
+                    'pedidosGrupo' => $pedidosGrupoAtivos,
+                ])->orderBy('numero'),
             ])
             ->orderBy('numero')
             ->get();
@@ -47,16 +55,24 @@ class PosRestController extends Controller
         $mesa->load([
             'mesaPrincipal',
             'submesas' => fn ($query) => $query->ativas()
-                ->with(['pedidos' => fn ($pedidoQuery) => $pedidoQuery
-                    ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
-                    ->with('items.produto')])
+                ->with([
+                    'pedidos' => fn ($pedidoQuery) => $pedidoQuery
+                        ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
+                        ->with('items.produto'),
+                    'pedidosGrupo' => fn ($pedidoQuery) => $pedidoQuery
+                        ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                        ->with('items.produto'),
+                ])
                 ->orderBy('numero'),
+            'pedidosGrupo' => fn ($pedidoQuery) => $pedidoQuery
+                ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                ->with('user', 'pos', 'items.produto.categoria'),
         ]);
 
         $pedido = $mesa->pedidos()
             ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
-            ->with('items.produto.categoria')
-            ->first();
+            ->with('user', 'pos', 'items.produto.categoria')
+            ->first() ?: $mesa->pedidosGrupo->first();
 
         $produtos = Produto::with('categoria')
             ->disponiveis()
@@ -78,7 +94,20 @@ class PosRestController extends Controller
         }
 
         $mesa = Mesa::with('submesas')->findOrFail($mesa->id);
-        $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null);
+        $lugares = (int) ($data['lugares_ocupados'] ?? 0);
+        $mesasGrupo = collect();
+
+        if ($lugares > $this->capacidadeFisicaMesa($mesa)) {
+            $mesasGrupo = $this->mesasLivresParaGrupo($mesa, $lugares);
+
+            if ($mesasGrupo->sum('capacidade') < $lugares) {
+                return back()->withErrors(['lugares_ocupados' => 'Nao existem mesas livres suficientes para este grupo.']);
+            }
+
+            $mesaPedido = $mesa;
+        } else {
+            $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null);
+        }
 
         $pedido = Pedido::create([
             'tipo' => 'restaurante',
@@ -86,10 +115,16 @@ class PosRestController extends Controller
             'mesa_id' => $mesaPedido->id,
             'user_id' => null,
             'pos_id' => session('pos_id'),
+            'operador_nome' => session('pos_operador') ?: session('pos_nome'),
         ]);
 
         $mesaPedido->update(['estado' => 'ocupada']);
         $mesaPedido->mesaPrincipal?->update(['estado' => 'ocupada']);
+
+        if ($mesasGrupo->isNotEmpty()) {
+            $pedido->mesasGrupo()->sync($mesasGrupo->pluck('id'));
+            Mesa::whereIn('id', $mesasGrupo->pluck('id'))->update(['estado' => 'ocupada']);
+        }
 
         return to_route('pos.rest.mesa', $mesaPedido)->with('pedido_id', $pedido->id);
     }
@@ -179,7 +214,7 @@ class PosRestController extends Controller
     public function talao(Pedido $pedido): Response
     {
         return Inertia::render('PosRest/Talao', [
-            'pedido' => $pedido->load('mesa.mesaPrincipal', 'items.produto.categoria'),
+            'pedido' => $pedido->load('mesa.mesaPrincipal', 'user', 'pos', 'items.produto.categoria'),
         ]);
     }
 
@@ -212,10 +247,7 @@ class PosRestController extends Controller
 
     private function caixaRestauranteAberta(): bool
     {
-        return CaixaDiaria::whereDate('data', today())
-            ->where('ponto', 'Restaurante')
-            ->where('estado', 'aberta')
-            ->exists();
+        return CaixaDiaria::abertaParaPonto('Restaurante') !== null;
     }
 
     private function mesaParaPedido(Mesa $mesa, ?int $lugaresOcupados): Mesa
@@ -326,13 +358,47 @@ class PosRestController extends Controller
             ]);
         }
 
-        if (! $this->temPedidosAtivosNaMesaCompleta($mesaPrincipal)) {
+        $this->atualizarMesasGrupo($pedido);
+
+        if (! $this->temPedidosAtivosNaMesaCompleta($mesaPrincipal) && ! $this->temPedidosGrupoAtivosNaMesaCompleta($mesaPrincipal)) {
             $this->normalizarMesa($mesaPrincipal);
 
             return;
         }
 
         $mesaPrincipal->update(['estado' => 'ocupada']);
+    }
+
+    private function atualizarMesasGrupo(Pedido $pedido): void
+    {
+        $mesasPrincipaisParaNormalizar = collect();
+
+        $pedido->mesasGrupo()->each(function (Mesa $mesaGrupo) use ($mesasPrincipaisParaNormalizar) {
+            $mesaGrupo->update([
+                'estado' => $this->temPedidosAtivosNaMesa($mesaGrupo) || $mesaGrupo->pedidosGrupo()
+                    ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                    ->exists() ? 'ocupada' : 'livre',
+            ]);
+
+            if ($mesaGrupo->mesa_principal_id) {
+                $mesasPrincipaisParaNormalizar->push($mesaGrupo->mesaPrincipal);
+            }
+        });
+
+        $mesasPrincipaisParaNormalizar
+            ->filter()
+            ->unique('id')
+            ->each(function (Mesa $mesaPrincipal) {
+                if (! $this->temPedidosAtivosNaMesaCompleta($mesaPrincipal) && ! $this->temPedidosGrupoAtivosNaMesaCompleta($mesaPrincipal)) {
+                    $this->normalizarMesa($mesaPrincipal);
+                }
+            });
+    }
+
+    private function temPedidosGrupoAtivosNaMesaCompleta(Mesa $mesa): bool
+    {
+        return $mesa->pedidosGrupo()->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])->exists()
+            || $mesa->submesas()->whereHas('pedidosGrupo', fn ($query) => $query->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto']))->exists();
     }
 
     private function temPedidosAtivosNaMesa(Mesa $mesa): bool
@@ -366,5 +432,73 @@ class PosRestController extends Controller
         }
 
         $mesa->update(['estado' => 'livre']);
+    }
+
+    private function mesasLivresParaGrupo(Mesa $mesaInicial, int $lugares): Collection
+    {
+        if (! $this->mesaDisponivelParaGrupo($mesaInicial)) {
+            return collect();
+        }
+
+        $mesas = collect([$mesaInicial]);
+        $lugaresRestantes = max(0, $lugares - $this->capacidadeFisicaMesa($mesaInicial));
+        $this->normalizarMesa($mesaInicial);
+
+        $candidatas = Mesa::principais()
+            ->ativas()
+            ->where('id', '!=', $mesaInicial->id)
+            ->where('localizacao', $mesaInicial->localizacao)
+            ->orderByRaw('ABS(numero - ?) ASC', [$mesaInicial->numero])
+            ->get();
+
+        foreach ($candidatas as $mesa) {
+            if ($lugaresRestantes <= 0) {
+                break;
+            }
+
+            if (! $this->mesaDisponivelParaGrupo($mesa)) {
+                continue;
+            }
+
+            $capacidade = $this->capacidadeFisicaMesa($mesa);
+
+            if ($lugaresRestantes >= $capacidade) {
+                $this->normalizarMesa($mesa);
+                $mesas->push($mesa->refresh());
+                $lugaresRestantes -= $capacidade;
+
+                continue;
+            }
+
+            $submesaOcupada = $this->dividirBlocoParaPedido($mesa, $lugaresRestantes);
+            $mesas->push($submesaOcupada);
+            $lugaresRestantes = 0;
+        }
+
+        if ($lugaresRestantes > 0) {
+            $mesas->each(function (Mesa $mesa) use ($mesaInicial) {
+                if ($mesa->id !== $mesaInicial->id && $mesa->mesa_principal_id) {
+                    $this->normalizarMesa($mesa->mesaPrincipal);
+                }
+            });
+
+            return collect();
+        }
+
+        return $mesas;
+    }
+
+    private function mesaDisponivelParaGrupo(Mesa $mesa): bool
+    {
+        return ! $mesa->mesa_principal_id
+            && $mesa->estado === 'livre'
+            && ! $this->temPedidosAtivosNaMesa($mesa)
+            && ! $this->temPedidosAtivosNasSubmesas($mesa)
+            && ! $mesa->pedidosGrupo()->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])->exists();
+    }
+
+    private function capacidadeFisicaMesa(Mesa $mesa): int
+    {
+        return min(10, max(1, (int) $mesa->capacidade));
     }
 }

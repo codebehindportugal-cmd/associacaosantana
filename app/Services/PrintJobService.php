@@ -20,7 +20,7 @@ class PrintJobService
             return null;
         }
 
-        $pedido->loadMissing('mesa.mesaPrincipal', 'items.produto.categoria');
+        $pedido->loadMissing('mesa.mesaPrincipal', 'user', 'pos', 'items.produto.categoria');
 
         return PrintJob::create([
             'impressora_id' => $impressora->id,
@@ -39,6 +39,7 @@ class PrintJobService
     private function linhasPedido(Pedido $pedido, ?string $secao): array
     {
         $mesa = $pedido->mesa?->mesaPrincipal ?: $pedido->mesa;
+        $operador = $pedido->operador_nome ?: ($pedido->user?->name ?: $pedido->pos?->nome);
         $items = $pedido->items
             ->filter(fn ($item) => ! $secao || $item->secao === $secao)
             ->map(fn ($item) => [
@@ -52,6 +53,7 @@ class PrintJobService
             'Pedido #'.$pedido->id,
             'Tipo: '.$pedido->tipo,
             $mesa ? 'Mesa: '.$mesa->numero : 'Balcao',
+            'Operador: '.($operador ?: 'Sem operador'),
             'Hora: '.now()->format('H:i'),
             '------------------------------',
             ...$items->map(fn ($item) => $item['quantidade'].'x '.$item['nome'].($item['observacoes'] ? ' - '.$item['observacoes'] : ''))->all(),

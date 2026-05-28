@@ -54,6 +54,8 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'sala_ecra_codigo' => env('SALA_ECRA_CODIGO', 'sala'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

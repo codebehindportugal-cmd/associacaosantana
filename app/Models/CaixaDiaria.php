@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class CaixaDiaria extends Model
@@ -40,5 +41,19 @@ class CaixaDiaria extends Model
     public function fechadoPor()
     {
         return $this->belongsTo(User::class, 'fechado_user_id');
+    }
+
+    public function scopeAberta(Builder $query): Builder
+    {
+        return $query->where('estado', 'aberta');
+    }
+
+    public static function abertaParaPonto(string $ponto): ?self
+    {
+        return self::aberta()
+            ->where('ponto', $ponto)
+            ->latest('data')
+            ->latest('id')
+            ->first();
     }
 }

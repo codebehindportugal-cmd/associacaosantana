@@ -31,6 +31,7 @@ class BarController extends Controller
                 ->latest()
                 ->get(),
             'caixas' => CaixaDiaria::whereDate('data', today())
+                ->orWhere('estado', 'aberta')
                 ->get(['ponto', 'fundo_maneio', 'estado', 'created_at']),
             'filters' => $request->only('tipo', 'estado'),
         ]);
@@ -71,6 +72,7 @@ class BarController extends Controller
 
             $pedido = Pedido::create([
                 'user_id' => $request->user()->id,
+                'operador_nome' => $request->user()->name,
                 'tipo' => 'bar_prepago',
                 'estado' => 'pronto',
                 'numero_senha' => $senha,
@@ -100,6 +102,7 @@ class BarController extends Controller
 
         $pedido = Pedido::create([
             'user_id' => $request->user()->id,
+            'operador_nome' => $request->user()->name,
             'tipo' => 'bar_conta',
             'estado' => 'pendente',
             'ponto_bar' => $data['ponto_bar'],
@@ -160,7 +163,7 @@ class BarController extends Controller
         abort_unless(in_array($pedido->tipo, ['bar_conta', 'bar_prepago'], true), 404);
 
         return Inertia::render('Bar/TalaoSenha', [
-            'pedido' => $pedido->load('items.produto.categoria', 'user'),
+            'pedido' => $pedido->load('items.produto.categoria', 'user', 'pos'),
         ]);
     }
 
@@ -214,10 +217,7 @@ class BarController extends Controller
 
     private function caixaAberta(string $ponto): bool
     {
-        return CaixaDiaria::whereDate('data', today())
-            ->where('ponto', $ponto)
-            ->where('estado', 'aberta')
-            ->exists();
+        return CaixaDiaria::abertaParaPonto($ponto) !== null;
     }
 
     private function produtos()

@@ -70,6 +70,7 @@ class PosBarController extends Controller
 
             $pedido = Pedido::create([
                 'pos_id' => session('pos_id'),
+                'operador_nome' => session('pos_operador') ?: session('pos_nome'),
                 'tipo' => 'bar_prepago',
                 'estado' => 'pronto',
                 'numero_senha' => $this->proximaSenhaBar(),
@@ -101,16 +102,13 @@ class PosBarController extends Controller
         abort_unless($pedido->tipo === 'bar_prepago' && (int) $pedido->pos_id === (int) session('pos_id'), 404);
 
         return Inertia::render('Pos/TalaoSenha', [
-            'pedido' => $pedido->load('items.produto.categoria'),
+            'pedido' => $pedido->load('items.produto.categoria', 'pos'),
         ]);
     }
 
     private function caixaAberta(string $ponto): bool
     {
-        return CaixaDiaria::whereDate('data', today())
-            ->where('ponto', $ponto)
-            ->where('estado', 'aberta')
-            ->exists();
+        return CaixaDiaria::abertaParaPonto($ponto) !== null;
     }
 
     private function proximaSenhaBar(): int

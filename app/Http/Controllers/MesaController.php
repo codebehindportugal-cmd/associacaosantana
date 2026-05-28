@@ -13,7 +13,7 @@ class MesaController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:mesas.ver')->only(['index', 'show']);
+        $this->middleware('permission:mesas.ver')->only(['index', 'show', 'sala']);
         $this->middleware('permission:mesas.criar')->only(['create', 'store']);
         $this->middleware('permission:mesas.editar')->only(['edit', 'update', 'dividir', 'juntar', 'libertar', 'guardarMapa']);
         $this->middleware('permission:mesas.apagar')->only('destroy');
@@ -22,26 +22,14 @@ class MesaController extends Controller
     public function index(): Response
     {
         return Inertia::render('Mesas/Index', [
-            'mesas' => Mesa::principais()
-                ->ativas()
-                ->with([
-                    'pedidos' => fn ($query) => $query
-                        ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
-                        ->latest()
-                        ->select('id', 'mesa_id', 'estado', 'created_at'),
-                    'submesas' => fn ($query) => $query
-                        ->ativas()
-                        ->with([
-                            'pedidos' => fn ($pedidoQuery) => $pedidoQuery
-                                ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
-                                ->latest()
-                                ->select('id', 'mesa_id', 'estado', 'created_at'),
-                        ])
-                        ->withCount('pedidos'),
-                ])
-                ->withCount('pedidos')
-                ->orderBy('numero')
-                ->get(),
+            'mesas' => $this->mesasParaMapa(),
+        ]);
+    }
+
+    public function sala(): Response
+    {
+        return Inertia::render('Sala/Index', [
+            'mesas' => $this->mesasParaMapa(),
         ]);
     }
 
@@ -144,8 +132,8 @@ class MesaController extends Controller
             'mesas.*.id' => ['required', 'exists:mesas,id'],
             'mesas.*.mapa_x' => ['required', 'integer', 'between:0,100'],
             'mesas.*.mapa_y' => ['required', 'integer', 'between:0,100'],
-            'mesas.*.mapa_largura' => ['required', 'integer', 'between:8,40'],
-            'mesas.*.mapa_altura' => ['required', 'integer', 'between:8,40'],
+            'mesas.*.mapa_largura' => ['required', 'integer', 'between:4,40'],
+            'mesas.*.mapa_altura' => ['required', 'integer', 'between:4,40'],
         ]);
 
         foreach ($data['mesas'] as $mesa) {
@@ -162,6 +150,10 @@ class MesaController extends Controller
 
     public function destroy(Mesa $mesa): RedirectResponse
     {
+        if ($this->temPedidosAtivos($mesa)) {
+            return back()->with('error', 'Nao e possivel apagar a mesa enquanto existirem pedidos ativos.');
+        }
+
         $mesa->delete();
 
         return to_route('mesas.index')->with('success', 'Mesa apagada.');
@@ -172,7 +164,7 @@ class MesaController extends Controller
         return $request->validate([
             'numero' => ['required', 'integer', 'unique:mesas,numero,'.($mesa?->id ?? 'NULL')],
             'nome' => ['nullable', 'string', 'max:255'],
-            'capacidade' => ['required', 'integer', 'min:1'],
+            'capacidade' => ['required', 'integer', 'between:1,10'],
             'localizacao' => ['required', 'in:sala,interior,exterior,bar'],
             'estado' => ['required', 'in:livre,ocupada,reservada'],
         ]);
@@ -181,9 +173,12 @@ class MesaController extends Controller
     private function temPedidosAtivos(Mesa $mesa): bool
     {
         $ativos = fn ($query) => $query->whereIn('estado', ['pendente', 'preparacao', 'pronto']);
+        $ativosGrupo = fn ($query) => $query->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto']);
 
         return $mesa->pedidos()->where($ativos)->exists()
-            || $mesa->submesas()->whereHas('pedidos', $ativos)->exists();
+            || $mesa->pedidosGrupo()->where($ativosGrupo)->exists()
+            || $mesa->submesas()->whereHas('pedidos', $ativos)->exists()
+            || $mesa->submesas()->whereHas('pedidosGrupo', $ativosGrupo)->exists();
     }
 
     private function normalizarMesa(Mesa $mesa): void
@@ -197,5 +192,37 @@ class MesaController extends Controller
         }
 
         $mesa->update(['estado' => 'livre']);
+    }
+
+    private function mesasParaMapa()
+    {
+        return Mesa::principais()
+            ->ativas()
+            ->with([
+                'pedidos' => fn ($query) => $query
+                    ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
+                    ->latest()
+                    ->select('id', 'mesa_id', 'estado', 'created_at', 'operador_nome'),
+                'pedidosGrupo' => fn ($query) => $query
+                    ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                    ->latest('pedidos.created_at')
+                    ->select('pedidos.id', 'pedidos.mesa_id', 'pedidos.estado', 'pedidos.created_at', 'pedidos.operador_nome'),
+                'submesas' => fn ($query) => $query
+                    ->ativas()
+                    ->with([
+                        'pedidos' => fn ($pedidoQuery) => $pedidoQuery
+                            ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
+                            ->latest()
+                            ->select('id', 'mesa_id', 'estado', 'created_at', 'operador_nome'),
+                        'pedidosGrupo' => fn ($pedidoQuery) => $pedidoQuery
+                            ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                            ->latest('pedidos.created_at')
+                            ->select('pedidos.id', 'pedidos.mesa_id', 'pedidos.estado', 'pedidos.created_at', 'pedidos.operador_nome'),
+                    ])
+                    ->withCount('pedidos'),
+            ])
+            ->withCount('pedidos')
+            ->orderBy('numero')
+            ->get();
     }
 }

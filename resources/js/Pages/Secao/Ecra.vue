@@ -45,6 +45,7 @@ const hora = computed(() => ultimaAtualizacao.value.toLocaleTimeString('pt-PT', 
             <section v-for="grupo in itemsPorMesa" :key="grupo.mesa" class="relative rounded-lg p-6" :class="grupo.urgente ? 'border-4 border-amber-500 bg-amber-950/70' : 'bg-white/10'">
                 <span v-if="grupo.urgente" class="absolute right-4 top-4 rounded-full bg-amber-600 px-3 py-1 text-sm font-black">A TERMINAR</span>
                 <h2 class="mb-4 text-3xl font-bold">{{ grupo.mesa }}</h2>
+                <div class="mb-4 rounded-md bg-white/10 px-3 py-2 text-sm font-black text-white/80">Operador: {{ grupo.operador ?? 'Sem operador' }}</div>
                 <div v-for="item in grupo.items" :key="item.id" class="mb-3 flex items-center justify-between gap-4 rounded-md p-4 text-slate-900 transition-all duration-500" :class="item.prioridade ? 'bg-amber-900 text-white ring-4 ring-amber-500' : (item.observacoes ? 'bg-amber-100 ring-4 ring-amber-400' : (novosItems.has(item.id) ? 'bg-amber-200 ring-4 ring-amber-400' : 'bg-white'))">
                     <div>
                         <span class="block text-[1.2rem] font-bold">{{ item.quantidade }}x {{ item.produto?.nome }}</span>

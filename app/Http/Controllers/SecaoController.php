@@ -44,7 +44,7 @@ class SecaoController extends Controller
 
     public function bar(): Response
     {
-        $items = Pedido::with('items.produto')
+        $items = Pedido::with('items.produto', 'user', 'pos')
             ->barPrepago()
             ->where('estado', 'pronto')
             ->whereDate('created_at', today())
@@ -53,6 +53,7 @@ class SecaoController extends Controller
             ->map(fn ($pedido) => [
                 'pedido_id' => $pedido->id,
                 'mesa' => 'Senha #'.$pedido->numero_senha,
+                'operador' => $this->operadorPedido($pedido),
                 'urgente' => false,
                 'items' => $pedido->items->values(),
             ]);
@@ -65,9 +66,18 @@ class SecaoController extends Controller
         ]);
     }
 
+    public function sala(string $codigo): Response
+    {
+        abort_unless(hash_equals((string) config('app.sala_ecra_codigo'), $codigo), 403);
+
+        return Inertia::render('Secao/Sala', [
+            'mesas' => $this->mesasParaMapa(),
+        ]);
+    }
+
     private function ecra(string $secao, string $titulo): Response
     {
-        $items = PedidoItem::with('pedido.mesa', 'produto')
+        $items = PedidoItem::with('pedido.mesa', 'pedido.user', 'pedido.pos', 'produto')
             ->whereHas('pedido', fn ($query) => $query->where('tipo', 'restaurante'))
             ->where('secao', $secao)
             ->where('estado', 'pendente')
@@ -77,6 +87,7 @@ class SecaoController extends Controller
             ->groupBy(fn ($item) => $item->pedido->mesa?->designacao ?? 'Para levar #'.$item->pedido_id)
             ->map(fn ($grupo, $mesa) => [
                 'mesa' => $mesa,
+                'operador' => $this->operadorPedido($grupo->first()->pedido),
                 'urgente' => $grupo->contains('prioridade', true),
                 'items' => $grupo->sortByDesc('prioridade')->values(),
             ])
@@ -154,6 +165,11 @@ class SecaoController extends Controller
         $mesaPrincipal->update(['estado' => 'ocupada']);
     }
 
+    private function operadorPedido(Pedido $pedido): string
+    {
+        return $pedido->operador_nome ?: ($pedido->user?->name ?: ($pedido->pos?->nome ?: 'Sem operador'));
+    }
+
     private function temPedidosAtivosNaMesa(Mesa $mesa): bool
     {
         return $mesa->pedidos()
@@ -180,5 +196,37 @@ class SecaoController extends Controller
         }
 
         $mesa->update(['estado' => 'livre']);
+    }
+
+    private function mesasParaMapa()
+    {
+        return Mesa::principais()
+            ->ativas()
+            ->with([
+                'pedidos' => fn ($query) => $query
+                    ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
+                    ->latest()
+                    ->select('id', 'mesa_id', 'estado', 'created_at', 'operador_nome'),
+                'pedidosGrupo' => fn ($query) => $query
+                    ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                    ->latest('pedidos.created_at')
+                    ->select('pedidos.id', 'pedidos.mesa_id', 'pedidos.estado', 'pedidos.created_at', 'pedidos.operador_nome'),
+                'submesas' => fn ($query) => $query
+                    ->ativas()
+                    ->with([
+                        'pedidos' => fn ($pedidoQuery) => $pedidoQuery
+                            ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
+                            ->latest()
+                            ->select('id', 'mesa_id', 'estado', 'created_at', 'operador_nome'),
+                        'pedidosGrupo' => fn ($pedidoQuery) => $pedidoQuery
+                            ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                            ->latest('pedidos.created_at')
+                            ->select('pedidos.id', 'pedidos.mesa_id', 'pedidos.estado', 'pedidos.created_at', 'pedidos.operador_nome'),
+                    ])
+                    ->withCount('pedidos'),
+            ])
+            ->withCount('pedidos')
+            ->orderBy('numero')
+            ->get();
     }
 }

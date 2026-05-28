@@ -5,6 +5,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 const props = defineProps({ pedido: Object });
 const ticketRef = ref(null);
 const data = () => new Date(props.pedido.created_at).toLocaleString('pt-PT');
+const operador = computed(() => props.pedido.operador_nome ?? props.pedido.user?.name ?? props.pedido.pos?.nome ?? 'Sem operador');
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
 const itemsImpressao = computed(() =>
     (props.pedido.items || []).flatMap((item) => {
@@ -61,6 +62,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageS
         <section ref="ticketRef" class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
             <h1 class="text-center text-lg font-black">Associação de Santana</h1>
             <div class="text-center font-black">{{ pedido.ponto_bar }}</div>
+            <div class="text-center text-xs font-bold">Operador: {{ operador }}</div>
             <div class="ticket-token my-4 border-y border-dashed border-slate-400 py-4 text-center">
                 <div class="text-xs uppercase">Número da senha</div>
                 <div class="ticket-number text-5xl font-black">#{{ pedido.numero_senha || pedido.id }}</div>

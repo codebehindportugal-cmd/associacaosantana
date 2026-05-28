@@ -13,6 +13,7 @@ class Pedido extends Model
         'mesa_id',
         'user_id',
         'pos_id',
+        'operador_nome',
         'estado',
         'tipo',
         'numero_senha',
@@ -35,6 +36,11 @@ class Pedido extends Model
     public function mesa()
     {
         return $this->belongsTo(Mesa::class);
+    }
+
+    public function mesasGrupo()
+    {
+        return $this->belongsToMany(Mesa::class, 'pedido_mesa_grupos')->withTimestamps();
     }
 
     public function user()

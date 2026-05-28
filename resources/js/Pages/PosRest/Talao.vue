@@ -1,7 +1,8 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { onMounted } from 'vue';
-defineProps({ pedido: Object });
+import { computed, onMounted } from 'vue';
+const props = defineProps({ pedido: Object });
+const operador = computed(() => props.pedido.operador_nome ?? props.pedido.user?.name ?? props.pedido.pos?.nome ?? 'Sem operador');
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 onMounted(() => setTimeout(() => window.print(), 300));
 </script>
@@ -10,7 +11,7 @@ onMounted(() => setTimeout(() => window.print(), 300));
     <main class="min-h-screen bg-gray-200 p-5 text-gray-950 print:bg-white">
         <section class="mx-auto max-w-sm bg-white p-5 font-mono">
             <h1 class="text-center text-lg font-black">Associação de Santana - RESTAURANTE</h1>
-            <div class="my-3 border-y py-2">Mesa: {{ pedido.mesa?.numero }}<br>Pedido: #{{ pedido.id }}</div>
+            <div class="my-3 border-y py-2">Mesa: {{ pedido.mesa?.numero }}<br>Pedido: #{{ pedido.id }}<br>Operador: {{ operador }}</div>
             <div v-for="item in pedido.items" :key="item.id" class="flex justify-between gap-2"><span>{{ item.quantidade }}x {{ item.produto?.nome }} ({{ item.secao }})</span><strong>{{ euros(item.quantidade * item.preco_unitario) }}</strong></div>
             <div class="mt-3 border-t pt-2 text-right"><div>Total: {{ euros(pedido.total) }}</div><div>Recebido: {{ euros(pedido.valor_recebido) }}</div><div>Troco: {{ euros(pedido.troco) }}</div><div>Método: {{ pedido.metodo_pagamento }}</div></div>
         </section>

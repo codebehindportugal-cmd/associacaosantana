@@ -9,6 +9,7 @@ const drawerAberto = ref(false);
 let polling = null;
 const links = [
     ['Dashboard', 'dashboard', 'dashboard.ver', 'Início'],
+    ['Sala', 'sala.index', 'mesas.ver', 'Sala'],
     ['Mesas', 'mesas.index', 'restaurante.ver', 'Mesas'],
     ['Pedidos', 'pedidos.index', 'pedidos.ver', 'Pedidos'],
     ['Caixas', 'caixa.index', 'caixa.ver', 'Caixas'],
@@ -18,6 +19,7 @@ const links = [
     ['Sócios', 'socios.index', 'socios.ver', 'Sócios'],
     ['Cotas', 'cotas.index', 'cotas.ver', 'Cotas'],
     ['Relatórios', 'relatorios.index', 'relatorios.ver', 'Relatórios'],
+    ['Utilizadores', 'users.index', 'users.ver', 'Users'],
 ];
 const podeGerir = () => hasRole('admin') || hasRole('gerente');
 const urgentes = () => page.props.urgentes_count ?? 0;
@@ -40,7 +42,6 @@ onBeforeUnmount(() => clearInterval(polling));
                 <Link v-for="link in links" v-show="link[2] ? can(link[2]) : podeGerir()" :key="link[1]" :href="route(link[1])" class="flex items-center justify-between rounded-md px-3 py-2 text-xs font-medium hover:bg-slate-100 xl:text-sm" :class="{ 'bg-slate-900 text-white hover:bg-slate-900': ativo(link[1]) }">
                     <span>{{ link[0] }}</span><span v-if="link[1] === 'pedidos.index' && urgentes()" class="rounded-full bg-amber-600 px-2 py-0.5 text-[11px] text-white">{{ urgentes() }} a terminar</span>
                 </Link>
-                <Link v-if="hasRole('admin')" :href="route('users.index')" class="block rounded-md px-3 py-2 text-xs font-medium hover:bg-slate-100 xl:text-sm">Utilizadores</Link>
             </nav>
             <div v-if="podeGerir()" class="absolute bottom-0 w-full border-t border-slate-200 p-4 text-sm">
                 <div class="mb-2 text-xs font-semibold uppercase text-slate-500">Ecrãs de secção</div>
