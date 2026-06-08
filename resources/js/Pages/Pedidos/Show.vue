@@ -9,6 +9,7 @@ const pedidoForm = useForm({
     tipo_atendimento: props.paraLevar ? 'para_levar' : 'mesa',
     mesa_id: props.mesas?.[0]?.id ?? '',
     lugares_ocupados: '',
+    submesa_letra: '',
     observacoes: '',
 });
 const itemForm = useForm({ pedido_id: props.pedido?.id, produto_id: '', quantidade: 1, prioridade: false, observacoes: '' });
@@ -135,6 +136,12 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
             <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="block">
                 <span class="mb-1 block text-sm font-semibold text-slate-700">Lugares ocupados</span>
                 <input v-model="pedidoForm.lugares_ocupados" type="number" min="1" class="w-full rounded-md border-slate-300" placeholder="Vazio = mesa completa">
+            </label>
+
+            <label v-if="pedidoForm.tipo_atendimento === 'mesa' && pedidoForm.lugares_ocupados" class="block">
+                <span class="mb-1 block text-sm font-semibold text-slate-700">Letra da submesa</span>
+                <input v-model="pedidoForm.submesa_letra" type="text" maxlength="1" class="w-full rounded-md border-slate-300 uppercase" placeholder="Ex.: A">
+                <div v-if="pedidoForm.errors.submesa_letra" class="mt-1 text-sm font-semibold text-red-600">{{ pedidoForm.errors.submesa_letra }}</div>
             </label>
 
             <textarea v-model="pedidoForm.observacoes" class="w-full rounded-md border-slate-300" placeholder="Observações"></textarea>
@@ -310,4 +317,3 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
         </div>
     </AppLayout>
 </template>
-

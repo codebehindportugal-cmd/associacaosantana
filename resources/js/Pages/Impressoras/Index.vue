@@ -9,7 +9,7 @@ import InputLabel from '@/Components/InputLabel.vue'
 import TextInput from '@/Components/TextInput.vue'
 import InputError from '@/Components/InputError.vue'
 
-defineProps({
+const props = defineProps({
     impressoras: {
         type: Array,
         required: true,
@@ -78,7 +78,7 @@ function deleteImpressora(impressora) {
 
 const getSectionName = (secao) => {
     if (!secao) return '—'
-    return secoes[secao] || secao
+    return props.secoes[secao] || secao
 }
 </script>
 

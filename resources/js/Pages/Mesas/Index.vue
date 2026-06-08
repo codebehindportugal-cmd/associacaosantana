@@ -10,6 +10,7 @@ const editarMapa = ref(false);
 const mesaSelecionadaId = ref(null);
 const drag = ref(null);
 const lugaresOcupados = ref('');
+const letraSubmesaNova = ref('');
 const lugaresSubmesa = ref({});
 
 const estadoClass = {
@@ -125,6 +126,7 @@ const mesaStyle = (mesa) => ({
 const selecionarMesa = (mesa) => {
     mesaSelecionadaId.value = mesa.id;
     lugaresOcupados.value = '';
+    letraSubmesaNova.value = '';
 };
 
 const limitar = (valor, minimo, maximo) => Math.min(maximo, Math.max(minimo, Math.round(valor)));
@@ -193,10 +195,11 @@ const guardarMapa = () => {
     });
 };
 
-const criarPedido = (mesa, lugares = '') => {
+const criarPedido = (mesa, lugares = '', letra = '') => {
     router.post(route('pedidos.store'), {
         mesa_id: mesa.id,
         lugares_ocupados: lugares || null,
+        submesa_letra: lugares ? (letra || null) : null,
         observacoes: '',
     });
 };
@@ -208,7 +211,7 @@ const juntarMesa = (mesa) => {
 };
 
 const abrirPedidoSelecionado = () => {
-    criarPedido(mesaSelecionada.value, lugaresOcupados.value);
+    criarPedido(mesaSelecionada.value, lugaresOcupados.value, letraSubmesaNova.value);
 };
 
 const abrirPedidoSubmesa = (submesa) => {
@@ -355,6 +358,10 @@ const textoLugaresVaziosCurto = (mesa) => `${lugaresVazios(mesa)} livres`;
                     <div v-if="podeAbrirPedido(mesaSelecionada) && !mesaSelecionada.submesas.length && !mesaSelecionada.mesa_principal_id" class="rounded-md bg-slate-50 p-4">
                         <label class="text-xs font-semibold uppercase text-slate-500">Lugares ocupados</label>
                         <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Vazio = mesa completa">
+                        <label v-if="lugaresOcupados" class="mt-3 block text-xs font-semibold uppercase text-slate-500">
+                            Letra da submesa
+                            <input v-model="letraSubmesaNova" type="text" maxlength="1" class="mt-1 w-full rounded-md border-slate-300 text-sm uppercase" placeholder="Ex.: A">
+                        </label>
                         <p class="mt-2 text-xs text-slate-500">Ex.: 5 divide a mesa. Acima da capacidade da mesa junta mesas livres próximas.</p>
                     </div>
                     <button v-if="podeAbrirPedidoMesaCompleta(mesaSelecionada)" type="button" class="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white" @click="abrirPedidoSelecionado">

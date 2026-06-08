@@ -65,6 +65,7 @@ class PedidoController extends Controller
             'tipo_atendimento' => ['nullable', 'in:mesa,para_levar'],
             'mesa_id' => ['nullable', 'required_if:tipo_atendimento,mesa', 'exists:mesas,id'],
             'lugares_ocupados' => ['nullable', 'integer', 'min:1'],
+            'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
             'observacoes' => ['nullable', 'string'],
         ]);
 
@@ -89,7 +90,7 @@ class PedidoController extends Controller
 
                 $mesaPedido = $mesa;
             } else {
-                $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null);
+                $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null, $data['submesa_letra'] ?? null);
             }
         }
 
@@ -196,7 +197,7 @@ class PedidoController extends Controller
         return to_route('pedidos.talao', $pedido)->with('success', 'Conta fechada.');
     }
 
-    private function mesaParaPedido(Mesa $mesa, ?int $lugaresOcupados): Mesa
+    private function mesaParaPedido(Mesa $mesa, ?int $lugaresOcupados, ?string $letraSubmesa = null): Mesa
     {
         if (! $lugaresOcupados || $lugaresOcupados >= $mesa->capacidade) {
             if (! $mesa->mesa_principal_id && ! $this->temPedidosAtivosNasSubmesas($mesa)) {
@@ -209,17 +210,17 @@ class PedidoController extends Controller
         }
 
         if ($mesa->mesa_principal_id) {
-            return $this->dividirBlocoParaPedido($mesa, $lugaresOcupados);
+            return $this->dividirBlocoParaPedido($mesa, $lugaresOcupados, $letraSubmesa);
         }
 
         if ($this->temPedidosAtivosNasSubmesas($mesa)) {
             return $mesa;
         }
 
-        return $this->dividirBlocoParaPedido($mesa, $lugaresOcupados);
+        return $this->dividirBlocoParaPedido($mesa, $lugaresOcupados, $letraSubmesa);
     }
 
-    private function dividirBlocoParaPedido(Mesa $mesa, int $lugaresOcupados): Mesa
+    private function dividirBlocoParaPedido(Mesa $mesa, int $lugaresOcupados, ?string $letraSubmesa = null): Mesa
     {
         if ($mesa->mesa_principal_id && ($mesa->estado !== 'livre' || $this->temPedidosAtivosNaMesa($mesa))) {
             return $mesa;
@@ -242,7 +243,7 @@ class PedidoController extends Controller
         }
 
         $fimOcupado = $inicio + $lugaresOcupados - 1;
-        $ocupada = $this->criarSubmesa($mesaPrincipal, $inicio, $fimOcupado);
+        $ocupada = $this->criarSubmesa($mesaPrincipal, $inicio, $fimOcupado, $letraSubmesa);
 
         if ($fimOcupado < $fim) {
             $this->criarSubmesa($mesaPrincipal, $fimOcupado + 1, $fim);
@@ -253,14 +254,17 @@ class PedidoController extends Controller
         return $ocupada;
     }
 
-    private function criarSubmesa(Mesa $mesaPrincipal, int $inicio, int $fim): Mesa
+    private function criarSubmesa(Mesa $mesaPrincipal, int $inicio, int $fim, ?string $letra = null): Mesa
     {
         $numero = $this->proximoNumeroSubmesa($mesaPrincipal);
-        $indice = max(1, $numero - ($mesaPrincipal->numero * 100));
+        $letra = $this->normalizarLetraSubmesa($letra);
+        $letra = $letra && ! $this->letraSubmesaEmUso($mesaPrincipal, $letra)
+            ? $letra
+            : $this->proximaLetraSubmesa($mesaPrincipal);
 
         return $mesaPrincipal->submesas()->create([
             'numero' => $numero,
-            'nome' => 'Mesa '.$mesaPrincipal->numero.$this->letraSubmesa($indice),
+            'nome' => 'Mesa '.$mesaPrincipal->numero.$letra,
             'capacidade' => $fim - $inicio + 1,
             'lugares_inicio' => $inicio,
             'lugares_fim' => $fim,
@@ -278,9 +282,37 @@ class PedidoController extends Controller
         return $ultimoNumero > $base ? $ultimoNumero + 1 : $base + 1;
     }
 
-    private function letraSubmesa(int $indice): string
+    private function proximaLetraSubmesa(Mesa $mesaPrincipal): string
     {
-        return $indice <= 26 ? chr(64 + $indice) : '-'.$indice;
+        $usadas = $mesaPrincipal->submesas()
+            ->pluck('nome')
+            ->map(fn ($nome) => preg_replace('/^Mesa\s*'.preg_quote((string) $mesaPrincipal->numero, '/').'/i', '', (string) $nome))
+            ->map(fn ($letra) => strtoupper(trim((string) $letra)))
+            ->filter()
+            ->values()
+            ->all();
+
+        foreach (range('A', 'Z') as $letra) {
+            if (! in_array($letra, $usadas, true)) {
+                return $letra;
+            }
+        }
+
+        return (string) ($mesaPrincipal->submesas()->count() + 1);
+    }
+
+    private function normalizarLetraSubmesa(?string $letra): ?string
+    {
+        $letra = strtoupper(trim((string) $letra));
+
+        return preg_match('/^[A-Z]$/', $letra) ? $letra : null;
+    }
+
+    private function letraSubmesaEmUso(Mesa $mesaPrincipal, string $letra): bool
+    {
+        return $mesaPrincipal->submesas()
+            ->pluck('nome')
+            ->contains(fn ($nome) => strtoupper(trim((string) preg_replace('/^Mesa\s*'.preg_quote((string) $mesaPrincipal->numero, '/').'/i', '', (string) $nome))) === $letra);
     }
 
     private function libertarMesaDoPedido(Pedido $pedido): void

@@ -8,7 +8,8 @@ const pagamentoAberto = ref(false);
 const metodo = ref('dinheiro');
 const recebido = ref('');
 const lugaresOcupados = ref('');
-const novoForm = useForm({ lugares_ocupados: null });
+const letraSubmesaNova = ref('');
+const novoForm = useForm({ lugares_ocupados: null, submesa_letra: null });
 const itemForm = useForm({ produto_id: '', quantidade: 1, prioridade: false });
 const fecharForm = useForm({ metodo_pagamento: 'dinheiro', valor_recebido: 0, troco: 0 });
 const categorias = computed(() => Object.keys(props.produtos ?? {}));
@@ -22,6 +23,7 @@ const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const secaoClasse = (produto) => ({ bebidas: 'bg-blue-600', cozinha: 'bg-orange-600', comida: 'bg-orange-600', acompanhamentos: 'bg-orange-600', sobremesas: 'bg-purple-600' }[produto.categoria?.secao] || 'bg-gray-700');
 const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
     novoForm.lugares_ocupados = lugares || null;
+    novoForm.submesa_letra = lugares ? (letraSubmesaNova.value || null) : null;
     novoForm.post(route('pos.rest.pedido.novo', mesa.id));
 };
 const addProduto = (produto) => {
@@ -68,6 +70,9 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                     <label v-if="podeEscolherLugares" class="mb-4 block font-black">Lugares ocupados
                         <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-1 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-white" placeholder="Vazio = mesa completa">
                     </label>
+                    <label v-if="podeEscolherLugares && lugaresOcupados" class="mb-4 block font-black">Letra da submesa
+                        <input v-model="letraSubmesaNova" type="text" maxlength="1" class="mt-1 w-full rounded-lg border-gray-700 bg-gray-800 p-3 uppercase text-white" placeholder="Ex.: A">
+                    </label>
                     <button v-if="!mesaDividida" class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="abrirPedido()">ABRIR PEDIDO</button>
                     <div v-if="mesa.submesas?.length" class="mt-4 space-y-2">
                         <Link v-for="submesa in mesa.submesas" :key="submesa.id" :href="route('pos.rest.mesa', submesa.id)" class="block rounded-lg p-3 font-black" :class="submesa.estado === 'ocupada' ? 'bg-red-700' : 'bg-gray-700'">
@@ -75,6 +80,7 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                         </Link>
                     </div>
                     <div v-if="novoForm.errors.mesa_id" class="mt-3 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.mesa_id }}</div>
+                    <div v-if="novoForm.errors.submesa_letra" class="mt-3 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.submesa_letra }}</div>
                 </div>
                 <div v-else>
                     <div class="my-4 inline-flex rounded bg-blue-600 px-3 py-1 text-sm font-black uppercase">{{ pedido.estado }}</div>
