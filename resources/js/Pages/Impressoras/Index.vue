@@ -23,6 +23,8 @@ const props = defineProps({
 const showModal = ref(false)
 const isEditing = ref(false)
 const selectedImpressora = ref(null)
+const impressoras = computed(() => props.impressoras ?? [])
+const secoes = computed(() => props.secoes ?? {})
 
 const form = useForm({
     nome: '',
@@ -78,7 +80,7 @@ function deleteImpressora(impressora) {
 
 const getSectionName = (secao) => {
     if (!secao) return '—'
-    return props.secoes[secao] || secao
+    return secoes.value[secao] || secao
 }
 </script>
 
