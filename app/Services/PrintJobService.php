@@ -13,6 +13,15 @@ class PrintJobService
         return $this->criarPedido($pedido, $secao, $tipo, [$item]);
     }
 
+    public function criarAnulacaoItemPedido(Pedido $pedido, array $item, ?string $secao = null): ?PrintJob
+    {
+        return $this->criarPedido($pedido, $secao, 'anulado', [[
+            'quantidade' => $item['quantidade'],
+            'nome' => 'RETIRADO: '.$item['nome'],
+            'observacoes' => $item['observacoes'] ?? null,
+        ]]);
+    }
+
     public function criarPedido(Pedido $pedido, ?string $secao = null, string $tipo = 'pedido', ?array $items = null): ?PrintJob
     {
         $impressora = $this->impressoraParaSecao($secao);
@@ -87,7 +96,11 @@ class PrintJobService
             'Operador: '.($operador ?: 'Sem operador'),
             'Hora: '.now()->format('H:i'),
             '------------------------------',
-            ...$items->map(fn ($item) => $item['quantidade'].'x '.$item['nome'].($item['observacoes'] ? ' - '.$item['observacoes'] : ''))->all(),
+            ...$items->map(fn ($item) => [
+                'texto' => $item['quantidade'].'x '.$item['nome'].($item['observacoes'] ? ' - '.$item['observacoes'] : ''),
+                'alinhamento' => 'centro',
+                'tamanho' => 'grande',
+            ])->all(),
             '------------------------------',
         ];
     }
@@ -102,7 +115,11 @@ class PrintJobService
             ]];
         }
 
-        return ['Pedido #'.$pedido->id];
+        return [[
+            'texto' => 'PEDIDO #'.$pedido->id,
+            'alinhamento' => 'centro',
+            'tamanho' => 'grande',
+        ]];
     }
 
     private function linhasMesa($mesaPrincipal, $submesa): array

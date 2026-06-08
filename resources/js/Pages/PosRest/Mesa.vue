@@ -90,7 +90,7 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                     </div>
                     <div class="space-y-3">
                         <div v-for="item in pedido.items" :key="item.id" class="rounded-lg border bg-gray-900 p-3" :class="item.prioridade ? 'animate-pulse border-amber-500' : 'border-gray-700'">
-                            <div class="flex items-start justify-between gap-3"><strong>{{ item.produto?.nome }}</strong><button class="rounded bg-red-700 px-3 py-2 font-black" @click="remover(item)">×</button></div>
+                            <div class="flex items-start justify-between gap-3"><strong>{{ item.produto?.nome }}</strong><button class="rounded bg-red-700 px-3 py-2 font-black" @click="remover(item)">-1</button></div>
                             <div class="mt-3 flex items-center justify-between gap-2">
                                 <div class="font-mono text-lg">{{ item.quantidade }} × {{ euros(item.preco_unitario) }} = {{ euros(item.quantidade * item.preco_unitario) }}</div>
                                 <button class="rounded px-3 py-2 font-black" :class="item.prioridade ? 'bg-amber-600' : 'bg-gray-700'" @click="urgente(item)">Fim</button>

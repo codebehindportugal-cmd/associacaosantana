@@ -170,12 +170,26 @@ class PosRestController extends Controller
         return back();
     }
 
-    public function removerItem(Pedido $pedido, PedidoItem $item): RedirectResponse
+    public function removerItem(Pedido $pedido, PedidoItem $item, PrintJobService $printJobs): RedirectResponse
     {
         abort_unless($item->pedido_id === $pedido->id, 404);
 
-        $item->delete();
+        $item->loadMissing('produto.categoria');
+        $quantidadeRetirada = 1;
+        $secao = $this->normalizarSecao($item->secao ?: ($item->produto?->categoria?->secao ?? 'cozinha'));
+
+        if ($item->quantidade > $quantidadeRetirada) {
+            $item->decrement('quantidade', $quantidadeRetirada);
+        } else {
+            $item->delete();
+        }
+
         $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+        $printJobs->criarAnulacaoItemPedido($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'), [
+            'quantidade' => $quantidadeRetirada,
+            'nome' => $item->produto?->nome ?? 'Produto',
+            'observacoes' => $item->observacoes,
+        ], $secao);
 
         return back();
     }
