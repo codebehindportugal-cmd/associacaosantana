@@ -15,11 +15,7 @@ class PrintJobService
 
     public function criarPedido(Pedido $pedido, ?string $secao = null, string $tipo = 'pedido', ?array $items = null): ?PrintJob
     {
-        $impressora = Impressora::query()
-            ->where('ativa', true)
-            ->when($secao, fn ($query) => $query->where('secao', $secao))
-            ->orderBy('id')
-            ->first();
+        $impressora = $this->impressoraParaSecao($secao);
 
         if (! $impressora) {
             return null;
@@ -41,9 +37,36 @@ class PrintJobService
         ]);
     }
 
+    private function impressoraParaSecao(?string $secao): ?Impressora
+    {
+        $query = Impressora::query()
+            ->where('ativa', true)
+            ->orderBy('id');
+
+        if (! $secao) {
+            return $query->first();
+        }
+
+        return $query
+            ->whereIn('secao', $this->secoesEquivalentes($secao))
+            ->first();
+    }
+
+    private function secoesEquivalentes(string $secao): array
+    {
+        return match ($secao) {
+            'bebidas' => ['bebidas', 'bar'],
+            'comida' => ['comida', 'cozinha'],
+            'cozinha' => ['cozinha', 'comida'],
+            default => [$secao],
+        };
+    }
+
     private function linhasPedido(Pedido $pedido, ?string $secao, ?array $itemsParaImprimir = null): array
     {
-        $mesa = $pedido->mesa?->mesaPrincipal ?: $pedido->mesa;
+        $mesaPedido = $pedido->mesa;
+        $mesaPrincipal = $mesaPedido?->mesaPrincipal ?: $mesaPedido;
+        $submesa = $mesaPedido?->mesaPrincipal ? $mesaPedido : null;
         $operador = $pedido->operador_nome ?: ($pedido->user?->name ?: $pedido->pos?->nome);
         $items = $itemsParaImprimir
             ? collect($itemsParaImprimir)
@@ -58,14 +81,71 @@ class PrintJobService
         $items = $items->values();
 
         return [
-            'Pedido #'.$pedido->id,
+            ...$this->linhasIdentificacao($pedido),
             'Tipo: '.$pedido->tipo,
-            $mesa ? 'Mesa: '.$mesa->numero : 'Balcao',
+            ...$this->linhasMesa($mesaPrincipal, $submesa),
             'Operador: '.($operador ?: 'Sem operador'),
             'Hora: '.now()->format('H:i'),
             '------------------------------',
             ...$items->map(fn ($item) => $item['quantidade'].'x '.$item['nome'].($item['observacoes'] ? ' - '.$item['observacoes'] : ''))->all(),
             '------------------------------',
         ];
+    }
+
+    private function linhasIdentificacao(Pedido $pedido): array
+    {
+        if ($pedido->numero_senha) {
+            return [[
+                'texto' => 'SENHA #'.$pedido->numero_senha,
+                'alinhamento' => 'centro',
+                'tamanho' => 'grande',
+            ]];
+        }
+
+        return ['Pedido #'.$pedido->id];
+    }
+
+    private function linhasMesa($mesaPrincipal, $submesa): array
+    {
+        if (! $mesaPrincipal) {
+            return [[
+                'texto' => 'BALCAO',
+                'alinhamento' => 'centro',
+                'tamanho' => 'grande',
+            ]];
+        }
+
+        $linhas = [[
+            'texto' => 'MESA '.$mesaPrincipal->numero,
+            'alinhamento' => 'centro',
+            'tamanho' => 'grande',
+        ]];
+
+        if ($submesa) {
+            $linhas[] = [
+                'texto' => 'SUBMESA '.$this->letraSubmesa($submesa),
+                'alinhamento' => 'centro',
+                'tamanho' => 'grande',
+            ];
+        }
+
+        return $linhas;
+    }
+
+    private function letraSubmesa($submesa): string
+    {
+        $base = $submesa->mesaPrincipal?->numero;
+        $designacao = (string) ($submesa->designacao ?? $submesa->nome ?? $submesa->numero);
+
+        if ($base) {
+            $letra = preg_replace('/^Mesa\s*'.preg_quote((string) $base, '/').'/i', '', $designacao);
+            $letra = trim((string) $letra);
+
+            if ($letra !== '') {
+                return $letra;
+            }
+        }
+
+        return (string) $submesa->numero;
     }
 }

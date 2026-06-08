@@ -3,6 +3,7 @@ import net from 'node:net';
 const APP_URL = process.env.APP_URL;
 const PRINT_AGENT_TOKEN = process.env.PRINT_AGENT_TOKEN;
 const POLL_SECONDS = Number(process.env.POLL_SECONDS ?? 3);
+const PRINT_DELAY_MS = Number(process.env.PRINT_DELAY_MS ?? 200);
 
 if (!APP_URL || !PRINT_AGENT_TOKEN) {
     console.error('Configura APP_URL e PRINT_AGENT_TOKEN antes de iniciar o agente.');
@@ -31,14 +32,34 @@ const api = async (path, options = {}) => {
 
 const escpos = (job) => {
     const payload = job.payload ?? {};
+    const linhaEscpos = (linha) => {
+        if (typeof linha === 'string') {
+            return `${linha}\n`;
+        }
+
+        const texto = linha?.texto ?? '';
+        const alinharCentro = linha?.alinhamento === 'centro';
+        const tamanhoGrande = linha?.tamanho === 'grande';
+
+        return [
+            alinharCentro ? '\x1B\x61\x01' : '\x1B\x61\x00',
+            tamanhoGrande ? '\x1D\x21\x11' : '\x1D\x21\x00',
+            `${texto}\n`,
+            '\x1D\x21\x00',
+            '\x1B\x61\x00',
+        ].join('');
+    };
+
     const linhas = [
         '\x1B@',
+        '\x1B\x61\x01',
         '\x1B!\x18',
         `${payload.titulo ?? 'ARDC Santana'}\n`,
         '\x1B!\x00',
         payload.subtitulo ? `${payload.subtitulo}\n` : '',
+        '\x1B\x61\x00',
         '\n',
-        ...(payload.linhas ?? []).map((linha) => `${linha}\n`),
+        ...(payload.linhas ?? []).map(linhaEscpos),
         '\n\n\n',
         payload.cortar === false ? '' : '\x1D\x56\x00',
     ];
@@ -46,7 +67,23 @@ const escpos = (job) => {
     return Buffer.from(linhas.join(''), 'binary');
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const imprimir = (job) => new Promise((resolve, reject) => {
+    let terminou = false;
+    const concluir = () => {
+        if (!terminou) {
+            terminou = true;
+            resolve();
+        }
+    };
+    const falhar = (error) => {
+        if (!terminou) {
+            terminou = true;
+            reject(error);
+        }
+    };
+
     const socket = net.createConnection({
         host: job.printer.host,
         port: Number(job.printer.porta ?? 9100),
@@ -54,16 +91,16 @@ const imprimir = (job) => new Promise((resolve, reject) => {
     });
 
     socket.on('connect', () => {
-        socket.write(escpos(job));
-        socket.end();
+        socket.setNoDelay(true);
+        socket.write(escpos(job), () => socket.end());
     });
 
-    socket.on('error', reject);
+    socket.on('error', falhar);
     socket.on('timeout', () => {
         socket.destroy();
-        reject(new Error('Timeout a ligar a impressora.'));
+        falhar(new Error('Timeout a ligar a impressora.'));
     });
-    socket.on('close', resolve);
+    socket.on('close', concluir);
 });
 
 const ciclo = async () => {
@@ -75,6 +112,7 @@ const ciclo = async () => {
                 await imprimir(job);
                 await api(`jobs/${job.id}/done`, { method: 'POST', body: '{}' });
                 console.log(`Impresso job #${job.id} em ${job.printer.nome}`);
+                await sleep(PRINT_DELAY_MS);
             } catch (error) {
                 await api(`jobs/${job.id}/fail`, { method: 'POST', body: JSON.stringify({ error: error.message }) });
                 console.error(`Falhou job #${job.id}: ${error.message}`);
