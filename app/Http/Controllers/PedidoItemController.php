@@ -6,6 +6,7 @@ use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\Mesa;
 use App\Models\Produto;
+use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -17,7 +18,7 @@ class PedidoItemController extends Controller
         $this->middleware('permission:pedidos.editar')->only(['update', 'destroy']);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, PrintJobService $printJobs): RedirectResponse
     {
         $data = $request->validate([
             'pedido_id' => ['required', 'exists:pedidos,id'],
@@ -48,6 +49,11 @@ class PedidoItemController extends Controller
             ]);
         }
         $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+        $printJobs->criarItemPedido($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'), [
+            'quantidade' => (int) $data['quantidade'],
+            'nome' => $produto->nome,
+            'observacoes' => $data['observacoes'] ?? null,
+        ], $produto->categoria->secao);
 
         return back()->with('success', 'Item adicionado.');
     }

@@ -7,6 +7,7 @@ use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\Produto;
 use App\Models\CaixaDiaria;
+use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -130,7 +131,7 @@ class PosRestController extends Controller
         return to_route('pos.rest.mesa', $mesaPedido)->with('pedido_id', $pedido->id);
     }
 
-    public function adicionarItem(Request $request, Pedido $pedido): RedirectResponse
+    public function adicionarItem(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
     {
         $data = $request->validate([
             'produto_id' => ['required', 'exists:produtos,id'],
@@ -159,6 +160,12 @@ class PosRestController extends Controller
         }
 
         $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+        $secao = $this->normalizarSecao($produto->categoria->secao ?? 'cozinha');
+        $printJobs->criarItemPedido($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'), [
+            'quantidade' => (int) $data['quantidade'],
+            'nome' => $produto->nome,
+            'observacoes' => null,
+        ], $secao);
 
         return back();
     }
