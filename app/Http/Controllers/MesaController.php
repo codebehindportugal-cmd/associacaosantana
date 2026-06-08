@@ -154,6 +154,7 @@ class MesaController extends Controller
             return back()->with('error', 'Nao e possivel apagar a mesa enquanto existirem pedidos ativos.');
         }
 
+        $mesa->submesas()->delete();
         $mesa->delete();
 
         return to_route('mesas.index')->with('success', 'Mesa apagada.');

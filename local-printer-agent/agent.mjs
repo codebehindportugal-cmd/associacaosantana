@@ -32,12 +32,21 @@ const api = async (path, options = {}) => {
 
 const escpos = (job) => {
     const payload = job.payload ?? {};
+    const textoSeguro = (valor) => String(valor ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[€]/g, 'EUR')
+        .replace(/[º]/g, 'o')
+        .replace(/[ª]/g, 'a')
+        .replace(/[–—]/g, '-')
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'");
     const linhaEscpos = (linha) => {
         if (typeof linha === 'string') {
-            return `${linha}\n`;
+            return `${textoSeguro(linha)}\n`;
         }
 
-        const texto = linha?.texto ?? '';
+        const texto = textoSeguro(linha?.texto ?? '');
         const alinharCentro = linha?.alinhamento === 'centro';
         const tamanhoGrande = linha?.tamanho === 'grande';
 
@@ -52,11 +61,12 @@ const escpos = (job) => {
 
     const linhas = [
         '\x1B@',
+        '\x1B\x74\x00',
         '\x1B\x61\x01',
         '\x1B!\x18',
-        `${payload.titulo ?? 'ARDC Santana'}\n`,
+        `${textoSeguro(payload.titulo ?? 'ARDC Santana')}\n`,
         '\x1B!\x00',
-        payload.subtitulo ? `${payload.subtitulo}\n` : '',
+        payload.subtitulo ? `${textoSeguro(payload.subtitulo)}\n` : '',
         '\x1B\x61\x00',
         '\n',
         ...(payload.linhas ?? []).map(linhaEscpos),

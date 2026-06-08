@@ -28,7 +28,6 @@ watch(() => props.itemsPorMesa, () => {
 }, { deep: true, immediate: true });
 onMounted(() => { intervalo = setInterval(atualizar, 5000); });
 onBeforeUnmount(() => { clearInterval(intervalo); clearTimeout(limparDestaque); });
-const pronto = (id, quantidade = null) => router.patch(route('secao.items.pronto', id), quantidade ? { quantidade } : {}, { preserveScroll: true });
 const retirar = (id) => router.patch(route('secao.pedidos.retirar', id), {}, { preserveScroll: true });
 const hora = computed(() => ultimaAtualizacao.value.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 </script>
@@ -54,10 +53,6 @@ const hora = computed(() => ultimaAtualizacao.value.toLocaleTimeString('pt-PT', 
                         <span v-if="item.observacoes" class="mt-3 block rounded-md bg-red-600 px-3 py-2 text-lg font-black text-white">
                             ATENÇÃO: {{ item.observacoes }}
                         </span>
-                    </div>
-                    <div v-if="!modoBar" class="grid gap-2">
-                        <button v-if="item.quantidade > 1" class="min-h-[48px] rounded-md bg-sky-700 px-4 py-2 font-black text-white" @click="pronto(item.id, 1)">1 PRONTO</button>
-                        <button class="min-h-[60px] rounded-md px-5 py-3 font-black text-white" :class="item.prioridade ? 'bg-amber-500 text-lg' : 'bg-emerald-600'" @click="pronto(item.id)">TUDO PRONTO</button>
                     </div>
                 </div>
                 <button v-if="modoBar && grupo.pedido_id" class="mt-3 w-full rounded-md bg-emerald-600 px-5 py-4 text-xl font-black text-white shadow-lg shadow-emerald-950/30" @click="retirar(grupo.pedido_id)">

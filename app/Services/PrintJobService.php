@@ -17,7 +17,7 @@ class PrintJobService
     {
         return $this->criarPedido($pedido, $secao, 'anulado', [[
             'quantidade' => $item['quantidade'],
-            'nome' => 'RETIRADO: '.$item['nome'],
+            'nome' => 'ANULADO: '.$item['nome'],
             'observacoes' => $item['observacoes'] ?? null,
         ]]);
     }

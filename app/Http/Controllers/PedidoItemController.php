@@ -70,13 +70,27 @@ class PedidoItemController extends Controller
         return back()->with('success', 'Item atualizado.');
     }
 
-    public function destroy(PedidoItem $pedidoItem): RedirectResponse
+    public function destroy(PedidoItem $pedidoItem, PrintJobService $printJobs): RedirectResponse
     {
         $pedido = $pedidoItem->pedido;
-        $pedidoItem->delete();
-        $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+        $pedidoItem->loadMissing('produto.categoria');
+        $quantidadeAnulada = 1;
+        $secao = $pedidoItem->secao ?: ($pedidoItem->produto?->categoria?->secao ?? null);
 
-        return back()->with('success', 'Item removido.');
+        if ($pedidoItem->quantidade > $quantidadeAnulada) {
+            $pedidoItem->decrement('quantidade', $quantidadeAnulada);
+        } else {
+            $pedidoItem->delete();
+        }
+
+        $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+        $printJobs->criarAnulacaoItemPedido($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'), [
+            'quantidade' => $quantidadeAnulada,
+            'nome' => $pedidoItem->produto?->nome ?? 'Produto',
+            'observacoes' => $pedidoItem->observacoes,
+        ], $secao);
+
+        return back()->with('success', 'Item anulado.');
     }
 
     private function libertarMesaSeForLimpeza(PedidoItem $pedidoItem): void

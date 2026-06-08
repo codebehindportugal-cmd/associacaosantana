@@ -155,7 +155,7 @@ class PedidoController extends Controller
 
     public function atualizarEstado(Request $request, Pedido $pedido): RedirectResponse
     {
-        $pedido->update($request->validate(['estado' => ['required', 'in:pendente,preparacao,pronto,entregue,cancelado']]));
+        $pedido->update($request->validate(['estado' => ['required', 'in:pendente,preparacao,entregue,cancelado']]));
         if (in_array($pedido->estado, ['entregue', 'cancelado'], true)) {
             $this->libertarMesaDoPedido($pedido);
         }

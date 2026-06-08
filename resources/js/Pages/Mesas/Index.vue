@@ -101,7 +101,7 @@ const mesaParcial = (mesa) => {
 
 const mesaLivre = (mesa) => estadoVisual(mesa) === 'livre';
 const podeAbrirPedido = (mesa) => mesa && (mesaLivre(mesa) || estadoVisual(mesa) === 'reservada');
-const podeMarcarLivre = (mesa) => mesa && !mesaLivre(mesa);
+const podeMarcarLivre = (mesa) => mesa && !mesaLivre(mesa) && !pedidosAtivosDaMesa(mesa).length;
 const mesaPrincipalDividida = (mesa) => mesa && !mesa.mesa_principal_id && mesa.submesas?.length > 0;
 const mesaDivididaLivre = (mesa) => mesaPrincipalDividida(mesa) && mesaLivre(mesa);
 const podeAbrirPedidoMesaCompleta = (mesa) => podeAbrirPedido(mesa) && (!mesaPrincipalDividida(mesa) || mesaDivididaLivre(mesa));
@@ -112,6 +112,10 @@ const pedidosAtivos = (mesa) => [
 const pedidosAtivosDaMesa = (mesa) => [
     ...pedidosAtivos(mesa),
     ...((mesa?.submesas ?? []).flatMap((submesa) => pedidosAtivos(submesa))),
+];
+const pedidosAtivosDaMesaDetalhados = (mesa) => [
+    ...pedidosAtivos(mesa).map((pedido) => ({ pedido, local: mesa.designacao })),
+    ...((mesa?.submesas ?? []).flatMap((submesa) => pedidosAtivos(submesa).map((pedido) => ({ pedido, local: letraSubmesa(submesa) })))),
 ];
 
 const mesaSelecionada = computed(() => mesasMapa.value.find((mesa) => mesa.id === mesaSelecionadaId.value) ?? mesasMapa.value[0]);
@@ -351,8 +355,8 @@ const textoLugaresVaziosCurto = (mesa) => `${lugaresVazios(mesa)} livres`;
                 <div class="mb-5 grid gap-2">
                     <div v-if="pedidosAtivosDaMesa(mesaSelecionada).length" class="grid gap-2 rounded-md bg-slate-50 p-3">
                         <div class="text-xs font-semibold uppercase text-slate-500">Pedidos ativos</div>
-                        <Link v-for="pedido in pedidosAtivosDaMesa(mesaSelecionada)" :key="pedido.id" :href="route('pedidos.show', pedido.id)" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white">
-                            Ver pedido #{{ pedido.id }}
+                        <Link v-for="item in pedidosAtivosDaMesaDetalhados(mesaSelecionada)" :key="item.pedido.id" :href="route('pedidos.show', item.pedido.id)" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white">
+                            Ver pedido #{{ item.pedido.id }} · {{ item.local }}
                         </Link>
                     </div>
                     <div v-if="podeAbrirPedido(mesaSelecionada) && !mesaSelecionada.submesas.length && !mesaSelecionada.mesa_principal_id" class="rounded-md bg-slate-50 p-4">

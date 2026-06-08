@@ -69,6 +69,14 @@ const alternarUrgente = (item) => {
     router.patch(route('pedido-items.update', item.id), { prioridade: !item.prioridade }, { preserveScroll: true });
 };
 
+const anularItem = (item) => {
+    if (!confirm(`Anular 1x ${item.produto?.nome ?? 'produto'} deste pedido?`)) {
+        return;
+    }
+
+    router.delete(route('pedido-items.destroy', item.id), { preserveScroll: true });
+};
+
 const cancelarPedido = () => {
     if (!confirm('Cancelar este pedido e libertar a mesa?')) {
         return;
@@ -180,6 +188,9 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                             </div>
                             <div class="flex items-center gap-2">
                                 <button type="button" class="rounded-full px-3 py-2 text-xs font-black" :class="item.prioridade ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-700'" @click="alternarUrgente(item)">A terminar</button>
+                                <button v-if="!pedidoFechado" type="button" class="rounded-full bg-red-100 px-3 py-2 text-xs font-black text-red-700" @click="anularItem(item)">
+                                    {{ item.quantidade > 1 ? '-1' : 'Anular' }}
+                                </button>
                                 <div class="rounded-full px-3 py-1 text-xs font-semibold" :class="item.estado === 'pronto' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
                                     {{ item.estado }}
                                 </div>
@@ -245,7 +256,6 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                         <select v-model="estadoForm.estado" class="w-full rounded-md border-slate-300">
                             <option>pendente</option>
                             <option>preparacao</option>
-                            <option>pronto</option>
                             <option>entregue</option>
                             <option>cancelado</option>
                         </select>

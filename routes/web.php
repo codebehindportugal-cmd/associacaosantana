@@ -82,11 +82,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('cotas', CotaController::class);
     Route::post('cotas/gerar', [CotaController::class, 'gerarCotas'])->name('cotas.gerar');
     Route::get('sala', [MesaController::class, 'sala'])->name('sala.index');
-    Route::resource('mesas', MesaController::class);
     Route::patch('mesas/mapa/guardar', [MesaController::class, 'guardarMapa'])->name('mesas.mapa.guardar');
     Route::post('mesas/{mesa}/dividir', [MesaController::class, 'dividir'])->name('mesas.dividir');
     Route::delete('mesas/{mesa}/submesas', [MesaController::class, 'juntar'])->name('mesas.juntar');
     Route::patch('mesas/{mesa}/libertar', [MesaController::class, 'libertar'])->name('mesas.libertar');
+    Route::resource('mesas', MesaController::class);
     Route::patch('reservas/{reserva}/sentar', [ReservaController::class, 'sentar'])->name('reservas.sentar');
     Route::resource('reservas', ReservaController::class);
     Route::resource('eventos', EventoController::class)->except(['create']);

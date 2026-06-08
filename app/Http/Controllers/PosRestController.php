@@ -242,7 +242,7 @@ class PosRestController extends Controller
 
     public function atualizarEstado(Request $request, Pedido $pedido): RedirectResponse
     {
-        $data = $request->validate(['estado' => ['required', 'in:pendente,preparacao,pronto,entregue,cancelado']]);
+        $data = $request->validate(['estado' => ['required', 'in:pendente,preparacao,entregue,cancelado']]);
         $pedido->update($data);
         if (in_array($pedido->estado, ['entregue', 'cancelado'], true)) {
             $this->libertarMesaDoPedido($pedido);
