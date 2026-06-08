@@ -38,6 +38,9 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => fn () => $request->user()?->getAllPermissions()->pluck('name')->values() ?? [],
             ],
             'urgentes_count' => fn () => \App\Models\PedidoItem::urgentes()->count(),
+            'restaurante' => [
+                'mostrar_estado_items' => (bool) config('restaurante.mostrar_estado_items'),
+            ],
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),

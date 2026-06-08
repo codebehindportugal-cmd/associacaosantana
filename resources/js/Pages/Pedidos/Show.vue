@@ -1,9 +1,10 @@
 ﻿<script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({ pedido: Object, mesas: Array, produtos: Array, paraLevar: Boolean });
+const page = usePage();
 
 const pedidoForm = useForm({
     tipo_atendimento: props.paraLevar ? 'para_levar' : 'mesa',
@@ -46,6 +47,7 @@ const valorTroco = computed(() => Number(fecharContaForm.troco || 0));
 const trocoADevolver = computed(() => Math.max(0, valorRecebido.value - totalPedido.value));
 const doacaoEstimada = computed(() => Math.max(0, valorRecebido.value - totalPedido.value - valorTroco.value));
 const criadoPor = computed(() => props.pedido?.operador_nome ?? props.pedido?.user?.name ?? props.pedido?.pos?.nome ?? 'Sem utilizador');
+const mostrarEstadoItems = computed(() => Boolean(page.props.restaurante?.mostrar_estado_items));
 
 const adicionarProduto = (produto) => {
     if (pedidoFechado.value) {
@@ -191,7 +193,7 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                                 <button v-if="!pedidoFechado" type="button" class="rounded-full bg-red-100 px-3 py-2 text-xs font-black text-red-700" @click="anularItem(item)">
                                     {{ item.quantidade > 1 ? '-1' : 'Anular' }}
                                 </button>
-                                <div class="rounded-full px-3 py-1 text-xs font-semibold" :class="item.estado === 'pronto' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
+                                <div v-if="mostrarEstadoItems" class="rounded-full px-3 py-1 text-xs font-semibold" :class="item.estado === 'pronto' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
                                     {{ item.estado }}
                                 </div>
                             </div>
