@@ -19,8 +19,32 @@ class PosRestController extends Controller
 {
     public function index(): Response
     {
+        $pedidosAtivos = fn ($query) => $query
+            ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
+            ->with('items.produto');
+        $pedidosGrupoAtivos = fn ($query) => $query
+            ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+            ->with('items.produto');
+
+        $mesas = Mesa::principais()
+            ->ativas()
+            ->with([
+                'pedidos' => $pedidosAtivos,
+                'pedidosGrupo' => $pedidosGrupoAtivos,
+                'submesas' => fn ($query) => $query->ativas()->with([
+                    'pedidos' => $pedidosAtivos,
+                    'pedidosGrupo' => $pedidosGrupoAtivos,
+                ])->orderBy('numero'),
+            ])
+            ->orderBy('numero')
+            ->get();
+
+        $zonas = \App\Models\ZonaMapa::all();
+
         return Inertia::render('PosRest/Index', [
             'posNome' => session('pos_nome'),
+            'mesas' => $mesas,
+            'zonas' => $zonas,
             'vendasHoje' => Pedido::whereDate('created_at', today())->where('tipo', 'restaurante')->sum('total'),
             'mesasLivres' => Mesa::ativas()->where('estado', 'livre')->count(),
             'mesasOcupadas' => Mesa::ativas()->where('estado', 'ocupada')->count(),

@@ -86,6 +86,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('cotas/gerar', [CotaController::class, 'gerarCotas'])->name('cotas.gerar');
     Route::get('sala', [MesaController::class, 'sala'])->name('sala.index');
     Route::patch('mesas/mapa/guardar', [MesaController::class, 'guardarMapa'])->name('mesas.mapa.guardar');
+    Route::patch('zonas/mapa/guardar', [\App\Http\Controllers\ZonaMapaController::class, 'guardarMapa'])->name('zonas.mapa.guardar');
     Route::post('mesas/{mesa}/dividir', [MesaController::class, 'dividir'])->name('mesas.dividir');
     Route::delete('mesas/{mesa}/submesas', [MesaController::class, 'juntar'])->name('mesas.juntar');
     Route::patch('mesas/{mesa}/libertar', [MesaController::class, 'libertar'])->name('mesas.libertar');
