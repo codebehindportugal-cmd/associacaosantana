@@ -24,7 +24,7 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
         <section class="grid gap-4 md:grid-cols-3">
             <div class="rounded-lg bg-emerald-700 p-5"><div class="font-bold">Mesas Livres</div><div class="text-5xl font-black">{{ mesasLivres }}</div></div>
             <div class="rounded-lg bg-red-700 p-5"><div class="font-bold">Mesas Ocupadas</div><div class="text-5xl font-black">{{ mesasOcupadas }}</div></div>
-            <div class="rounded-lg bg-blue-700 p-5"><div class="font-bold">Vendas Hoje</div><div class="text-5xl font-black">{{ euros(vendasHoje) }}</div></div>
+            
         </section>
         <Link :href="route('pos.rest.mesas')" class="mt-8 block rounded-lg bg-emerald-600 p-8 text-center text-3xl font-black">🍽️ VER MESAS</Link>
         <Link :href="route('pos.rest.historico')" class="mt-4 block rounded-lg bg-blue-600 p-6 text-center text-2xl font-black">📋 HISTORICO DO DIA</Link>
