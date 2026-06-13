@@ -51,6 +51,7 @@ const trocoADevolver = computed(() => Math.max(0, valorRecebido.value - totalPed
 const doacaoEstimada = computed(() => Math.max(0, valorRecebido.value - totalPedido.value - valorTroco.value));
 const criadoPor = computed(() => props.pedido?.operador_nome ?? props.pedido?.user?.name ?? props.pedido?.pos?.nome ?? 'Sem utilizador');
 const mostrarEstadoItems = computed(() => Boolean(page.props.restaurante?.mostrar_estado_items));
+const erroItem = computed(() => page.props.errors?.item);
 
 const adicionarProduto = (produto) => {
     if (pedidoFechado.value) {
@@ -220,6 +221,7 @@ onMounted(() => {
 
                 <div class="rounded-lg bg-white shadow-sm">
                     <div class="border-b border-slate-200 px-5 py-4 font-semibold">Itens do pedido</div>
+                    <div v-if="erroItem" class="mx-5 mt-4 rounded-md bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{{ erroItem }}</div>
                     <div v-if="pedido.items?.length" class="divide-y divide-slate-100">
                         <div v-for="item in pedido.items" :key="item.id" class="flex items-center justify-between gap-4 px-5 py-4" :class="item.prioridade ? 'bg-red-50' : ''">
                             <div>

@@ -30,11 +30,12 @@ class PedidoItemController extends Controller
         ]);
         $produto = Produto::with('categoria')->findOrFail($data['produto_id']);
         $pedido = Pedido::findOrFail($data['pedido_id']);
+        $observacoes = trim((string) ($data['observacoes'] ?? '')) ?: null;
         $itemExistente = $pedido->items()
             ->where('produto_id', $produto->id)
             ->where('estado', 'pendente')
             ->where('prioridade', (bool) ($data['prioridade'] ?? false))
-            ->where('observacoes', $data['observacoes'] ?? null)
+            ->where('observacoes', $observacoes)
             ->first();
 
         if ($itemExistente) {
@@ -46,14 +47,14 @@ class PedidoItemController extends Controller
                 'preco_unitario' => $produto->preco,
                 'secao' => $produto->categoria->secao,
                 'prioridade' => $data['prioridade'] ?? false,
-                'observacoes' => $data['observacoes'] ?? null,
+                'observacoes' => $observacoes,
             ]);
         }
         $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
         $printJobs->criarItemPedido($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'), [
             'quantidade' => (int) $data['quantidade'],
             'nome' => $produto->nome,
-            'observacoes' => $data['observacoes'] ?? null,
+            'observacoes' => $observacoes,
         ], $produto->categoria->secao);
 
         return back()->with('success', 'Item adicionado.');

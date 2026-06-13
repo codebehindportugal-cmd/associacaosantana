@@ -19,6 +19,9 @@ defineProps({
 
             <div class="mt-5 rounded-3xl bg-white p-5 text-slate-950 shadow-sm">
                 <h2 class="mb-3 text-lg font-black">Itens enviados nesta sessao</h2>
+                <div class="mb-3 rounded-2xl bg-amber-100 p-4 text-sm font-black text-amber-900">
+                    Se se enganou no pedido, chame um funcionario. A anulacao so e possivel nos primeiros 2 minutos.
+                </div>
                 <div v-if="!items?.length" class="rounded-2xl bg-slate-100 p-4 text-center text-sm font-semibold text-slate-500">
                     Ainda nao foram enviados itens neste telemovel.
                 </div>

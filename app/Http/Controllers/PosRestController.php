@@ -173,14 +173,17 @@ class PosRestController extends Controller
             'produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
             'quantidade' => ['required', 'integer', 'min:1'],
             'prioridade' => ['nullable', 'boolean'],
+            'observacoes' => ['nullable', 'string', 'max:255'],
         ]);
 
         $produto = Produto::with('categoria')->findOrFail($data['produto_id']);
+        $observacoes = trim((string) ($data['observacoes'] ?? '')) ?: null;
 
         $itemExistente = $pedido->items()
             ->where('produto_id', $produto->id)
             ->where('estado', 'pendente')
             ->where('prioridade', (bool) ($data['prioridade'] ?? false))
+            ->where('observacoes', $observacoes)
             ->first();
 
         if ($itemExistente) {
@@ -192,6 +195,7 @@ class PosRestController extends Controller
                 'preco_unitario' => $produto->preco,
                 'secao' => $this->normalizarSecao($produto->categoria->secao ?? 'cozinha'),
                 'prioridade' => (bool) ($data['prioridade'] ?? false),
+                'observacoes' => $observacoes,
             ]);
         }
 
@@ -200,7 +204,7 @@ class PosRestController extends Controller
         $printJobs->criarItemPedido($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'), [
             'quantidade' => (int) $data['quantidade'],
             'nome' => $produto->nome,
-            'observacoes' => null,
+            'observacoes' => $observacoes,
         ], $secao);
 
         return back();
@@ -213,6 +217,7 @@ class PosRestController extends Controller
             'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
             'items.*.prioridade' => ['nullable', 'boolean'],
+            'items.*.observacoes' => ['nullable', 'string', 'max:255'],
         ]);
 
         $produtos = Produto::with('categoria')
@@ -227,13 +232,14 @@ class PosRestController extends Controller
             $secao = $this->normalizarSecao($produto->categoria->secao ?? 'cozinha');
             $quantidade = (int) $item['quantidade'];
             $prioridade = (bool) ($item['prioridade'] ?? false);
+            $observacoes = trim((string) ($item['observacoes'] ?? '')) ?: null;
 
-            $this->guardarItemPedido($pedido, $produto, $quantidade, $secao, $prioridade);
+            $this->guardarItemPedido($pedido, $produto, $quantidade, $secao, $prioridade, $observacoes);
 
             $itemsParaImpressao->push([
                 'quantidade' => $quantidade,
                 'nome' => $produto->nome,
-                'observacoes' => null,
+                'observacoes' => $observacoes,
                 'secao' => $secao,
             ]);
         }
@@ -257,6 +263,9 @@ class PosRestController extends Controller
     public function removerItem(Pedido $pedido, PedidoItem $item, PrintJobService $printJobs): RedirectResponse
     {
         abort_unless($item->pedido_id === $pedido->id, 404);
+        if (! $this->itemPodeSerAnulado($item)) {
+            return back()->withErrors(['item' => 'Este item ja passou os 2 minutos permitidos para anulacao.']);
+        }
 
         $item->loadMissing('produto.categoria');
         $quantidadeRetirada = 1;
@@ -375,12 +384,13 @@ class PosRestController extends Controller
         return $secao;
     }
 
-    private function guardarItemPedido(Pedido $pedido, Produto $produto, int $quantidade, string $secao, bool $prioridade): void
+    private function guardarItemPedido(Pedido $pedido, Produto $produto, int $quantidade, string $secao, bool $prioridade, ?string $observacoes): void
     {
         $itemExistente = $pedido->items()
             ->where('produto_id', $produto->id)
             ->where('estado', 'pendente')
             ->where('prioridade', $prioridade)
+            ->where('observacoes', $observacoes)
             ->first();
 
         if ($itemExistente) {
@@ -395,6 +405,7 @@ class PosRestController extends Controller
             'preco_unitario' => $produto->preco,
             'secao' => $secao,
             'prioridade' => $prioridade,
+            'observacoes' => $observacoes,
         ]);
     }
 
@@ -409,6 +420,11 @@ class PosRestController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    private function itemPodeSerAnulado(PedidoItem $item): bool
+    {
+        return $item->created_at?->greaterThanOrEqualTo(now()->subMinutes(2)) ?? false;
     }
 
     private function caixaRestauranteAberta(): bool

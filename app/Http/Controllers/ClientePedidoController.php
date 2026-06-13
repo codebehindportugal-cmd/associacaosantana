@@ -106,19 +106,6 @@ class ClientePedidoController extends Controller
 
     private function guardarItemPedido(Pedido $pedido, Produto $produto, int $quantidade, string $secao, ?string $observacoes): void
     {
-        $itemExistente = $pedido->items()
-            ->where('produto_id', $produto->id)
-            ->where('estado', 'pendente')
-            ->where('prioridade', false)
-            ->where('observacoes', $observacoes)
-            ->first();
-
-        if ($itemExistente) {
-            $itemExistente->increment('quantidade', $quantidade);
-
-            return;
-        }
-
         $pedido->items()->create([
             'produto_id' => $produto->id,
             'quantidade' => $quantidade,

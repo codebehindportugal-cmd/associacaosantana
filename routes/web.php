@@ -16,6 +16,7 @@ use App\Http\Controllers\PosBarController;
 use App\Http\Controllers\PosCotasController;
 use App\Http\Controllers\PosLoginController;
 use App\Http\Controllers\PosRestController;
+use App\Http\Controllers\PrecarioController;
 use App\Http\Controllers\ProdutoController;
 use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\RelatorioController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+Route::get('/precario', PrecarioController::class)->name('precario');
 Route::post('/contacto', ContactController::class)->name('contacto.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
 Route::get('/cliente/{token}', [ClientePedidoController::class, 'show'])->name('cliente.mesa');

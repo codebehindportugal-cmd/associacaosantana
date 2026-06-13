@@ -1,9 +1,10 @@
 <script setup>
-import { Link, router, useForm } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import QRCode from 'qrcode';
 
 const props = defineProps({ mesa: Object, pedido: Object, produtos: Object });
+const page = usePage();
 const categoriaAtual = ref(Object.keys(props.produtos ?? {})[0] || '');
 const pagamentoAberto = ref(false);
 const metodo = ref('dinheiro');
@@ -13,6 +14,9 @@ const letraSubmesaNova = ref('');
 const carrinho = ref([]);
 const qrAberto = ref(false);
 const qrDataUrl = ref('');
+const qrTitulo = ref('');
+const qrSubtitulo = ref('');
+const qrLink = ref('');
 const lugaresAtuais = ref(props.pedido?.mesa?.capacidade ?? props.mesa?.capacidade ?? '');
 const novoForm = useForm({ lugares_ocupados: null, submesa_letra: null, mesas_grupo: null });
 const mesasGrupo = ref('');
@@ -27,8 +31,10 @@ const troco = computed(() => Math.max(0, Number(recebido.value || total.value) -
 const mesaDividida = computed(() => !props.mesa?.mesa_principal_id && props.mesa?.submesas?.length > 0);
 const podeEscolherLugares = computed(() => !props.pedido && !mesaDividida.value && Number(props.mesa?.capacidade ?? 0) > 1);
 const pedidoAutor = computed(() => props.pedido?.operador_nome ?? props.pedido?.user?.name ?? props.pedido?.pos?.nome ?? 'Sem utilizador');
+const erroItem = computed(() => page.props.errors?.item);
 const podeSelfOrder = computed(() => props.pedido?.cliente_token && ['pendente', 'preparacao'].includes(props.pedido?.estado));
 const clienteUrl = computed(() => podeSelfOrder.value ? route('cliente.mesa', props.pedido.cliente_token) : '');
+const precarioUrl = computed(() => route('precario'));
 const capacidadeMesa = computed(() => Number(props.mesa?.capacidade ?? 0));
 const lugaresNumero = computed(() => Number(lugaresOcupados.value || 0));
 const precisaSubmesa = computed(() => !props.pedido && !props.mesa?.mesa_principal_id && lugaresNumero.value > 0 && lugaresNumero.value < capacidadeMesa.value);
@@ -55,7 +61,7 @@ const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
 };
 const addProduto = (produto) => {
     if (!props.pedido) return;
-    const existente = carrinho.value.find((item) => item.produto_id === produto.id);
+    const existente = carrinho.value.find((item) => item.produto_id === produto.id && !item.observacoes);
 
     if (existente) {
         existente.quantidade += 1;
@@ -68,6 +74,7 @@ const addProduto = (produto) => {
         preco: produto.preco,
         quantidade: 1,
         prioridade: false,
+        observacoes: '',
     });
 };
 const alterarQuantidadeCarrinho = (item, delta) => {
@@ -82,6 +89,7 @@ const enviarPedido = () => {
         produto_id: item.produto_id,
         quantidade: item.quantidade,
         prioridade: item.prioridade,
+        observacoes: item.observacoes || '',
     }));
     itemForm.post(route('pos.rest.pedido.items', props.pedido.id), {
         preserveScroll: true,
@@ -107,23 +115,35 @@ const fechar = () => {
 const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido.value).slice(0, -1); else recebido.value = String(recebido.value) + valor; };
 const mostrarQr = async () => {
     if (!clienteUrl.value) return;
-    qrDataUrl.value = await QRCode.toDataURL(clienteUrl.value, { width: 420, margin: 2 });
+    qrTitulo.value = 'Self-Order do Cliente';
+    qrSubtitulo.value = `Mesa ${props.mesa.numero}`;
+    qrLink.value = clienteUrl.value;
+    qrDataUrl.value = await QRCode.toDataURL(qrLink.value, { width: 420, margin: 2 });
+    qrAberto.value = true;
+};
+const mostrarQrPrecario = async () => {
+    qrTitulo.value = 'Preçário';
+    qrSubtitulo.value = 'Produtos e preços disponíveis';
+    qrLink.value = precarioUrl.value;
+    qrDataUrl.value = await QRCode.toDataURL(qrLink.value, { width: 420, margin: 2 });
     qrAberto.value = true;
 };
 const copiarLinkCliente = async () => {
-    if (navigator?.clipboard && clienteUrl.value) {
-        await navigator.clipboard.writeText(clienteUrl.value);
+    const link = qrLink.value || clienteUrl.value;
+
+    if (navigator?.clipboard && link) {
+        await navigator.clipboard.writeText(link);
     }
 };
 </script>
 
 <template>
-    <main class="min-h-screen bg-gray-900 p-4 text-white">
+    <main class="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-gray-900 p-3 text-white sm:p-4">
         <header class="mb-4 flex items-center justify-between"><Link :href="route('pos.rest.mesas')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">← MESAS</Link><h1 class="text-3xl font-black">MESA {{ mesa.numero }}</h1></header>
-        <div v-if="!pedido" class="space-y-4">
+        <div v-if="!pedido" class="min-w-0 space-y-4">
             <!-- ABRIR MESA PRIMEIRO NO MOBILE -->
-            <section class="rounded-2xl bg-gray-800 p-5 shadow-lg">
-                <h2 class="text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
+            <section class="min-w-0 rounded-2xl bg-gray-800 p-4 shadow-lg sm:p-5">
+                <h2 class="break-words text-2xl font-black sm:text-3xl">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
                 <p class="mt-2 rounded-lg bg-gray-900 p-3 text-sm font-bold text-gray-300">Antes de escolher produtos, abre o pedido com o numero de pessoas.</p>
                 
                 <div v-if="!mesaDividida" class="mt-5 space-y-4">
@@ -155,31 +175,31 @@ const copiarLinkCliente = async () => {
             </section>
             
             <!-- PRODUTOS SECUNDÁRIOS NO MOBILE -->
-            <section class="rounded-lg bg-gray-800 p-4 opacity-50">
+            <section class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 opacity-50 sm:p-4">
                 <div class="mb-4 rounded bg-gray-900 p-3 text-center text-sm font-black text-gray-300">Abre o pedido para adicionar produtos.</div>
-                <div class="mb-4 flex gap-2 overflow-x-auto pb-2">
-                    <button v-for="cat in categorias" :key="cat" class="rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
+                <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-2">
+                    <button v-for="cat in categorias" :key="cat" class="shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
-                <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    <button v-for="produto in lista" :key="produto.id" class="min-h-28 rounded-lg p-4 text-left font-black" :class="secaoClasse(produto)" @click="addProduto(produto)">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="secaoClasse(produto)" @click="addProduto(produto)">
                         <span class="block text-lg">{{ produto.nome }}</span><span class="mt-2 block text-2xl">{{ euros(produto.preco) }}</span>
                     </button>
                 </div>
             </section>
         </div>
-        <div v-else class="grid gap-4 lg:grid-cols-[3fr_2fr]">
-            <section class="rounded-lg bg-gray-800 p-4">
-                <div class="mb-4 flex gap-2 overflow-x-auto pb-2">
-                    <button v-for="cat in categorias" :key="cat" class="rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
+        <div v-else class="grid min-w-0 gap-4 lg:grid-cols-[3fr_2fr]">
+            <section class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 sm:p-4">
+                <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-2">
+                    <button v-for="cat in categorias" :key="cat" class="shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
-                <div class="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    <button v-for="produto in lista" :key="produto.id" class="min-h-28 rounded-lg p-4 text-left font-black" :class="secaoClasse(produto)" @click="addProduto(produto)">
-                        <span class="block text-lg">{{ produto.nome }}</span><span class="mt-2 block text-2xl">{{ euros(produto.preco) }}</span>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="secaoClasse(produto)" @click="addProduto(produto)">
+                        <span class="block break-words text-lg">{{ produto.nome }}</span><span class="mt-2 block text-2xl">{{ euros(produto.preco) }}</span>
                     </button>
                 </div>
             </section>
-            <aside class="rounded-lg bg-gray-800 p-4">
-                <h2 class="text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
+            <aside class="min-w-0 rounded-lg bg-gray-800 p-4">
+                <h2 class="break-words text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
                 <div class="my-4 inline-flex rounded bg-blue-600 px-3 py-1 text-sm font-black uppercase">{{ pedido.estado }}</div>
                 <div class="mb-4 rounded-lg bg-gray-900 p-3">
                     <div class="text-sm font-bold text-gray-400">Pedido feito por</div>
@@ -190,6 +210,11 @@ const copiarLinkCliente = async () => {
                     <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR ao cliente para adicionar itens pelo telemovel.</p>
                     <button class="mt-3 w-full rounded-lg bg-cyan-600 p-4 text-lg font-black" @click="mostrarQr">MOSTRAR QR AO CLIENTE</button>
                     <button class="mt-2 w-full rounded-lg bg-gray-800 p-3 text-sm font-black" @click="copiarLinkCliente">COPIAR LINK</button>
+                </section>
+                <section class="mb-4 rounded-lg border-2 border-emerald-500 bg-gray-950 p-3">
+                    <h3 class="text-xl font-black">PREÇÁRIO DO SITE</h3>
+                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR para o cliente consultar produtos e preços.</p>
+                    <button class="mt-3 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="mostrarQrPrecario">MOSTRAR QR PREÇÁRIO</button>
                 </section>
                 <div class="mb-4 rounded-lg bg-gray-900 p-3">
                     <label class="block font-black">
@@ -205,7 +230,7 @@ const copiarLinkCliente = async () => {
                         <strong class="text-emerald-400">{{ euros(totalCarrinho) }}</strong>
                     </div>
                     <div v-if="!carrinho.length" class="rounded bg-gray-900 p-4 text-center font-bold text-gray-400">Escolhe os produtos e envia o pedido.</div>
-                    <div v-for="item in carrinho" :key="item.produto_id" class="mb-2 rounded bg-gray-900 p-3">
+                    <div v-for="(item, index) in carrinho" :key="`${item.produto_id}-${index}`" class="mb-2 rounded bg-gray-900 p-3">
                         <div class="mb-2 flex items-center justify-between gap-2">
                             <strong>{{ item.nome }}</strong>
                             <button class="rounded bg-red-700 px-3 py-2 font-black" @click="alterarQuantidadeCarrinho(item, -1)">-</button>
@@ -218,7 +243,15 @@ const copiarLinkCliente = async () => {
                             <input v-model="item.prioridade" type="checkbox" class="rounded border-gray-600 bg-gray-800 text-amber-500">
                             A terminar
                         </label>
+                        <textarea
+                            v-model="item.observacoes"
+                            rows="2"
+                            maxlength="255"
+                            class="mt-2 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-sm font-bold text-white placeholder:text-gray-500"
+                            placeholder="Observações: sem cebola, bem passado..."
+                        ></textarea>
                     </div>
+                    <div v-if="itemForm.errors.items" class="mt-2 rounded bg-red-700 p-3 text-sm font-bold">{{ itemForm.errors.items }}</div>
                     <button
                         class="mt-2 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-50"
                         :disabled="!carrinho.length || itemForm.processing"
@@ -228,11 +261,15 @@ const copiarLinkCliente = async () => {
                     </button>
                 </div>
                 <div class="space-y-3">
+                    <div v-if="erroItem" class="rounded bg-red-700 p-3 text-sm font-black">{{ erroItem }}</div>
                     <div v-for="item in pedido.items" :key="item.id" class="rounded-lg border bg-gray-900 p-3" :class="item.prioridade ? 'animate-pulse border-amber-500' : 'border-gray-700'">
                         <div class="flex items-start justify-between gap-3"><strong>{{ item.produto?.nome }}</strong><button class="rounded bg-red-700 px-3 py-2 font-black" @click="remover(item)">-1</button></div>
                         <div class="mt-3 flex items-center justify-between gap-2">
                             <div class="font-mono text-lg">{{ item.quantidade }} × {{ euros(item.preco_unitario) }} = {{ euros(item.quantidade * item.preco_unitario) }}</div>
                             <button class="rounded px-3 py-2 font-black" :class="item.prioridade ? 'bg-amber-600' : 'bg-gray-700'" @click="urgente(item)">Fim</button>
+                        </div>
+                        <div v-if="item.observacoes" class="mt-3 rounded bg-amber-500 px-3 py-2 text-sm font-black text-gray-950">
+                            {{ item.observacoes }}
                         </div>
                     </div>
                 </div>
@@ -256,10 +293,10 @@ const copiarLinkCliente = async () => {
         </div>
         <div v-if="qrAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
             <div class="mx-auto max-w-md rounded-2xl bg-white p-5 text-center text-slate-950">
-                <h2 class="text-2xl font-black">Self-Order do Cliente</h2>
-                <p class="mt-1 text-sm font-semibold text-slate-500">Mesa {{ mesa.numero }}</p>
+                <h2 class="text-2xl font-black">{{ qrTitulo }}</h2>
+                <p class="mt-1 text-sm font-semibold text-slate-500">{{ qrSubtitulo }}</p>
                 <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR code self-order" class="mx-auto my-5 h-72 w-72 rounded-xl border p-3">
-                <input :value="clienteUrl" readonly class="w-full rounded-lg border-slate-300 text-xs">
+                <input :value="qrLink" readonly class="w-full rounded-lg border-slate-300 text-xs">
                 <button class="mt-3 w-full rounded-lg bg-slate-900 p-3 font-black text-white" @click="copiarLinkCliente">COPIAR LINK</button>
                 <button class="mt-3 w-full rounded-lg bg-gray-200 p-3 font-black text-slate-950" @click="qrAberto = false">FECHAR</button>
             </div>
