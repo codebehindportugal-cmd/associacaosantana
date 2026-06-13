@@ -9,6 +9,7 @@ use App\Models\Produto;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -43,7 +44,7 @@ class PosBarController extends Controller
             'valor_recebido' => ['required', 'numeric', 'min:0'],
             'troco' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.produto_id' => ['required', 'exists:produtos,id'],
+            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
         ]);
 

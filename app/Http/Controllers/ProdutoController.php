@@ -19,16 +19,17 @@ class ProdutoController extends Controller
 
     public function index(): Response
     {
-        $categoriasRestaurante = ['bebidas', 'comida', 'sobremesas'];
+        $categoriasRestaurante = ['bebidas', 'frango', 'acompanhamentos', 'comida', 'sobremesas'];
+        $ordemSecoes = "FIELD(secao, 'bebidas', 'frango', 'acompanhamentos', 'comida', 'sobremesas')";
 
         return Inertia::render('Produtos/Index', [
             'categorias' => Categoria::with(['produtos' => fn ($query) => $query->orderBy('nome')])
                 ->whereIn('secao', $categoriasRestaurante)
-                ->orderByRaw("FIELD(secao, 'bebidas', 'comida', 'sobremesas')")
+                ->orderByRaw($ordemSecoes)
                 ->orderBy('nome')
                 ->get(),
             'categoriasOptions' => Categoria::whereIn('secao', $categoriasRestaurante)
-                ->orderByRaw("FIELD(secao, 'bebidas', 'comida', 'sobremesas')")
+                ->orderByRaw($ordemSecoes)
                 ->orderBy('nome')
                 ->get(['id', 'nome', 'secao']),
         ]);

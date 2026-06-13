@@ -29,7 +29,17 @@ class CategoriaSeeder extends Seeder
             'Comida' => [
                 'secao' => 'comida',
                 'produtos' => [
+                ],
+            ],
+            'Frango' => [
+                'secao' => 'frango',
+                'produtos' => [
                     ['Frango assado', 8],
+                ],
+            ],
+            'Acompanhamentos' => [
+                'secao' => 'acompanhamentos',
+                'produtos' => [
                     ['Batata frita', 2.5],
                     ['Salada', 3],
                     ['Pao', 0.5],

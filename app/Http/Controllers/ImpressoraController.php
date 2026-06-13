@@ -10,31 +10,29 @@ use Inertia\Response;
 
 class ImpressoraController extends Controller
 {
+    private const SECOES = [
+        'bebidas' => 'Bebidas',
+        'frango' => 'Frango',
+        'acompanhamentos' => 'Acompanhamentos',
+        'comida' => 'Comida',
+        'cozinha' => 'Cozinha',
+        'sobremesas' => 'Sobremesas',
+        'servico' => 'Servico',
+        'bar' => 'Bar',
+        'contas' => 'Contas',
+    ];
+
     public function index(): Response
     {
         return Inertia::render('Impressoras/Index', [
             'impressoras' => Impressora::orderBy('nome')->get(),
-            'secoes' => [
-                'bebidas' => 'Bebidas',
-                'comida' => 'Comida',
-                'cozinha' => 'Cozinha',
-                'sobremesas' => 'Sobremesas',
-                'acompanhamentos' => 'Acompanhamentos',
-                'servico' => 'Serviço',
-                'bar' => 'Bar',
-            ],
+            'secoes' => self::SECOES,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'nome' => ['required', 'string', 'max:255'],
-            'secao' => ['nullable', 'string', 'in:bebidas,comida,cozinha,sobremesas,acompanhamentos,servico,bar'],
-            'host' => ['required', 'string', 'max:255'],
-            'porta' => ['required', 'integer', 'min:1', 'max:65535'],
-            'ativa' => ['boolean'],
-        ]);
+        $validated = $request->validate($this->rules());
 
         Impressora::create($validated);
 
@@ -43,13 +41,7 @@ class ImpressoraController extends Controller
 
     public function update(Request $request, Impressora $impressora): RedirectResponse
     {
-        $validated = $request->validate([
-            'nome' => ['required', 'string', 'max:255'],
-            'secao' => ['nullable', 'string', 'in:bebidas,comida,cozinha,sobremesas,acompanhamentos,servico,bar'],
-            'host' => ['required', 'string', 'max:255'],
-            'porta' => ['required', 'integer', 'min:1', 'max:65535'],
-            'ativa' => ['boolean'],
-        ]);
+        $validated = $request->validate($this->rules());
 
         $impressora->update($validated);
 
@@ -61,5 +53,16 @@ class ImpressoraController extends Controller
         $impressora->delete();
 
         return back()->with('success', 'Impressora removida com sucesso.');
+    }
+
+    private function rules(): array
+    {
+        return [
+            'nome' => ['required', 'string', 'max:255'],
+            'secao' => ['nullable', 'string', 'in:'.implode(',', array_keys(self::SECOES))],
+            'host' => ['required', 'string', 'max:255'],
+            'porta' => ['required', 'integer', 'min:1', 'max:65535'],
+            'ativa' => ['boolean'],
+        ];
     }
 }

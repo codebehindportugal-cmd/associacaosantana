@@ -1,7 +1,7 @@
 ﻿<script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({ pedido: Object, mesas: Array, produtos: Array, paraLevar: Boolean });
 const page = usePage();
@@ -19,10 +19,13 @@ const cancelamentoForm = useForm({ estado: 'cancelado' });
 const fecharContaForm = useForm({ metodo_pagamento: 'dinheiro', valor_recebido: '', troco: 0 });
 const quantidade = ref(1);
 const termo = ref('');
+const caixaRef = ref(null);
 
 const secoes = [
     ['todos', 'Todos'],
     ['bebidas', 'Bebidas'],
+    ['frango', 'Frango'],
+    ['acompanhamentos', 'Acompanhamentos'],
     ['comida', 'Comida'],
     ['sobremesas', 'Sobremesas'],
 ];
@@ -54,6 +57,7 @@ const adicionarProduto = (produto) => {
         return;
     }
 
+    itemForm.pedido_id = props.pedido?.id;
     itemForm.produto_id = produto.id;
     itemForm.quantidade = quantidade.value || 1;
     itemForm.post(route('pedido-items.store'), {
@@ -113,6 +117,43 @@ const doarTroco = () => {
 };
 
 const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
+
+const escolherTipoAtendimento = (tipo) => {
+    pedidoForm.tipo_atendimento = tipo;
+
+    if (tipo === 'para_levar') {
+        pedidoForm.mesa_id = '';
+        pedidoForm.lugares_ocupados = '';
+        pedidoForm.submesa_letra = '';
+        return;
+    }
+
+    pedidoForm.mesa_id = pedidoForm.mesa_id || props.mesas?.[0]?.id || '';
+};
+
+const criarPedido = () => {
+    pedidoForm
+        .transform((dados) => ({
+            ...dados,
+            mesa_id: dados.tipo_atendimento === 'para_levar' ? null : dados.mesa_id,
+            lugares_ocupados: dados.tipo_atendimento === 'para_levar' ? null : dados.lugares_ocupados,
+            submesa_letra: dados.tipo_atendimento === 'para_levar' ? null : dados.submesa_letra,
+        }))
+        .post(route('pedidos.store'), {
+            onFinish: () => pedidoForm.transform((dados) => dados),
+        });
+};
+
+watch(() => props.pedido?.id, (pedidoId) => {
+    itemForm.pedido_id = pedidoId;
+    estadoForm.estado = props.pedido?.estado ?? 'pendente';
+});
+
+onMounted(() => {
+    if (new URLSearchParams(window.location.search).get('caixa') === '1') {
+        setTimeout(() => caixaRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+    }
+});
 </script>
 
 <template>
@@ -128,10 +169,10 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
             </div>
         </div>
 
-        <form v-if="!pedido" class="max-w-xl space-y-4 rounded-lg bg-white p-6 shadow-sm" @submit.prevent="pedidoForm.post(route('pedidos.store'))">
+        <form v-if="!pedido" class="max-w-xl space-y-4 rounded-lg bg-white p-6 shadow-sm" @submit.prevent="criarPedido">
             <div class="grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-2">
-                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'mesa' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="pedidoForm.tipo_atendimento = 'mesa'">Mesa</button>
-                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'para_levar' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="pedidoForm.tipo_atendimento = 'para_levar'">Para levar</button>
+                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'mesa' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="escolherTipoAtendimento('mesa')">Mesa</button>
+                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'para_levar' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="escolherTipoAtendimento('para_levar')">Para levar</button>
             </div>
 
             <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="block">
@@ -266,7 +307,7 @@ const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
                 </form>
 
                 <div v-if="!pedidoFechado" class="space-y-3 xl:sticky xl:top-5 xl:z-10">
-                    <form class="rounded-lg bg-white p-5 shadow-sm" @submit.prevent="fecharConta">
+                    <form ref="caixaRef" class="rounded-lg bg-white p-5 shadow-sm" @submit.prevent="fecharConta">
                         <div class="mb-4 rounded-lg bg-slate-900 p-4 text-white">
                             <div class="text-sm font-bold text-white/70">Total a receber</div>
                             <div class="mt-1 text-5xl font-black">{{ formatarPreco(totalPedido) }}</div>

@@ -1,5 +1,4 @@
 <script setup>
-import AppLayout from '@/Layouts/AppLayout.vue';
 import { router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -23,6 +22,16 @@ const segmentoClass = {
     ocupada: 'bg-red-600/95',
     reservada: 'bg-sky-500/90',
 };
+const coresGrupo = [
+    'bg-violet-600/95',
+    'bg-cyan-600/95',
+    'bg-fuchsia-600/95',
+    'bg-lime-500/95',
+    'bg-amber-500/95',
+    'bg-blue-600/95',
+    'bg-rose-600/95',
+    'bg-teal-600/95',
+];
 
 const estadoLabel = {
     livre: 'Livre',
@@ -36,6 +45,7 @@ const pedidosAtivos = (mesa) => [
     ...(mesa?.pedidos ?? []),
     ...(mesa?.pedidos_grupo ?? []),
 ];
+const pedidoGrupo = (mesa) => (mesa?.pedidos_grupo ?? [])[0] ?? null;
 const mesaGrande = (mesa) => Number(mesa?.capacidade ?? 0) > 10;
 
 const estadoOperacional = (mesa) => {
@@ -70,6 +80,7 @@ const segmentosMesa = (mesa) => {
             id: submesa.id,
             label: letraSubmesa(submesa),
             estado: estadoOperacional(submesa),
+            grupoId: pedidoGrupo(submesa)?.id ?? null,
             capacidade: Number(submesa.capacidade || 1),
             pedidos: pedidosAtivos(submesa),
         }));
@@ -79,9 +90,17 @@ const segmentosMesa = (mesa) => {
         id: mesa.id,
         label: mesa.numero,
         estado: estadoOperacional(mesa),
+        grupoId: pedidoGrupo(mesa)?.id ?? null,
         capacidade: Number(mesa?.capacidade || 1),
         pedidos: pedidosAtivos(mesa),
     }];
+};
+const segmentoClasse = (segmento) => {
+    if (segmento.estado === 'grupo' && segmento.grupoId) {
+        return coresGrupo[Number(segmento.grupoId) % coresGrupo.length];
+    }
+
+    return segmentoClass[segmento.estado] ?? segmentoClass.livre;
 };
 
 const estadoMesa = (mesa) => {
@@ -155,7 +174,7 @@ watch(() => props.mesas, (mesas) => {
 onMounted(() => {
     polling = setInterval(() => {
         router.reload({ only: ['mesas'], preserveScroll: true });
-    }, 10000);
+    }, 3000);
 });
 
 onBeforeUnmount(() => {
@@ -164,31 +183,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <AppLayout>
-        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold">Sala</h1>
-                <p class="mt-1 text-sm text-slate-500">Estado atual das mesas e submesas.</p>
-            </div>
-            <div class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                <div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 font-bold text-emerald-800">{{ resumo.livre }} livres</div>
-                <div class="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 font-bold text-orange-800">{{ resumo.por_receber }} por receber</div>
-                <div class="rounded-md border border-violet-200 bg-violet-50 px-3 py-2 font-bold text-violet-800">{{ resumo.grupo }} grupos</div>
-                <div class="rounded-md border border-red-200 bg-red-50 px-3 py-2 font-bold text-red-800">{{ resumo.ocupada }} ocupadas</div>
-                <div class="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 font-bold text-sky-800">{{ resumo.reservada }} reservadas</div>
-            </div>
-        </div>
-
-        <div class="mb-4 grid gap-3 rounded-md bg-white p-4 text-sm shadow-sm sm:grid-cols-5">
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-emerald-500"></span>Livre</div>
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-orange-500"></span>Pedido por receber</div>
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-violet-600"></span>Mesa grande / grupo</div>
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-red-600"></span>Ocupada</div>
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-sky-500"></span>Reservada</div>
-        </div>
-
-        <section class="rounded-lg border border-slate-300 bg-slate-100 p-3">
-            <div data-sala-mapa class="relative h-[78vh] min-h-[720px] w-full overflow-hidden rounded-lg bg-[#f7f5ef] shadow-inner ring-1 ring-slate-300">
+    <main class="h-screen overflow-hidden bg-slate-950 p-3">
+        <section class="h-full rounded-lg border border-slate-600 bg-slate-900 p-3 shadow-sm">
+            <div data-sala-mapa class="relative h-full w-full overflow-hidden rounded-lg bg-[#f7f5ef] shadow-inner ring-1 ring-slate-500">
                 <div class="absolute inset-x-[2%] inset-y-[4%] rounded-md border-[3px] border-slate-800/70"></div>
                 <div class="absolute left-[2%] top-[38%] h-[18%] w-[2px] bg-[#f7f5ef]"></div>
                 <div class="absolute left-[2%] top-[63%] h-[14%] w-[2px] bg-[#f7f5ef]"></div>
@@ -214,7 +211,7 @@ onBeforeUnmount(() => {
                             v-for="segmento in segmentosMesa(mesa)"
                             :key="segmento.id"
                             class="min-h-0 min-w-0 border-white/70"
-                            :class="[segmentoClass[segmento.estado] ?? segmentoClass.livre, mesa.mapa_altura > mesa.mapa_largura ? 'border-b last:border-b-0' : 'border-r last:border-r-0']"
+                            :class="[segmentoClasse(segmento), mesa.mapa_altura > mesa.mapa_largura ? 'border-b last:border-b-0' : 'border-r last:border-r-0']"
                             :style="{ flex: segmento.capacidade }"
                         ></div>
                     </div>
@@ -240,5 +237,5 @@ onBeforeUnmount(() => {
                 </div>
             </div>
         </section>
-    </AppLayout>
+    </main>
 </template>

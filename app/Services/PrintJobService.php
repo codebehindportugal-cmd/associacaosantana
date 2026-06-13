@@ -46,6 +46,30 @@ class PrintJobService
         ]);
     }
 
+    public function criarConta(Pedido $pedido): ?PrintJob
+    {
+        $impressora = $this->impressoraParaSecao('contas');
+
+        if (! $impressora) {
+            return null;
+        }
+
+        $pedido->loadMissing('mesa.mesaPrincipal', 'user', 'pos', 'items.produto.categoria');
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $pedido::class,
+            'printable_id' => $pedido->id,
+            'tipo' => 'conta',
+            'payload' => [
+                'titulo' => 'ARDC Santana',
+                'subtitulo' => 'CONTA',
+                'linhas' => $this->linhasConta($pedido),
+                'cortar' => true,
+            ],
+        ]);
+    }
+
     private function impressoraParaSecao(?string $secao): ?Impressora
     {
         $query = Impressora::query()
@@ -67,6 +91,7 @@ class PrintJobService
             'bebidas' => ['bebidas', 'bar'],
             'comida' => ['comida', 'cozinha'],
             'cozinha' => ['cozinha', 'comida'],
+            'contas' => ['contas', 'caixa'],
             default => [$secao],
         };
     }
@@ -90,7 +115,6 @@ class PrintJobService
         $items = $items->values();
 
         return [
-            ...$this->linhasIdentificacao($pedido),
             'Tipo: '.$pedido->tipo,
             ...$this->linhasMesa($mesaPrincipal, $submesa),
             'Operador: '.($operador ?: 'Sem operador'),
@@ -115,11 +139,43 @@ class PrintJobService
             ]];
         }
 
-        return [[
-            'texto' => 'PEDIDO #'.$pedido->id,
-            'alinhamento' => 'centro',
-            'tamanho' => 'grande',
-        ]];
+        return [];
+    }
+
+    private function linhasConta(Pedido $pedido): array
+    {
+        $operador = $pedido->operador_nome ?: ($pedido->user?->name ?: $pedido->pos?->nome);
+        $total = (float) ($pedido->total ?: $pedido->total_calculado);
+        $valorRecebido = (float) ($pedido->valor_recebido ?: $total);
+        $troco = (float) ($pedido->troco ?: 0);
+        $doacao = (float) ($pedido->doacao ?: 0);
+
+        return [
+            'Tipo: '.$pedido->tipo,
+            ...$this->linhasMesa($pedido->mesa?->mesaPrincipal ?: $pedido->mesa, $pedido->mesa?->mesaPrincipal ? $pedido->mesa : null),
+            'Operador: '.($operador ?: 'Sem operador'),
+            'Hora: '.now()->format('H:i'),
+            '------------------------------',
+            ...$pedido->items->map(fn ($item) => sprintf(
+                '%sx %s  %s',
+                $item->quantidade,
+                $item->produto?->nome ?? 'Produto',
+                $this->euros((float) $item->preco_unitario * (int) $item->quantidade)
+            ))->all(),
+            '------------------------------',
+            'Total: '.$this->euros($total),
+            'Recebido: '.$this->euros($valorRecebido),
+            'Troco: '.$this->euros($troco),
+            ...($doacao > 0 ? ['Donativo: '.$this->euros($doacao)] : []),
+            'Pagamento: '.($pedido->metodo_pagamento ?: 'dinheiro'),
+            '',
+            'Este documento nao serve de fatura',
+        ];
+    }
+
+    private function euros(float $valor): string
+    {
+        return number_format($valor, 2, ',', ' ').' EUR';
     }
 
     private function linhasMesa($mesaPrincipal, $submesa): array
@@ -132,21 +188,11 @@ class PrintJobService
             ]];
         }
 
-        $linhas = [[
-            'texto' => 'MESA '.$mesaPrincipal->numero,
+        return [[
+            'texto' => 'MESA '.$mesaPrincipal->numero.($submesa ? $this->letraSubmesa($submesa) : ''),
             'alinhamento' => 'centro',
             'tamanho' => 'grande',
         ]];
-
-        if ($submesa) {
-            $linhas[] = [
-                'texto' => 'SUBMESA '.$this->letraSubmesa($submesa),
-                'alinhamento' => 'centro',
-                'tamanho' => 'grande',
-            ];
-        }
-
-        return $linhas;
     }
 
     private function letraSubmesa($submesa): string

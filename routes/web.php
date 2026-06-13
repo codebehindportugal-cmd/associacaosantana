@@ -43,9 +43,11 @@ Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(func
     Route::get('/mesa/{mesa}', [PosRestController::class, 'mesa'])->name('mesa');
     Route::post('/mesa/{mesa}/pedido', [PosRestController::class, 'novoPedido'])->name('pedido.novo');
     Route::post('/pedido/{pedido}/item', [PosRestController::class, 'adicionarItem'])->name('pedido.item');
+    Route::post('/pedido/{pedido}/items', [PosRestController::class, 'adicionarItems'])->name('pedido.items');
     Route::delete('/pedido/{pedido}/item/{item}', [PosRestController::class, 'removerItem'])->name('pedido.item.remover');
     Route::patch('/pedido/{pedido}/item/{item}/urgente', [PosRestController::class, 'toggleUrgente'])->name('pedido.item.urgente');
     Route::patch('/pedido/{pedido}/fechar', [PosRestController::class, 'fecharConta'])->name('pedido.fechar');
+    Route::patch('/pedido/{pedido}/lugares', [PosRestController::class, 'atualizarLugares'])->name('pedido.lugares');
     Route::get('/pedido/{pedido}/talao', [PosRestController::class, 'talao'])->name('pedido.talao');
     Route::patch('/pedido/{pedido}/estado', [PosRestController::class, 'atualizarEstado'])->name('pedido.estado');
     Route::get('/historico', [PosRestController::class, 'historico'])->name('historico');
@@ -64,6 +66,7 @@ Route::middleware('pos.auth')->prefix('pos-cotas')->name('pos.cotas.')->group(fu
 });
 
 Route::get('/secao/bebidas', [SecaoController::class, 'bebidas'])->name('secao.bebidas');
+Route::get('/secao/frango', [SecaoController::class, 'frango'])->name('secao.frango');
 Route::get('/secao/comida', [SecaoController::class, 'comida'])->name('secao.comida');
 Route::get('/secao/cozinha', [SecaoController::class, 'cozinha'])->name('secao.cozinha');
 Route::get('/secao/sobremesas', [SecaoController::class, 'sobremesas'])->name('secao.sobremesas');

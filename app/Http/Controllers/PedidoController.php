@@ -6,6 +6,7 @@ use App\Models\Mesa;
 use App\Models\CaixaDiaria;
 use App\Models\Pedido;
 use App\Models\Produto;
+use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -61,6 +62,14 @@ class PedidoController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if ($request->input('tipo_atendimento') === 'para_levar') {
+            $request->merge([
+                'mesa_id' => null,
+                'lugares_ocupados' => null,
+                'submesa_letra' => null,
+            ]);
+        }
+
         $data = $request->validate([
             'tipo_atendimento' => ['nullable', 'in:mesa,para_levar'],
             'mesa_id' => ['nullable', 'required_if:tipo_atendimento,mesa', 'exists:mesas,id'],
@@ -115,7 +124,10 @@ class PedidoController extends Controller
             }
         }
 
-        return to_route('pedidos.show', $pedido);
+        return to_route('pedidos.show', [
+            'pedido' => $pedido,
+            'caixa' => $paraLevar ? 1 : null,
+        ]);
     }
 
     public function show(Pedido $pedido): Response
@@ -163,7 +175,7 @@ class PedidoController extends Controller
         return back()->with('success', 'Estado atualizado.');
     }
 
-    public function fecharConta(Request $request, Pedido $pedido): RedirectResponse
+    public function fecharConta(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
     {
         $data = $request->validate([
             'metodo_pagamento' => ['nullable', 'in:dinheiro,mbway,multibanco,transferencia'],
@@ -193,6 +205,7 @@ class PedidoController extends Controller
             'metodo_pagamento' => $data['metodo_pagamento'] ?? 'dinheiro',
         ]);
         $this->libertarMesaDoPedido($pedido);
+        $printJobs->criarConta($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos', 'items.produto.categoria'));
 
         return to_route('pedidos.talao', $pedido)->with('success', 'Conta fechada.');
     }

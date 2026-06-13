@@ -6,9 +6,11 @@ use App\Models\Configuracao;
 use App\Models\CaixaDiaria;
 use App\Models\Pedido;
 use App\Models\Produto;
+use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -125,7 +127,7 @@ class BarController extends Controller
         ]);
     }
 
-    public function fecharContaBar(Request $request, Pedido $pedido): RedirectResponse
+    public function fecharContaBar(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
     {
         abort_unless($pedido->tipo === 'bar_conta', 404);
 
@@ -154,6 +156,7 @@ class BarController extends Controller
             'troco' => $troco,
             'doacao' => max(0, round($excedente - $troco, 2)),
         ]);
+        $printJobs->criarConta($pedido->fresh('items.produto.categoria', 'user', 'pos'));
 
         return to_route('bar.talao', $pedido)->with('success', 'Conta fechada.');
     }
@@ -175,7 +178,7 @@ class BarController extends Controller
             'valor_recebido' => [$prepago ? 'required' : 'nullable', 'numeric', 'min:0'],
             'troco' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.produto_id' => ['required', 'exists:produtos,id'],
+            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
         ]);
     }

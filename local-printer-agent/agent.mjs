@@ -111,7 +111,7 @@ const escpos = (job) => {
         bytes(0x1b, 0x61, 0x00),
         bytes(0x0a),
         ...((payload.linhas ?? []).map(linhaEscpos)),
-        bytes(0x0a, 0x0a, 0x0a),
+        bytes(0x0a, 0x0a, 0x0a, 0x0a, 0x0a),
         payload.cortar === false ? Buffer.alloc(0) : bytes(0x1d, 0x56, 0x00),
     ]);
 };

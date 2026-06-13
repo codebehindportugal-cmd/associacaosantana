@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Cota;
 use App\Models\Mesa;
 use App\Models\Pedido;
 use App\Models\Socio;
@@ -23,8 +22,8 @@ class DashboardController extends Controller
                 'mesas_livres' => Mesa::livres()->count(),
                 'pedidos_ativos' => Pedido::whereIn('estado', ['pendente', 'preparacao', 'pronto'])->count(),
                 'socios_em_atraso' => Socio::emAtraso()->count(),
-                'receita_dia' => (float) Cota::whereDate('data_pagamento', today())->where('estado', 'pago')->sum('valor'),
-                'bar_hoje' => (float) Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])->whereDate('created_at', today())->where(fn ($q) => $q->where('estado', 'entregue')->orWhere('pago_antecipado', true))->sum('total'),
+                'pedidos_fechados_hoje' => Pedido::whereDate('updated_at', today())->where('estado', 'entregue')->count(),
+                'pedidos_bar_hoje' => Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])->whereDate('created_at', today())->count(),
             ],
         ]);
     }

@@ -67,6 +67,8 @@ class DemoDataSeeder extends Seeder
         $categorias = [
             'Bebidas' => 'bebidas',
             'Comida' => 'comida',
+            'Frango' => 'frango',
+            'Acompanhamentos' => 'acompanhamentos',
         ];
 
         foreach ($categorias as $nome => $secao) {
@@ -82,10 +84,10 @@ class DemoDataSeeder extends Seeder
             'sangria' => ['Bebidas', 'Sangria', 3.00],
             'vinho_tinto' => ['Bebidas', 'Vinho tinto', 2.00],
             'vinho_branco' => ['Bebidas', 'Vinho branco', 2.00],
-            'frango' => ['Comida', 'Frango assado', 8.00],
-            'batata' => ['Comida', 'Batata frita', 2.50],
-            'salada' => ['Comida', 'Salada', 3.00],
-            'pao' => ['Comida', 'Pao', 0.50],
+            'frango' => ['Frango', 'Frango assado', 8.00],
+            'batata' => ['Acompanhamentos', 'Batata frita', 2.50],
+            'salada' => ['Acompanhamentos', 'Salada', 3.00],
+            'pao' => ['Acompanhamentos', 'Pao', 0.50],
         ];
 
         return collect($produtos)->mapWithKeys(function (array $produto, string $key) {

@@ -16,6 +16,11 @@ class Produto extends Model
         'disponivel',
     ];
 
+    protected $casts = [
+        'disponivel' => 'boolean',
+        'preco' => 'decimal:2',
+    ];
+
     public function categoria()
     {
         return $this->belongsTo(Categoria::class);

@@ -27,6 +27,11 @@ class SecaoController extends Controller
         return $this->ecra('comida', 'COMIDA');
     }
 
+    public function frango(): Response
+    {
+        return $this->ecra('frango', 'FRANGO');
+    }
+
     public function sobremesas(): Response
     {
         return $this->ecra('sobremesas', 'SOBREMESAS');
@@ -34,7 +39,7 @@ class SecaoController extends Controller
 
     public function acompanhamentos(): Response
     {
-        return $this->comida();
+        return $this->ecra('acompanhamentos', 'ACOMPANHAMENTOS');
     }
 
     public function servico(): Response

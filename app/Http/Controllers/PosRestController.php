@@ -11,6 +11,7 @@ use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -89,6 +90,7 @@ class PosRestController extends Controller
         $data = $request->validate([
             'lugares_ocupados' => ['nullable', 'integer', 'min:1'],
             'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
+            'mesas_grupo' => ['nullable', 'string', 'max:255'],
         ]);
 
         if (! $this->caixaRestauranteAberta()) {
@@ -99,8 +101,10 @@ class PosRestController extends Controller
         $lugares = (int) ($data['lugares_ocupados'] ?? 0);
         $mesasGrupo = collect();
 
-        if ($lugares > $this->capacidadeFisicaMesa($mesa)) {
-            $mesasGrupo = $this->mesasLivresParaGrupo($mesa, $lugares);
+            if ($lugares > $this->capacidadeFisicaMesa($mesa)) {
+                $mesasGrupo = $data['mesas_grupo'] ?? null
+                    ? $this->mesasGrupoPorNumeros($mesa, $data['mesas_grupo'], $lugares)
+                    : $this->mesasLivresParaGrupo($mesa, $lugares);
 
             if ($mesasGrupo->sum('capacidade') < $lugares) {
                 return back()->withErrors(['lugares_ocupados' => 'Nao existem mesas livres suficientes para este grupo.']);
@@ -134,7 +138,7 @@ class PosRestController extends Controller
     public function adicionarItem(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
     {
         $data = $request->validate([
-            'produto_id' => ['required', 'exists:produtos,id'],
+            'produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
             'quantidade' => ['required', 'integer', 'min:1'],
             'prioridade' => ['nullable', 'boolean'],
         ]);
@@ -166,6 +170,54 @@ class PosRestController extends Controller
             'nome' => $produto->nome,
             'observacoes' => null,
         ], $secao);
+
+        return back();
+    }
+
+    public function adicionarItems(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'items.*.quantidade' => ['required', 'integer', 'min:1'],
+            'items.*.prioridade' => ['nullable', 'boolean'],
+        ]);
+
+        $produtos = Produto::with('categoria')
+            ->whereIn('id', collect($data['items'])->pluck('produto_id'))
+            ->get()
+            ->keyBy('id');
+
+        $itemsParaImpressao = collect();
+
+        foreach ($data['items'] as $item) {
+            $produto = $produtos[(int) $item['produto_id']];
+            $secao = $this->normalizarSecao($produto->categoria->secao ?? 'cozinha');
+            $quantidade = (int) $item['quantidade'];
+            $prioridade = (bool) ($item['prioridade'] ?? false);
+
+            $this->guardarItemPedido($pedido, $produto, $quantidade, $secao, $prioridade);
+
+            $itemsParaImpressao->push([
+                'quantidade' => $quantidade,
+                'nome' => $produto->nome,
+                'observacoes' => null,
+                'secao' => $secao,
+            ]);
+        }
+
+        $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+
+        $itemsParaImpressao
+            ->groupBy('secao')
+            ->each(function ($items, string $secao) use ($pedido, $printJobs) {
+                $printJobs->criarPedido(
+                    $pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'),
+                    $secao,
+                    'pedido',
+                    $this->agruparItemsImpressao($items->all())
+                );
+            });
 
         return back();
     }
@@ -203,7 +255,7 @@ class PosRestController extends Controller
         return back();
     }
 
-    public function fecharConta(Request $request, Pedido $pedido): RedirectResponse
+    public function fecharConta(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
     {
         $data = $request->validate([
             'metodo_pagamento' => ['required', 'in:dinheiro,mbway,multibanco'],
@@ -229,8 +281,32 @@ class PosRestController extends Controller
         ]);
 
         $this->libertarMesaDoPedido($pedido);
+        $printJobs->criarConta($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos', 'items.produto.categoria'));
 
         return to_route('pos.rest.pedido.talao', $pedido);
+    }
+
+    public function atualizarLugares(Request $request, Pedido $pedido): RedirectResponse
+    {
+        $data = $request->validate([
+            'lugares_ocupados' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $mesa = $pedido->mesa;
+
+        if (! $mesa) {
+            return back()->withErrors(['lugares_ocupados' => 'Este pedido nao tem mesa associada.']);
+        }
+
+        $lugares = min((int) $data['lugares_ocupados'], (int) ($mesa->capacidade ?: $data['lugares_ocupados']));
+        $inicio = (int) ($mesa->lugares_inicio ?: 1);
+
+        $mesa->update([
+            'capacidade' => $lugares,
+            'lugares_fim' => $inicio + $lugares - 1,
+        ]);
+
+        return back();
     }
 
     public function talao(Pedido $pedido): Response
@@ -265,6 +341,42 @@ class PosRestController extends Controller
     private function normalizarSecao(string $secao): string
     {
         return $secao;
+    }
+
+    private function guardarItemPedido(Pedido $pedido, Produto $produto, int $quantidade, string $secao, bool $prioridade): void
+    {
+        $itemExistente = $pedido->items()
+            ->where('produto_id', $produto->id)
+            ->where('estado', 'pendente')
+            ->where('prioridade', $prioridade)
+            ->first();
+
+        if ($itemExistente) {
+            $itemExistente->increment('quantidade', $quantidade);
+
+            return;
+        }
+
+        $pedido->items()->create([
+            'produto_id' => $produto->id,
+            'quantidade' => $quantidade,
+            'preco_unitario' => $produto->preco,
+            'secao' => $secao,
+            'prioridade' => $prioridade,
+        ]);
+    }
+
+    private function agruparItemsImpressao(array $items): array
+    {
+        return collect($items)
+            ->groupBy(fn ($item) => ($item['nome'] ?? 'Produto').'|'.($item['observacoes'] ?? ''))
+            ->map(fn ($grupo) => [
+                'quantidade' => $grupo->sum('quantidade'),
+                'nome' => $grupo->first()['nome'] ?? 'Produto',
+                'observacoes' => $grupo->first()['observacoes'] ?? null,
+            ])
+            ->values()
+            ->all();
     }
 
     private function caixaRestauranteAberta(): bool
@@ -541,6 +653,59 @@ class PosRestController extends Controller
         return $mesas;
     }
 
+    private function mesasGrupoPorNumeros(Mesa $mesaInicial, string $numeros, int $lugares): Collection
+    {
+        $listaNumeros = collect(preg_split('/[,\s]+/', $numeros))
+            ->map(fn ($numero) => (int) trim((string) $numero))
+            ->filter()
+            ->prepend((int) $mesaInicial->numero)
+            ->unique()
+            ->values();
+
+        if ($listaNumeros->isEmpty()) {
+            return collect();
+        }
+
+        $mesas = Mesa::principais()
+            ->ativas()
+            ->whereIn('numero', $listaNumeros)
+            ->get()
+            ->sortBy(fn ($mesa) => $listaNumeros->search((int) $mesa->numero))
+            ->values();
+
+        if ($mesas->count() !== $listaNumeros->count()) {
+            return collect();
+        }
+
+        if ($mesas->contains(fn (Mesa $mesa) => ! $this->mesaDisponivelParaGrupo($mesa) && (int) $mesa->id !== (int) $mesaInicial->id)) {
+            return collect();
+        }
+
+        $lugaresRestantes = $lugares;
+        $mesasGrupo = collect();
+
+        foreach ($mesas as $mesa) {
+            if ($lugaresRestantes <= 0) {
+                break;
+            }
+
+            $capacidade = $this->capacidadeFisicaMesa($mesa);
+
+            if ($lugaresRestantes >= $capacidade) {
+                $this->normalizarMesa($mesa);
+                $mesasGrupo->push($mesa->refresh());
+                $lugaresRestantes -= $capacidade;
+
+                continue;
+            }
+
+            $mesasGrupo->push($this->dividirBlocoParaPedido($mesa, $lugaresRestantes));
+            $lugaresRestantes = 0;
+        }
+
+        return $lugaresRestantes > 0 ? collect() : $mesasGrupo;
+    }
+
     private function mesaDisponivelParaGrupo(Mesa $mesa): bool
     {
         return ! $mesa->mesa_principal_id
@@ -552,6 +717,6 @@ class PosRestController extends Controller
 
     private function capacidadeFisicaMesa(Mesa $mesa): int
     {
-        return min(10, max(1, (int) $mesa->capacidade));
+        return max(1, (int) $mesa->capacidade);
     }
 }

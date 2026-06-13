@@ -24,6 +24,16 @@ const segmentoClass = {
     ocupada: 'bg-red-600/95',
     reservada: 'bg-sky-500/90',
 };
+const coresGrupo = [
+    'bg-violet-600/95',
+    'bg-cyan-600/95',
+    'bg-fuchsia-600/95',
+    'bg-lime-500/95',
+    'bg-amber-500/95',
+    'bg-blue-600/95',
+    'bg-rose-600/95',
+    'bg-teal-600/95',
+];
 
 const estadoLabel = {
     livre: 'Livre',
@@ -37,6 +47,7 @@ const pedidosAtivos = (mesa) => [
     ...(mesa?.pedidos ?? []),
     ...(mesa?.pedidos_grupo ?? []),
 ];
+const pedidoGrupo = (mesa) => (mesa?.pedidos_grupo ?? [])[0] ?? null;
 const mesaGrande = (mesa) => Number(mesa?.capacidade ?? 0) > 10;
 
 const estadoOperacional = (mesa) => {
@@ -73,6 +84,7 @@ const segmentosMesa = (mesa) => {
             id: submesa.id,
             label: letraSubmesa(submesa),
             estado: estadoOperacional(submesa),
+            grupoId: pedidoGrupo(submesa)?.id ?? null,
             capacidade: Number(submesa.capacidade || 1),
         }));
     }
@@ -81,8 +93,16 @@ const segmentosMesa = (mesa) => {
         id: mesa.id,
         label: mesa.numero,
         estado: estadoOperacional(mesa),
+        grupoId: pedidoGrupo(mesa)?.id ?? null,
         capacidade: Number(mesa?.capacidade || 1),
     }];
+};
+const segmentoClasse = (segmento) => {
+    if (segmento.estado === 'grupo' && segmento.grupoId) {
+        return coresGrupo[Number(segmento.grupoId) % coresGrupo.length];
+    }
+
+    return segmentoClass[segmento.estado] ?? segmentoClass.livre;
 };
 
 const estadoMesa = (mesa) => {
@@ -229,7 +249,7 @@ onBeforeUnmount(() => {
                             v-for="segmento in segmentosMesa(mesa)"
                             :key="segmento.id"
                             class="min-h-0 min-w-0 border-white/70"
-                            :class="[segmentoClass[segmento.estado] ?? segmentoClass.livre, mesa.mapa_altura > mesa.mapa_largura ? 'border-b last:border-b-0' : 'border-r last:border-r-0']"
+                            :class="[segmentoClasse(segmento), mesa.mapa_altura > mesa.mapa_largura ? 'border-b last:border-b-0' : 'border-r last:border-r-0']"
                             :style="{ flex: segmento.capacidade }"
                         ></div>
                     </div>

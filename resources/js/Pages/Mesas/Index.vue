@@ -318,10 +318,13 @@ const textoLugaresVaziosCurto = (mesa) => `${lugaresVazios(mesa)} livres`;
                             <span class="h-2.5 w-2.5 rounded-full ring-1 ring-white" :class="estadoDot[estadoVisual(mesa)]"></span>
                         </div>
 
-                        <div v-if="mesa.submesas.length" class="grid gap-0.5" :class="mesa.submesas.length > 3 ? 'grid-cols-3' : 'grid-cols-2'">
-                            <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="rounded bg-slate-950/45 px-1 py-0.5 text-[9px] font-black">
-                                {{ segmento.label }}
-                            </span>
+                        <div v-if="mesa.submesas.length" class="space-y-0.5">
+                            <div class="grid gap-0.5" :class="mesa.submesas.length > 3 ? 'grid-cols-3' : 'grid-cols-2'">
+                                <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="rounded bg-slate-950/45 px-1 py-0.5 text-[9px] font-black">
+                                    {{ segmento.label }}
+                                </span>
+                            </div>
+                            <span v-if="lugaresVazios(mesa) > 0" class="inline-block rounded bg-slate-950/55 px-1 py-0.5 text-[9px] font-bold">{{ textoLugaresVaziosCurto(mesa) }}</span>
                         </div>
                         <div v-else>
                             <span class="rounded bg-slate-950/45 px-1 py-0.5 text-[9px] font-bold">{{ textoLugaresVaziosCurto(mesa) }}</span>
