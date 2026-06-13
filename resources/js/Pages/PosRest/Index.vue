@@ -27,6 +27,5 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
             
         </section>
         <Link :href="route('pos.rest.mesas')" class="mt-8 block rounded-lg bg-emerald-600 p-8 text-center text-3xl font-black">🍽️ VER MESAS</Link>
-        <Link :href="route('pos.rest.historico')" class="mt-4 block rounded-lg bg-blue-600 p-6 text-center text-2xl font-black">📋 HISTORICO DO DIA</Link>
     </main>
 </template>
