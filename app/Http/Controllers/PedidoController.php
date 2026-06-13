@@ -62,6 +62,10 @@ class PedidoController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $request->merge([
+            'tipo_atendimento' => $request->input('tipo_atendimento', 'mesa'),
+        ]);
+
         if ($request->input('tipo_atendimento') === 'para_levar') {
             $request->merge([
                 'mesa_id' => null,
@@ -73,8 +77,9 @@ class PedidoController extends Controller
         $data = $request->validate([
             'tipo_atendimento' => ['nullable', 'in:mesa,para_levar'],
             'mesa_id' => ['nullable', 'required_if:tipo_atendimento,mesa', 'exists:mesas,id'],
-            'lugares_ocupados' => ['nullable', 'integer', 'min:1'],
+            'lugares_ocupados' => ['nullable', 'required_if:tipo_atendimento,mesa', 'integer', 'min:1'],
             'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
+            'mesas_grupo' => ['nullable', 'string', 'max:255'],
             'observacoes' => ['nullable', 'string'],
         ]);
 
@@ -88,10 +93,19 @@ class PedidoController extends Controller
 
         if (! $paraLevar) {
             $mesa = Mesa::with('submesas')->findOrFail($data['mesa_id']);
-            $lugares = (int) ($data['lugares_ocupados'] ?? 0);
+            $lugares = (int) $data['lugares_ocupados'];
+            $capacidadeMesa = $this->capacidadeFisicaMesa($mesa);
 
-            if ($lugares > $this->capacidadeFisicaMesa($mesa)) {
-                $mesasGrupo = $this->mesasLivresParaGrupo($mesa, $lugares);
+            if (! $mesa->mesa_principal_id && $lugares < $capacidadeMesa && empty($data['submesa_letra'])) {
+                return back()->withErrors(['submesa_letra' => 'Indica a letra da submesa para pedidos com menos lugares do que a mesa completa.']);
+            }
+
+            if ($lugares > $capacidadeMesa && empty($data['mesas_grupo'])) {
+                return back()->withErrors(['mesas_grupo' => 'Indica as mesas do grupo para pedidos com mais lugares do que a mesa inicial.']);
+            }
+
+            if ($lugares > $capacidadeMesa) {
+                $mesasGrupo = $this->mesasGrupoPorNumeros($mesa, $data['mesas_grupo'], $lugares);
 
                 if ($mesasGrupo->sum('capacidade') < $lugares) {
                     return back()->withErrors(['lugares_ocupados' => 'Nao existem mesas livres suficientes para este grupo.']);
@@ -477,6 +491,59 @@ class PedidoController extends Controller
         }
 
         return $mesas;
+    }
+
+    private function mesasGrupoPorNumeros(Mesa $mesaInicial, string $numeros, int $lugares): Collection
+    {
+        $listaNumeros = collect(preg_split('/[,\s]+/', $numeros))
+            ->map(fn ($numero) => (int) trim((string) $numero))
+            ->filter()
+            ->prepend((int) $mesaInicial->numero)
+            ->unique()
+            ->values();
+
+        if ($listaNumeros->isEmpty()) {
+            return collect();
+        }
+
+        $mesas = Mesa::principais()
+            ->ativas()
+            ->whereIn('numero', $listaNumeros)
+            ->get()
+            ->sortBy(fn ($mesa) => $listaNumeros->search((int) $mesa->numero))
+            ->values();
+
+        if ($mesas->count() !== $listaNumeros->count()) {
+            return collect();
+        }
+
+        if ($mesas->contains(fn (Mesa $mesa) => ! $this->mesaDisponivelParaGrupo($mesa) && (int) $mesa->id !== (int) $mesaInicial->id)) {
+            return collect();
+        }
+
+        $lugaresRestantes = $lugares;
+        $mesasGrupo = collect();
+
+        foreach ($mesas as $mesa) {
+            if ($lugaresRestantes <= 0) {
+                break;
+            }
+
+            $capacidade = $this->capacidadeFisicaMesa($mesa);
+
+            if ($lugaresRestantes >= $capacidade) {
+                $this->normalizarMesa($mesa);
+                $mesasGrupo->push($mesa->refresh());
+                $lugaresRestantes -= $capacidade;
+
+                continue;
+            }
+
+            $mesasGrupo->push($this->dividirBlocoParaPedido($mesa, $lugaresRestantes));
+            $lugaresRestantes = 0;
+        }
+
+        return $lugaresRestantes > 0 ? collect() : $mesasGrupo;
     }
 
     private function mesaDisponivelParaGrupo(Mesa $mesa): bool

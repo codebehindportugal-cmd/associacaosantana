@@ -1,141 +1,67 @@
-Cria uma nova página web moderna para a ARDC Santana — Associação Recreativa, Desportiva e Cultural de Santana — aproveitando o conteúdo existente no site https://ardcsantana.ateneya.com e mantendo a identidade local, comunitária e próxima da associação.
+Implementa um sistema de self-order para clientes via QR code neste projeto Laravel/Inertia/Vue.js.
 
-Objetivo:
-Desenvolver uma landing page/homepage moderna, responsiva, visualmente apelativa e com interações úteis para o utilizador. A página deve transmitir energia, proximidade, tradição, convívio, cultura, desporto e participação comunitária.
+## Contexto
+Sistema POS de restaurante. O fluxo atual é 100% gerido pelo empregado via /pos-rest. 
+Quero adicionar a opção de o cliente fazer self-order pelo telemóvel após o empregado abrir o pedido.
+As duas opções devem coexistir: o empregado pode continuar a fazer tudo como antes, OU mostrar o QR ao cliente.
 
-Estilo visual:
-- Design moderno, limpo e elegante.
-- Layout responsivo para desktop, tablet e mobile.
-- Uso de fotografias grandes de eventos, comunidade, caminhadas, festas e convívios.
-- Paleta visual acolhedora: tons naturais, verdes, creme, branco, preto suave e apontamentos vibrantes.
-- Tipografia moderna, legível e com boa hierarquia.
-- Cards com cantos arredondados, sombras suaves e animações discretas.
-- Navegação simples e fixa no topo.
+## O que fazer
 
-Estrutura da página:
+### 1. Migração
+Adicionar campo `cliente_token` à tabela `pedidos`:
+- string de 64 chars, nullable, unique
+- Gerar automaticamente via UUID quando o pedido é criado (no Model, boot method)
 
-1. Hero section
-- Título forte: “ARDC Santana”
-- Subtítulo: “Cultura, desporto e comunidade em Santana”
-- Texto curto: “Uma associação feita por pessoas, para pessoas. Juntamos gerações através de eventos, convívios, caminhadas, festas e iniciativas locais.”
-- Botões:
-  - “Ver próximos eventos”
-  - “Tornar-me sócio”
-  - “Contactar associação”
-- Incluir imagem ou vídeo de fundo com ambiente comunitário.
+### 2. Rotas públicas (sem middleware pos.auth)
+Em routes/web.php adicionar:
+- GET  /cliente/{token}        → ClientePedidoController@show    (name: cliente.mesa)
+- POST /cliente/{token}/item   → ClientePedidoController@addItem  (name: cliente.item)
+- GET  /cliente/{token}/confirmacao → ClientePedidoController@confirmacao (name: cliente.confirmacao)
 
-2. Secção “Sobre nós”
-- Explicar que a ARDC Santana é uma associação recreativa, desportiva e cultural.
-- Destacar a importância da associação para a vida local.
-- Mostrar 3 pilares:
-  - Cultura
-  - Desporto
-  - Convívio
+### 3. ClientePedidoController
+Criar app/Http/Controllers/ClientePedidoController.php:
+- show(): buscar pedido pelo cliente_token, carregar produtos disponíveis agrupados por categoria, retornar view Inertia 'Cliente/Mesa'
+- addItem(): validar token, verificar que pedido está em estado 'pendente' ou 'preparacao', adicionar item usando a mesma lógica do PosRestController::guardarItemPedido(), recalcular total, disparar PrintJobService para impressão na cozinha, retornar redirect back()
+- confirmacao(): mostrar página de confirmação com os itens adicionados pelo cliente nessa sessão
 
-3. Secção de próximos eventos
-Criar cards interativos para eventos, com:
-- Nome do evento
-- Data
-- Horário
-- Local
-- Breve descrição
-- Botão “Saber mais”
-- Botão “Adicionar ao calendário”
-- Botão “Inscrever-me”
+Regras de segurança no controller:
+- Não expor preços nem totais ao cliente
+- Não permitir adicionar itens se pedido estiver 'pronto', 'entregue' ou 'cancelado'
+- Limitar quantidade máxima por item a 10
+- Usar session para tracking dos itens adicionados pelo cliente nesta sessão
 
-Usar como exemplos:
-- Caminhada da Primavera
-- Almoço do Sócio
-- Convívio de São Martinho
-- Festa em Honra de Santa Ana
-- Noites temáticas e eventos musicais
+### 4. Página Vue do cliente (resources/js/Pages/Cliente/Mesa.vue)
+Interface mobile-first simples:
+- Header com nome da mesa e logo/nome do restaurante
+- Produtos agrupados por categoria (tabs ou accordion)
+- Cada produto: nome, descrição (se existir), botão "+" e "-" para quantidade, botão "Adicionar"
+- Sem preços visíveis
+- Sem acesso ao total, sem fechar conta
+- Feedback visual ao adicionar (toast/mensagem de sucesso)
+- Se pedido não está disponível (fechado/cancelado), mostrar mensagem amigável
+- Design limpo, Tailwind CSS, compatível com telemóvel
 
-4. Secção interativa “Encontra o evento ideal”
-Criar um pequeno filtro ou quiz:
-Pergunta: “O que procuras?”
-Opções:
-- Caminhadas e natureza
-- Música e festas
-- Almoços e convívios
-- Atividades para família
-- Apoiar a associação
+### 5. Página de confirmação (resources/js/Pages/Cliente/Confirmacao.vue)
+- Lista dos itens adicionados nesta sessão
+- Mensagem "O seu pedido foi enviado para a cozinha"
+- Botão para voltar a adicionar mais itens
 
-Depois de selecionar, mostrar eventos recomendados.
+### 6. QR Code no POS — PosRest/Mesa.vue
+Na página de mesa do empregado, adicionar uma secção "Self-Order do Cliente":
+- Gerar QR code do link /cliente/{pedido.cliente_token}
+- Usar a biblioteca qrcode (já verificar se está no package.json, senão instalar com: npm install qrcode)
+- Botão "Mostrar QR ao cliente" que abre modal com o QR code em tamanho grande
+- Link copiável abaixo do QR
+- Só mostrar se o pedido estiver ativo (pendente/preparacao)
 
-5. Secção “Galeria”
-- Criar galeria moderna com fotografias em grelha.
-- Ao clicar numa imagem, abrir lightbox/modal.
-- Incluir categorias:
-  - Caminhadas
-  - Festas
-  - Convívios
-  - Comunidade
-  - Momentos especiais
+### 7. Atualizar o Model Pedido
+Em app/Models/Pedido.php:
+- No boot(), gerar cliente_token automaticamente: Str::uuid() se não estiver definido
 
-6. Secção “Torna-te sócio”
-- Explicar benefícios de ser sócio:
-  - Participar na vida da associação
-  - Apoiar a manutenção da associação
-  - Ter acesso a eventos e iniciativas
-  - Fazer parte da comunidade
-- Incluir formulário simples:
-  - Nome
-  - Email
-  - Telefone
-  - Mensagem
-  - Botão “Quero ser sócio”
-
-7. Secção “Apoia a ARDC Santana”
-- Mensagem emocional e direta:
-  “A tua participação ajuda a manter viva a nossa associação.”
-- Incluir opções:
-  - Participar em eventos
-  - Tornar-se sócio
-  - Voluntariado
-  - Apoio a iniciativas
-  - Partilha nas redes sociais
-
-8. Secção de contactos
-- Morada/localização da associação
-- Email
-- Telefone/telemóvel
-- Links para Facebook e Instagram
-- Mapa interativo
-- Botão direto para WhatsApp ou chamada
-
-9. Rodapé
-- Logo/nome ARDC Santana
-- Links rápidos
-- Redes sociais
-- Direitos reservados
-- Pequena frase: “Juntos mantemos viva a nossa associação.”
-
-Interações obrigatórias:
-- Menu mobile animado.
-- Scroll suave.
-- Cards com hover.
-- Filtros de eventos.
-- Galeria com modal/lightbox.
-- Formulário com validação.
-- Botão “Adicionar ao calendário”.
-- Botão WhatsApp flutuante.
-- Animações suaves ao entrar no ecrã.
-- Secção de perguntas frequentes em accordion.
-
-Tom de comunicação:
-- Português de Portugal.
-- Próximo, humano e comunitário.
-- Moderno, mas sem perder a ligação à tradição local.
-- Frases curtas, claras e com energia.
-
-Requisitos técnicos:
-- Página rápida e otimizada.
-- SEO básico incluído.
-- Meta title: “ARDC Santana | Associação Recreativa, Desportiva e Cultural”
-- Meta description: “Conhece a ARDC Santana, participa nos nossos eventos, torna-te sócio e ajuda a manter viva a comunidade.”
-- Código limpo e bem organizado.
-- Totalmente responsivo.
-- Acessível, com bom contraste e textos alternativos nas imagens.
-
-Resultado esperado:
-Uma homepage moderna, interativa e emocional, que transforme o site da ARDC Santana numa presença digital mais atual, apelativa e útil para sócios, visitantes e comunidade local.
+## Notas importantes
+- Manter 100% da lógica existente intacta — não alterar PosRestController nem rotas existentes
+- Usar PrintJobService igual ao PosRestController para impressão na cozinha
+- A secao do item deve ser determinada igual ao PosRestController (normalizarSecao)
+- Verificar se o package `qrcode` já existe antes de instalar
+- Cria a migração com timestamp atual
+- Não expor o cliente_token em listagens ou APIs desnecessárias

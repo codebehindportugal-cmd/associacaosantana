@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Pedido extends Model
 {
@@ -11,6 +12,7 @@ class Pedido extends Model
 
     protected $fillable = [
         'mesa_id',
+        'cliente_token',
         'user_id',
         'pos_id',
         'operador_nome',
@@ -29,9 +31,22 @@ class Pedido extends Model
 
     protected $appends = ['total_calculado'];
 
+    protected $hidden = [
+        'cliente_token',
+    ];
+
     protected $casts = [
         'pago_antecipado' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Pedido $pedido) {
+            if (! $pedido->cliente_token) {
+                $pedido->cliente_token = (string) Str::uuid();
+            }
+        });
+    }
 
     public function mesa()
     {

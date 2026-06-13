@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Mesa;
 use App\Models\Pedido;
+use App\Models\ZonaMapa;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,6 +24,7 @@ class MesaController extends Controller
     {
         return Inertia::render('Mesas/Index', [
             'mesas' => $this->mesasParaMapa(),
+            'zonas' => $this->zonasParaMapa(),
         ]);
     }
 
@@ -30,6 +32,7 @@ class MesaController extends Controller
     {
         return Inertia::render('Sala/Index', [
             'mesas' => $this->mesasParaMapa(),
+            'zonas' => $this->zonasParaMapa(),
         ]);
     }
 
@@ -134,6 +137,12 @@ class MesaController extends Controller
             'mesas.*.mapa_y' => ['required', 'integer', 'between:0,100'],
             'mesas.*.mapa_largura' => ['required', 'integer', 'between:4,40'],
             'mesas.*.mapa_altura' => ['required', 'integer', 'between:4,40'],
+            'zonas' => ['nullable', 'array'],
+            'zonas.*.id' => ['required', 'exists:zona_mapas,id'],
+            'zonas.*.mapa_x' => ['required', 'integer', 'between:0,100'],
+            'zonas.*.mapa_y' => ['required', 'integer', 'between:0,100'],
+            'zonas.*.mapa_largura' => ['required', 'integer', 'between:1,60'],
+            'zonas.*.mapa_altura' => ['required', 'integer', 'between:1,60'],
         ]);
 
         foreach ($data['mesas'] as $mesa) {
@@ -142,6 +151,15 @@ class MesaController extends Controller
                 'mapa_y' => $mesa['mapa_y'],
                 'mapa_largura' => $mesa['mapa_largura'],
                 'mapa_altura' => $mesa['mapa_altura'],
+            ]);
+        }
+
+        foreach ($data['zonas'] ?? [] as $zona) {
+            ZonaMapa::whereKey($zona['id'])->update([
+                'mapa_x' => $zona['mapa_x'],
+                'mapa_y' => $zona['mapa_y'],
+                'mapa_largura' => $zona['mapa_largura'],
+                'mapa_altura' => $zona['mapa_altura'],
             ]);
         }
 
@@ -225,5 +243,10 @@ class MesaController extends Controller
             ->withCount('pedidos')
             ->orderBy('numero')
             ->get();
+    }
+
+    private function zonasParaMapa()
+    {
+        return ZonaMapa::orderBy('id')->get();
     }
 }

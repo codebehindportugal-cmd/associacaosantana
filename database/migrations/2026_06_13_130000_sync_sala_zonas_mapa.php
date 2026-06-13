@@ -2,11 +2,16 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('zona_mapas')) {
+            return;
+        }
+
         collect([
             ['nome' => 'WC H.', 'mapa_x' => 3, 'mapa_y' => 46, 'mapa_largura' => 4, 'mapa_altura' => 12, 'tipo' => 'texto'],
             ['nome' => 'WC M.', 'mapa_x' => 3, 'mapa_y' => 60, 'mapa_largura' => 4, 'mapa_altura' => 12, 'tipo' => 'texto'],
@@ -22,6 +27,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('zona_mapas')) {
+            return;
+        }
+
         DB::table('zona_mapas')
             ->whereIn('nome', ['WC H.', 'WC M.', 'Sobremesas', 'Caixa / Bebidas', 'Entrada', 'Palco'])
             ->delete();

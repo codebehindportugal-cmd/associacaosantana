@@ -1,6 +1,7 @@
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import QRCode from 'qrcode';
 
 const props = defineProps({ mesa: Object, pedido: Object, produtos: Object });
 const categoriaAtual = ref(Object.keys(props.produtos ?? {})[0] || '');
@@ -10,6 +11,8 @@ const recebido = ref('');
 const lugaresOcupados = ref('');
 const letraSubmesaNova = ref('');
 const carrinho = ref([]);
+const qrAberto = ref(false);
+const qrDataUrl = ref('');
 const lugaresAtuais = ref(props.pedido?.mesa?.capacidade ?? props.mesa?.capacidade ?? '');
 const novoForm = useForm({ lugares_ocupados: null, submesa_letra: null, mesas_grupo: null });
 const mesasGrupo = ref('');
@@ -24,6 +27,16 @@ const troco = computed(() => Math.max(0, Number(recebido.value || total.value) -
 const mesaDividida = computed(() => !props.mesa?.mesa_principal_id && props.mesa?.submesas?.length > 0);
 const podeEscolherLugares = computed(() => !props.pedido && !mesaDividida.value && Number(props.mesa?.capacidade ?? 0) > 1);
 const pedidoAutor = computed(() => props.pedido?.operador_nome ?? props.pedido?.user?.name ?? props.pedido?.pos?.nome ?? 'Sem utilizador');
+const podeSelfOrder = computed(() => props.pedido?.cliente_token && ['pendente', 'preparacao'].includes(props.pedido?.estado));
+const clienteUrl = computed(() => podeSelfOrder.value ? route('cliente.mesa', props.pedido.cliente_token) : '');
+const capacidadeMesa = computed(() => Number(props.mesa?.capacidade ?? 0));
+const lugaresNumero = computed(() => Number(lugaresOcupados.value || 0));
+const precisaSubmesa = computed(() => !props.pedido && !props.mesa?.mesa_principal_id && lugaresNumero.value > 0 && lugaresNumero.value < capacidadeMesa.value);
+const precisaMesasGrupo = computed(() => !props.pedido && lugaresNumero.value > capacidadeMesa.value);
+const podeAbrirPedido = computed(() => !mesaDividida.value
+    && lugaresNumero.value > 0
+    && (!precisaSubmesa.value || letraSubmesaNova.value.trim())
+    && (!precisaMesasGrupo.value || mesasGrupo.value.trim()));
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const secaoClasse = (produto) => ({
     bebidas: 'bg-blue-600',
@@ -34,13 +47,14 @@ const secaoClasse = (produto) => ({
     sobremesas: 'bg-purple-600',
 }[produto.categoria?.secao] || 'bg-gray-700');
 const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
-    novoForm.lugares_ocupados = lugares || null;
-    novoForm.submesa_letra = lugares ? (letraSubmesaNova.value || null) : null;
+    if (!podeAbrirPedido.value) return;
+    novoForm.lugares_ocupados = lugares;
+    novoForm.submesa_letra = letraSubmesaNova.value || null;
     novoForm.mesas_grupo = mesasGrupo.value || null;
     novoForm.post(route('pos.rest.pedido.novo', mesa.id));
 };
 const addProduto = (produto) => {
-    if (!props.pedido) return abrirPedido();
+    if (!props.pedido) return;
     const existente = carrinho.value.find((item) => item.produto_id === produto.id);
 
     if (existente) {
@@ -91,6 +105,16 @@ const fechar = () => {
     fecharForm.patch(route('pos.rest.pedido.fechar', props.pedido.id));
 };
 const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido.value).slice(0, -1); else recebido.value = String(recebido.value) + valor; };
+const mostrarQr = async () => {
+    if (!clienteUrl.value) return;
+    qrDataUrl.value = await QRCode.toDataURL(clienteUrl.value, { width: 420, margin: 2 });
+    qrAberto.value = true;
+};
+const copiarLinkCliente = async () => {
+    if (navigator?.clipboard && clienteUrl.value) {
+        await navigator.clipboard.writeText(clienteUrl.value);
+    }
+};
 </script>
 
 <template>
@@ -98,21 +122,24 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
         <header class="mb-4 flex items-center justify-between"><Link :href="route('pos.rest.mesas')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">← MESAS</Link><h1 class="text-3xl font-black">MESA {{ mesa.numero }}</h1></header>
         <div v-if="!pedido" class="space-y-4">
             <!-- ABRIR MESA PRIMEIRO NO MOBILE -->
-            <section class="rounded-lg bg-gray-800 p-6">
-                <h2 class="mb-6 text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
-                <p class="mb-6 text-center font-bold text-gray-300">Mesa livre - abre pedido na mesa completa ou numa submesa.</p>
+            <section class="rounded-2xl bg-gray-800 p-5 shadow-lg">
+                <h2 class="text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
+                <p class="mt-2 rounded-lg bg-gray-900 p-3 text-sm font-bold text-gray-300">Antes de escolher produtos, abre o pedido com o numero de pessoas.</p>
                 
-                <label v-if="podeEscolherLugares" class="mb-4 block font-black">Lugares ocupados
-                    <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-3 text-white" placeholder="Vazio = mesa completa">
-                </label>
-                <label v-if="podeEscolherLugares && lugaresOcupados" class="mb-4 block font-black">Letra da submesa
-                    <input v-model="letraSubmesaNova" type="text" maxlength="1" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-3 uppercase text-white" placeholder="Ex.: A">
-                </label>
-                <label v-if="podeEscolherLugares && Number(lugaresOcupados || 0) > Number(mesa.capacidade || 0)" class="mb-4 block font-black">Mesas do grupo
-                    <input v-model="mesasGrupo" type="text" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-3 text-white" placeholder="Ex.: 32 33 34">
-                </label>
-                
-                <button v-if="!mesaDividida" class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="abrirPedido()">ABRIR PEDIDO</button>
+                <div v-if="!mesaDividida" class="mt-5 space-y-4">
+                    <label class="block font-black">Numero de pessoas
+                        <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Obrigatorio">
+                    </label>
+                    <label v-if="precisaSubmesa" class="block font-black">Letra da submesa
+                        <input v-model="letraSubmesaNova" type="text" maxlength="1" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black uppercase text-white" placeholder="Ex.: A">
+                    </label>
+                    <label v-if="precisaMesasGrupo" class="block font-black">Mesas do grupo
+                        <input v-model="mesasGrupo" type="text" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Ex.: 32 33 34">
+                    </label>
+                    <button class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-40" :disabled="!podeAbrirPedido || novoForm.processing" @click="abrirPedido()">
+                        {{ novoForm.processing ? 'A ABRIR...' : 'ABRIR PEDIDO' }}
+                    </button>
+                </div>
                 
                 <div v-if="mesa.submesas?.length" class="mt-6 space-y-2">
                     <p class="mb-3 font-bold text-gray-400">SUBMESAS:</p>
@@ -124,10 +151,12 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                 <div v-if="novoForm.errors.mesa_id" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.mesa_id }}</div>
                 <div v-if="novoForm.errors.submesa_letra" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.submesa_letra }}</div>
                 <div v-if="novoForm.errors.lugares_ocupados" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.lugares_ocupados }}</div>
+                <div v-if="novoForm.errors.mesas_grupo" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.mesas_grupo }}</div>
             </section>
             
             <!-- PRODUTOS SECUNDÁRIOS NO MOBILE -->
-            <section class="rounded-lg bg-gray-800 p-4">
+            <section class="rounded-lg bg-gray-800 p-4 opacity-50">
+                <div class="mb-4 rounded bg-gray-900 p-3 text-center text-sm font-black text-gray-300">Abre o pedido para adicionar produtos.</div>
                 <div class="mb-4 flex gap-2 overflow-x-auto pb-2">
                     <button v-for="cat in categorias" :key="cat" class="rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
@@ -156,6 +185,12 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                     <div class="text-sm font-bold text-gray-400">Pedido feito por</div>
                     <div class="text-xl font-black">{{ pedidoAutor }}</div>
                 </div>
+                <section v-if="podeSelfOrder" class="mb-4 rounded-lg border-2 border-cyan-500 bg-gray-950 p-3">
+                    <h3 class="text-xl font-black">SELF-ORDER DO CLIENTE</h3>
+                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR ao cliente para adicionar itens pelo telemovel.</p>
+                    <button class="mt-3 w-full rounded-lg bg-cyan-600 p-4 text-lg font-black" @click="mostrarQr">MOSTRAR QR AO CLIENTE</button>
+                    <button class="mt-2 w-full rounded-lg bg-gray-800 p-3 text-sm font-black" @click="copiarLinkCliente">COPIAR LINK</button>
+                </section>
                 <div class="mb-4 rounded-lg bg-gray-900 p-3">
                     <label class="block font-black">
                         Pessoas na mesa
@@ -217,6 +252,16 @@ const tecla = (valor) => { if (valor === 'del') recebido.value = String(recebido
                 <div class="my-4 text-center text-2xl font-black text-emerald-400">Troco: {{ euros(troco) }}</div>
                 <button class="w-full rounded-lg bg-emerald-600 p-5 text-xl font-black" @click="fechar">✅ CONFIRMAR PAGAMENTO</button>
                 <button class="mt-3 w-full rounded-lg bg-gray-700 p-4 font-black" @click="pagamentoAberto = false">✕ CANCELAR</button>
+            </div>
+        </div>
+        <div v-if="qrAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
+            <div class="mx-auto max-w-md rounded-2xl bg-white p-5 text-center text-slate-950">
+                <h2 class="text-2xl font-black">Self-Order do Cliente</h2>
+                <p class="mt-1 text-sm font-semibold text-slate-500">Mesa {{ mesa.numero }}</p>
+                <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR code self-order" class="mx-auto my-5 h-72 w-72 rounded-xl border p-3">
+                <input :value="clienteUrl" readonly class="w-full rounded-lg border-slate-300 text-xs">
+                <button class="mt-3 w-full rounded-lg bg-slate-900 p-3 font-black text-white" @click="copiarLinkCliente">COPIAR LINK</button>
+                <button class="mt-3 w-full rounded-lg bg-gray-200 p-3 font-black text-slate-950" @click="qrAberto = false">FECHAR</button>
             </div>
         </div>
     </main>

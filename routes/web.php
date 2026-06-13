@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BarController;
 use App\Http\Controllers\CaixaDiariaController;
+use App\Http\Controllers\ClientePedidoController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
@@ -26,6 +27,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', HomeController::class)->name('home');
 Route::post('/contacto', ContactController::class)->name('contacto.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
+Route::get('/cliente/{token}', [ClientePedidoController::class, 'show'])->name('cliente.mesa');
+Route::post('/cliente/{token}/item', [ClientePedidoController::class, 'addItem'])->name('cliente.item');
+Route::get('/cliente/{token}/confirmacao', [ClientePedidoController::class, 'confirmacao'])->name('cliente.confirmacao');
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
 Route::post('/pos/login', [PosLoginController::class, 'store'])->name('pos.login.store');
@@ -87,6 +91,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sala', [MesaController::class, 'sala'])->name('sala.index');
     Route::patch('mesas/mapa/guardar', [MesaController::class, 'guardarMapa'])->name('mesas.mapa.guardar');
     Route::patch('zonas/mapa/guardar', [\App\Http\Controllers\ZonaMapaController::class, 'guardarMapa'])->name('zonas.mapa.guardar');
+    Route::post('zonas', [\App\Http\Controllers\ZonaMapaController::class, 'store'])->name('zonas.store');
+    Route::patch('zonas/{zona}', [\App\Http\Controllers\ZonaMapaController::class, 'update'])->name('zonas.update');
+    Route::delete('zonas/{zona}', [\App\Http\Controllers\ZonaMapaController::class, 'destroy'])->name('zonas.destroy');
     Route::post('mesas/{mesa}/dividir', [MesaController::class, 'dividir'])->name('mesas.dividir');
     Route::delete('mesas/{mesa}/submesas', [MesaController::class, 'juntar'])->name('mesas.juntar');
     Route::patch('mesas/{mesa}/libertar', [MesaController::class, 'libertar'])->name('mesas.libertar');

@@ -99,6 +99,7 @@ class PosRestController extends Controller
             ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
             ->with('user', 'pos', 'items.produto.categoria')
             ->first() ?: $mesa->pedidosGrupo->first();
+        $pedido?->makeVisible('cliente_token');
 
         $produtos = Produto::with('categoria')
             ->disponiveis()
@@ -112,7 +113,7 @@ class PosRestController extends Controller
     public function novoPedido(Request $request, Mesa $mesa): RedirectResponse
     {
         $data = $request->validate([
-            'lugares_ocupados' => ['nullable', 'integer', 'min:1'],
+            'lugares_ocupados' => ['required', 'integer', 'min:1'],
             'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
             'mesas_grupo' => ['nullable', 'string', 'max:255'],
         ]);
@@ -122,13 +123,20 @@ class PosRestController extends Controller
         }
 
         $mesa = Mesa::with('submesas')->findOrFail($mesa->id);
-        $lugares = (int) ($data['lugares_ocupados'] ?? 0);
+        $lugares = (int) $data['lugares_ocupados'];
+        $capacidadeMesa = $this->capacidadeFisicaMesa($mesa);
         $mesasGrupo = collect();
 
-            if ($lugares > $this->capacidadeFisicaMesa($mesa)) {
-                $mesasGrupo = $data['mesas_grupo'] ?? null
-                    ? $this->mesasGrupoPorNumeros($mesa, $data['mesas_grupo'], $lugares)
-                    : $this->mesasLivresParaGrupo($mesa, $lugares);
+        if (! $mesa->mesa_principal_id && $lugares < $capacidadeMesa && empty($data['submesa_letra'])) {
+            return back()->withErrors(['submesa_letra' => 'Indica a letra da submesa para pedidos com menos lugares do que a mesa completa.']);
+        }
+
+        if ($lugares > $capacidadeMesa && empty($data['mesas_grupo'])) {
+            return back()->withErrors(['mesas_grupo' => 'Indica as mesas do grupo para pedidos com mais lugares do que a mesa inicial.']);
+        }
+
+        if ($lugares > $capacidadeMesa) {
+            $mesasGrupo = $this->mesasGrupoPorNumeros($mesa, $data['mesas_grupo'], $lugares);
 
             if ($mesasGrupo->sum('capacidade') < $lugares) {
                 return back()->withErrors(['lugares_ocupados' => 'Nao existem mesas livres suficientes para este grupo.']);
@@ -741,6 +749,6 @@ class PosRestController extends Controller
 
     private function capacidadeFisicaMesa(Mesa $mesa): int
     {
-        return max(1, (int) $mesa->capacidade);
+        return min(10, max(1, (int) $mesa->capacidade));
     }
 }

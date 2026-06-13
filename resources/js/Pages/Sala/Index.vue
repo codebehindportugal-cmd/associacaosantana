@@ -2,9 +2,10 @@
 import { router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const props = defineProps({ mesas: Array });
+const props = defineProps({ mesas: Array, zonas: Array });
 
 const mesasMapa = ref([...(props.mesas ?? [])]);
+const zonasMapa = ref([...(props.zonas ?? [])]);
 let polling = null;
 
 const estadoDot = {
@@ -142,6 +143,20 @@ const mesaStyle = (mesa) => ({
     width: `${mesa.mapa_largura}%`,
     height: `${mesa.mapa_altura}%`,
 });
+const zonaStyle = (zona) => ({
+    left: `${zona.mapa_x}%`,
+    top: `${zona.mapa_y}%`,
+    width: `${zona.mapa_largura}%`,
+    height: `${zona.mapa_altura}%`,
+});
+const zonaVertical = (zona) => Number(zona.mapa_altura || 0) > Number(zona.mapa_largura || 0);
+const zonaClasse = (zona) => ['entrada', 'porta'].includes(zona.tipo)
+    ? 'border-transparent bg-white/95 text-slate-700 shadow-sm'
+    : zona.tipo === 'wc'
+        ? 'border-slate-700/80 bg-sky-50/70 text-slate-900'
+    : zona.tipo === 'palco'
+        ? 'border-slate-700/80 bg-amber-50/70 text-slate-900'
+    : 'border-slate-700/80 bg-white/40 text-slate-900';
 
 const letraSubmesa = (submesa) => submesa.designacao.replace(/^Mesa\s*/i, '');
 
@@ -170,10 +185,13 @@ const horaPedido = (pedido) => new Date(pedido.created_at).toLocaleTimeString('p
 watch(() => props.mesas, (mesas) => {
     mesasMapa.value = [...(mesas ?? [])];
 });
+watch(() => props.zonas, (zonas) => {
+    zonasMapa.value = [...(zonas ?? [])];
+});
 
 onMounted(() => {
     polling = setInterval(() => {
-        router.reload({ only: ['mesas'], preserveScroll: true });
+        router.reload({ only: ['mesas', 'zonas'], preserveScroll: true });
     }, 3000);
 });
 
@@ -192,12 +210,15 @@ onBeforeUnmount(() => {
                 <div class="absolute right-[2%] top-[12%] h-[16%] w-[2px] bg-[#f7f5ef]"></div>
                 <div class="absolute right-[2%] bottom-[8%] h-[12%] w-[2px] bg-[#f7f5ef]"></div>
 
-                <div class="absolute left-[3%] top-[46%] -rotate-90 text-xs font-black uppercase text-slate-700">WC H.</div>
-                <div class="absolute left-[3%] top-[60%] -rotate-90 text-xs font-black uppercase text-slate-700">WC M.</div>
-                <div class="absolute left-[11%] top-[14%] h-[18%] w-[10%] rounded-sm border-[3px] border-slate-800/70 bg-white/40 p-2 text-center text-xs font-black uppercase [writing-mode:vertical-rl]">Sobremesas</div>
-                <div class="absolute bottom-[8%] left-[9%] h-[17%] w-[8%] rounded-sm border-[3px] border-slate-800/70 bg-white/40 p-2 text-center text-xs font-black uppercase [writing-mode:vertical-rl]">Caixa / Bebidas</div>
-                <div class="absolute bottom-[2%] left-[19%] rounded-md bg-white/90 px-3 py-2 text-xs font-black uppercase text-slate-700 shadow-sm">Entrada</div>
-                <div class="absolute right-[5%] top-[31%] rounded-md bg-white/90 px-3 py-2 text-xs font-black uppercase text-slate-700 shadow-sm [writing-mode:vertical-rl]">Palco</div>
+                <div
+                    v-for="zona in zonasMapa"
+                    :key="`zona-${zona.id}`"
+                    class="absolute flex items-center justify-center rounded-sm border-[3px] p-1 text-center text-xs font-black uppercase"
+                    :class="zonaClasse(zona)"
+                    :style="zonaStyle(zona)"
+                >
+                    <span :class="zonaVertical(zona) ? '[writing-mode:vertical-rl]' : ''">{{ zona.nome }}</span>
+                </div>
 
                 <div
                     v-for="mesa in mesasMapa"
@@ -230,7 +251,7 @@ onBeforeUnmount(() => {
                         <div v-else class="grid gap-0.5">
                             <span class="rounded bg-slate-950/50 px-1 py-0.5 text-[9px] font-black">{{ estadoLabel[estadoMesa(mesa)] }}</span>
                             <span v-if="pedidosAtivos(mesa)[0]" class="rounded bg-slate-950/50 px-1 py-0.5 text-[9px] font-bold">
-                                #{{ pedidosAtivos(mesa)[0].id }} · {{ horaPedido(pedidosAtivos(mesa)[0]) }}
+                                #{{ pedidosAtivos(mesa)[0].id }} - {{ horaPedido(pedidosAtivos(mesa)[0]) }}
                             </span>
                         </div>
                     </div>
