@@ -23,6 +23,8 @@ const links = [
     ['Sócios', 'socios.index', 'socios.ver', 'Sócios'],
     ['Cotas', 'cotas.index', 'cotas.ver', 'Cotas'],
     ['Relatórios', 'relatorios.index', 'relatorios.ver', 'Relatórios'],
+    ['Limpeza', 'manutencao.limpeza.index', null, 'Limpeza'],
+    ['Logs', 'manutencao.logs.index', null, 'Logs'],
     ['Utilizadores', 'users.index', 'users.ver', 'Users'],
 ];
 const podeGerir = () => hasRole('admin') || hasRole('gerente');

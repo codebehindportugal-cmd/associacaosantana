@@ -10,6 +10,7 @@ use App\Http\Controllers\EventoController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ImpressoraController;
 use App\Http\Controllers\LegalController;
+use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\MesaController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PedidoItemController;
@@ -124,6 +125,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('patrocinadores', SponsorAdminController::class)
         ->parameters(['patrocinadores' => 'patrocinadore'])
         ->except(['create', 'edit', 'show']);
+    Route::get('manutencao/limpeza', [MaintenanceController::class, 'cleanup'])->name('manutencao.limpeza.index');
+    Route::delete('manutencao/limpeza', [MaintenanceController::class, 'destroyCleanup'])->name('manutencao.limpeza.destroy');
+    Route::get('manutencao/logs', [MaintenanceController::class, 'logs'])->name('manutencao.logs.index');
     Route::get('relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
     Route::get('relatorios/periodo', [RelatorioController::class, 'porPeriodo'])->name('relatorios.periodo');
     Route::get('relatorios/exportar', [RelatorioController::class, 'exportarPDF'])->name('relatorios.pdf');
