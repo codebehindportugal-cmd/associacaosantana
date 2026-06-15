@@ -41,6 +41,9 @@ class HandleInertiaRequests extends Middleware
             'restaurante' => [
                 'mostrar_estado_items' => (bool) config('restaurante.mostrar_estado_items'),
             ],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+            ],
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),

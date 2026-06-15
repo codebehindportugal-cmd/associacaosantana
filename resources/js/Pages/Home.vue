@@ -1,15 +1,19 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import CookieBanner from '@/Components/CookieBanner.vue';
+import SponsorsSlider from '@/Components/SponsorsSlider.vue';
 
 const props = defineProps({
     upcomingEvents: Array,
     pastEvents: Array,
+    patrocinadores: Array,
 });
 
 const associationLogo = '/images/santana-logo.png';
 const santaAnaImage = '/images/santa-ana.png';
 const contactEmail = 'ardcsantana@outlook.com';
+const currentYear = new Date().getFullYear();
 
 const menuOpen = ref(false);
 const selectedEventTab = ref('todos');
@@ -31,15 +35,21 @@ const archived = computed(() => props.pastEvents ?? []);
 const allEvents = computed(() => [...upcoming.value, ...archived.value]);
 const heroEvents = computed(() => upcoming.value);
 const activeHeroEvent = computed(() => heroEvents.value[activeHeroSlide.value] ?? null);
+const heroVisual = computed(() => activeHeroEvent.value?.poster || santaAnaImage || associationLogo);
+const heroKpis = computed(() => [
+    ['Desde', '1991'],
+    ['Agenda', `${upcoming.value.length} próximos`],
+    ['Local', 'Santana'],
+]);
 
 let heroSliderTimer;
 
 const navLinks = [
-    ['Sobre', '#sobre'],
+    ['Início', '/'],
+    ['Sobre Nós', route('pages.sobre-nos')],
     ['Eventos', '#eventos'],
-    ['Galeria', '#galeria'],
-    ['Sócios', '#socios'],
-    ['Contactos', '#contactos'],
+    ['Patrocínios', route('patrocinios.index')],
+    ['Contacto', '#contactos'],
 ];
 
 const pillars = [
@@ -71,6 +81,14 @@ const filteredEvents = computed(() => {
 
     return allEvents.value;
 });
+
+const activeEventTab = computed(() => eventTabs.value.find((tab) => tab.key === selectedEventTab.value));
+const featuredEvent = computed(() => filteredEvents.value[0] ?? allEvents.value[0] ?? null);
+const eventStats = computed(() => [
+    ['Eventos publicados', allEvents.value.length],
+    ['Próximos', upcoming.value.length],
+    ['Arquivo', archived.value.length],
+]);
 
 const quizOptions = [
     'Caminhadas e natureza',
@@ -146,6 +164,10 @@ const faqs = [
 
 const scrollTo = (target) => {
     menuOpen.value = false;
+    if (!target.startsWith('#')) {
+        window.location.href = target;
+        return;
+    }
     document.querySelector(target)?.scrollIntoView({ behavior: 'smooth' });
 };
 
@@ -157,6 +179,40 @@ const calendarHref = (event) => {
 };
 
 const eventHref = (event) => route('eventos.public.show', event.id);
+
+const absoluteEventUrl = (event) => {
+    const path = event.id ? eventHref(event) : '#eventos';
+    return new URL(path, window.location.origin).toString();
+};
+
+const copyEventLink = async (event) => {
+    const url = absoluteEventUrl(event);
+
+    try {
+        await navigator.clipboard.writeText(url);
+    } catch {
+        window.prompt('Copia o link do evento:', url);
+    }
+};
+
+const shareEvent = async (event) => {
+    const url = absoluteEventUrl(event);
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: event.title,
+                text: event.description || 'Evento ARDC Santana',
+                url,
+            });
+        } catch {
+            copyEventLink(event);
+        }
+        return;
+    }
+
+    copyEventLink(event);
+};
 
 const selectHeroSlide = (index) => {
     if (!heroEvents.value.length) return;
@@ -261,140 +317,237 @@ onBeforeUnmount(() => {
             </Transition>
         </header>
 
-        <section class="relative isolate overflow-hidden pt-20 pb-16">
-            <div class="absolute inset-0 -z-10 bg-gradient-to-b from-slate-50 to-white" />
-            
-            <div class="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-7xl items-center gap-12 px-5 lg:grid-cols-[1fr_1fr] lg:px-8">
-                <div class="reveal">
-                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Bem-vindo à associação</p>
-                    <h1 class="mt-3 text-5xl font-bold leading-tight text-slate-900 sm:text-6xl lg:text-7xl">
+        <section class="relative isolate min-h-[88vh] overflow-hidden bg-slate-950 pt-24 text-white">
+            <Transition name="hero-slide" mode="out-in">
+                <img
+                    :key="heroVisual"
+                    :src="heroVisual"
+                    alt=""
+                    class="absolute inset-0 -z-20 h-full w-full object-cover"
+                >
+            </Transition>
+            <div class="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(2,6,23,0.92),rgba(15,23,42,0.72),rgba(15,23,42,0.28))]" />
+            <div class="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-slate-950 to-transparent" />
+
+            <div class="mx-auto flex min-h-[calc(88vh-6rem)] max-w-7xl flex-col justify-end px-5 pb-8 lg:px-8">
+                <div class="reveal max-w-4xl pb-8">
+                    <p class="text-sm font-black uppercase tracking-wide text-amber-300">Associação Recreativa, Desportiva e Cultural</p>
+                    <h1 class="mt-4 max-w-3xl text-5xl font-black leading-none text-white sm:text-6xl lg:text-7xl">
                         ARDC Santana
                     </h1>
-                    <p class="mt-5 text-xl text-slate-600">
-                        Cultura, desporto e comunidade. Uma casa feita por pessoas, para pessoas.
+                    <p class="mt-5 max-w-2xl text-xl font-medium leading-relaxed text-slate-100">
+                        Cultura, desporto e comunidade numa casa viva, feita por pessoas e para pessoas.
                     </p>
-                    <p class="mt-4 max-w-2xl text-slate-600 leading-relaxed">
-                        Fundada em 1991, somos um ponto de encontro para eventos, convívios, caminhadas e iniciativas que mantêm Santana viva e unida.
+                    <p class="mt-4 max-w-2xl leading-relaxed text-slate-200">
+                        Fundada em 1991, continuamos a juntar Santana em eventos, convívios, caminhadas e iniciativas que aproximam gerações.
                     </p>
 
                     <div class="mt-8 flex flex-wrap gap-3">
-                        <button type="button" class="rounded-lg bg-slate-900 px-6 py-3 font-semibold text-white transition hover:bg-slate-800" @click="scrollTo('#eventos')">
+                        <button type="button" class="rounded-md bg-amber-300 px-6 py-3 font-black text-slate-950 transition hover:bg-amber-200" @click="scrollTo('#eventos')">
                             Ver próximos eventos
                         </button>
-                        <button type="button" class="rounded-lg border border-slate-300 px-6 py-3 font-semibold text-slate-900 transition hover:bg-slate-50" @click="scrollTo('#socios')">
+                        <button type="button" class="rounded-md border border-white/35 bg-white/10 px-6 py-3 font-black text-white backdrop-blur transition hover:bg-white/20" @click="scrollTo('#socios')">
                             Tornar-me sócio
                         </button>
-                    </div>
-
-                    <div class="mt-10 grid gap-4 sm:grid-cols-3">
-                        <div class="rounded-lg bg-slate-50 p-4 border border-slate-200">
-                            <div class="text-2xl font-bold text-slate-900">1991</div>
-                            <div class="text-sm text-slate-600">Fundada</div>
-                        </div>
-                        <div class="rounded-lg bg-slate-50 p-4 border border-slate-200">
-                            <div class="text-2xl font-bold text-slate-900">Santana</div>
-                            <div class="text-sm text-slate-600">Carvalhal Benfeito</div>
-                        </div>
-                        <div class="rounded-lg bg-slate-50 p-4 border border-slate-200">
-                            <div class="text-2xl font-bold text-slate-900">Comunidade</div>
-                            <div class="text-sm text-slate-600">Cultura e desporto</div>
-                        </div>
+                        <Link :href="route('patrocinios.index')" class="rounded-md bg-emerald-500 px-6 py-3 font-black text-white transition hover:bg-emerald-400">
+                            Torna-te patrocinador
+                        </Link>
                     </div>
                 </div>
 
-                <aside v-if="activeHeroEvent" class="reveal hidden lg:block">
-                    <div class="overflow-hidden rounded-lg shadow-lg border border-slate-200">
-                        <Transition name="hero-slide" mode="out-in">
-                            <img :key="activeHeroEvent.poster" :src="activeHeroEvent.poster || associationLogo" :alt="activeHeroEvent.title" class="aspect-[4/3] w-full object-cover">
-                        </Transition>
+                <div class="reveal grid gap-4 lg:grid-cols-[1.4fr_0.8fr] lg:items-end">
+                    <article v-if="activeHeroEvent" class="border border-white/20 bg-slate-950/55 p-4 backdrop-blur-md">
+                        <div class="grid gap-4 md:grid-cols-[8rem_1fr_auto] md:items-center">
+                            <img :src="activeHeroEvent.poster || associationLogo" :alt="activeHeroEvent.title" class="h-32 w-full object-cover md:h-28">
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-wide text-amber-300">{{ activeHeroEvent.badge || 'Próximo evento' }}</p>
+                                <h2 class="mt-1 text-2xl font-black text-white">{{ activeHeroEvent.title }}</h2>
+                                <p class="mt-1 font-bold text-slate-200">{{ activeHeroEvent.date }} · {{ activeHeroEvent.location || activeHeroEvent.subtitle }}</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2 md:justify-end">
+                                <Link v-if="activeHeroEvent.id" :href="eventHref(activeHeroEvent)" class="rounded-md bg-white px-4 py-2 text-sm font-black text-slate-950 hover:bg-slate-100">
+                                    Detalhes
+                                </Link>
+                                <button type="button" class="rounded-md border border-white/30 px-4 py-2 text-sm font-black text-white hover:bg-white/10" @click="shareEvent(activeHeroEvent)">
+                                    Partilhar
+                                </button>
+                            </div>
+                        </div>
 
-                        <div class="p-5 bg-white">
-                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">{{ activeHeroEvent.badge || 'Próximo evento' }}</p>
-                            <h2 class="mt-2 text-2xl font-bold text-slate-900">{{ activeHeroEvent.title }}</h2>
-                            <p class="mt-2 font-medium text-slate-600">{{ activeHeroEvent.date }} · {{ activeHeroEvent.location || activeHeroEvent.subtitle }}</p>
-                            <p class="mt-3 text-slate-600 leading-relaxed text-sm">{{ activeHeroEvent.description }}</p>
-
-                            <div v-if="heroEvents.length > 1" class="mt-4 flex gap-2">
+                        <div v-if="heroEvents.length > 1" class="mt-4 flex items-center gap-3">
+                            <button type="button" class="grid h-9 w-9 place-items-center border border-white/25 text-xl font-black text-white hover:bg-white/10" aria-label="Evento anterior" @click="previousHeroSlide">
+                                ‹
+                            </button>
+                            <div class="flex flex-1 gap-2">
                                 <button
                                     v-for="(event, index) in heroEvents"
                                     :key="event.id || event.title"
                                     type="button"
-                                    class="h-2 flex-1 rounded-full transition bg-slate-200"
-                                    :class="activeHeroSlide === index ? 'bg-slate-900' : 'hover:bg-slate-300'"
+                                    class="h-2 flex-1 bg-white/25 transition"
+                                    :class="activeHeroSlide === index ? 'bg-amber-300' : 'hover:bg-white/45'"
+                                    :aria-label="`Ver destaque ${index + 1}`"
                                     @click="selectHeroSlide(index)"
                                 />
                             </div>
+                            <button type="button" class="grid h-9 w-9 place-items-center border border-white/25 text-xl font-black text-white hover:bg-white/10" aria-label="Evento seguinte" @click="nextHeroSlide">
+                                ›
+                            </button>
+                        </div>
+                    </article>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div v-for="kpi in heroKpis" :key="kpi[0]" class="border border-white/15 bg-white/10 p-3 backdrop-blur-md">
+                            <div class="text-[11px] font-black uppercase tracking-wide text-slate-300">{{ kpi[0] }}</div>
+                            <div class="mt-1 text-lg font-black text-white">{{ kpi[1] }}</div>
                         </div>
                     </div>
-                </aside>
+                </div>
             </div>
         </section>
 
-        <section id="sobre" class="py-16 bg-slate-50 border-y border-slate-200">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal max-w-3xl">
-                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Sobre nós</p>
-                    <h2 class="mt-3 text-4xl font-bold text-slate-900">Uma casa local com memória e futuro.</h2>
-                    <p class="mt-5 text-lg text-slate-600 leading-relaxed">
+        <section id="sobre" class="overflow-hidden bg-white py-20">
+            <div class="mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[1fr_0.86fr] lg:items-center lg:px-8">
+                <div class="reveal">
+                    <p class="text-sm font-black uppercase tracking-wide text-emerald-800">Sobre nós</p>
+                    <h2 class="mt-3 max-w-3xl text-4xl font-black leading-tight text-slate-950 sm:text-5xl">Uma casa local com memória, agenda e futuro.</h2>
+                    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
                         A ARDC Santana é uma associação recreativa, desportiva e cultural. Nasceu da vontade de criar um ponto de encontro para a terra e continua a ser uma casa aberta para sócios, vizinhos, famílias e amigos.
                     </p>
+
+                    <div class="mt-8 grid gap-3">
+                        <article v-for="pillar in pillars" :key="pillar[0]" class="group border-l-4 border-slate-200 bg-slate-50 p-5 transition hover:border-emerald-700 hover:bg-emerald-50">
+                            <div class="flex items-start gap-4">
+                                <span class="grid h-11 w-11 shrink-0 place-items-center bg-white text-lg font-black text-slate-950 shadow-sm group-hover:text-emerald-800">{{ pillar[0].slice(0, 1) }}</span>
+                                <div>
+                                    <h3 class="text-xl font-black text-slate-950">{{ pillar[0] }}</h3>
+                                    <p class="mt-2 leading-relaxed text-slate-600">{{ pillar[1] }}</p>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
                 </div>
 
-                <div class="mt-10 grid gap-6 sm:grid-cols-3">
-                    <article v-for="pillar in pillars" :key="pillar[0]" class="reveal rounded-lg bg-white p-6 border border-slate-200 hover:shadow-md transition">
-                        <div class="inline-block mb-3 text-2xl font-bold text-slate-900">{{ pillar[0].slice(0, 1) }}</div>
-                        <h3 class="text-xl font-bold text-slate-900">{{ pillar[0] }}</h3>
-                        <p class="mt-3 text-slate-600 leading-relaxed">{{ pillar[1] }}</p>
-                    </article>
+                <div class="reveal relative min-h-[420px] overflow-hidden bg-slate-950">
+                    <img :src="santaAnaImage" alt="Santa Ana" class="absolute inset-0 h-full w-full object-cover opacity-85">
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
+                    <div class="absolute bottom-0 left-0 right-0 p-6 text-white">
+                        <p class="text-sm font-black uppercase tracking-wide text-amber-300">Desde 1991</p>
+                        <p class="mt-2 text-3xl font-black leading-tight">A comunidade no centro da programação.</p>
+                        <div class="mt-5 flex flex-wrap gap-2">
+                            <span class="bg-white/15 px-3 py-1.5 text-sm font-bold backdrop-blur">Cultura</span>
+                            <span class="bg-white/15 px-3 py-1.5 text-sm font-bold backdrop-blur">Desporto</span>
+                            <span class="bg-white/15 px-3 py-1.5 text-sm font-bold backdrop-blur">Convívio</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <section id="eventos" class="py-16">
+        <section id="eventos" class="relative overflow-hidden bg-[#f6f8f4] py-20">
+            <div class="absolute inset-x-0 top-0 h-px bg-slate-200" />
             <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal mb-8">
-                    <p class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Próximos eventos</p>
-                    <h2 class="mt-3 text-4xl font-bold text-slate-900">O que está a acontecer.</h2>
+                <div class="mb-8 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+                    <div class="reveal">
+                        <p class="text-sm font-black uppercase tracking-wide text-emerald-800">Agenda da associação</p>
+                        <h2 class="mt-3 max-w-3xl text-4xl font-black leading-tight text-slate-950 sm:text-5xl">Eventos, memórias e próximos encontros.</h2>
+                        <p class="mt-4 max-w-2xl text-lg leading-relaxed text-slate-600">
+                            Filtra por estado ou categoria, abre os detalhes, adiciona ao calendário ou partilha o evento com a comunidade.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                        <div v-for="stat in eventStats" :key="stat[0]" class="min-w-24 rounded-md bg-slate-50 px-3 py-2 text-center">
+                            <div class="text-2xl font-black text-slate-950">{{ stat[1] }}</div>
+                            <div class="text-[11px] font-bold uppercase text-slate-500">{{ stat[0] }}</div>
+                        </div>
+                    </div>
                 </div>
 
-                <div v-if="eventTabs.length" class="mb-8 flex flex-wrap gap-2">
-                    <button
-                        v-for="tab in eventTabs"
-                        :key="tab.key"
-                        type="button"
-                        class="rounded-lg px-4 py-2 text-sm font-medium border transition"
-                        :class="selectedEventTab === tab.key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'"
-                        @click="selectedEventTab = tab.key"
-                    >
-                        {{ tab.label }}
-                    </button>
+                <div v-if="eventTabs.length" class="mb-8 overflow-x-auto">
+                    <div class="inline-flex min-w-full gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm md:min-w-0">
+                        <button
+                            v-for="tab in eventTabs"
+                            :key="tab.key"
+                            type="button"
+                            class="shrink-0 rounded-md px-4 py-2.5 text-sm font-black transition"
+                            :class="selectedEventTab === tab.key ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'"
+                            @click="selectedEventTab = tab.key"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </div>
                 </div>
 
-                <div v-if="filteredEvents.length" class="grid gap-6 lg:grid-cols-3">
-                    <article v-for="event in filteredEvents" :key="event.id || event.title" class="reveal group overflow-hidden rounded-lg bg-white border border-slate-200 hover:shadow-lg transition">
-                        <img :src="event.poster || associationLogo" :alt="event.title" class="aspect-[4/3] w-full object-cover group-hover:scale-105 transition duration-300">
-                        <div class="p-6">
-                            <div class="flex items-center gap-2 mb-3">
-                                <span class="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-1 rounded">{{ event.badge || 'Evento' }}</span>
-                                <span class="text-sm font-medium text-slate-600">{{ event.date }}</span>
+                <div v-if="filteredEvents.length" class="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
+                    <article class="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                        <div class="relative">
+                            <img :src="featuredEvent.poster || associationLogo" :alt="featuredEvent.title" class="aspect-[16/11] w-full object-cover">
+                            <div class="absolute left-4 top-4 rounded-md bg-white/95 px-3 py-1 text-xs font-black uppercase text-slate-950 shadow-sm">
+                                {{ activeEventTab?.label || 'Destaque' }}
                             </div>
-                            <h3 class="text-xl font-bold text-slate-900">{{ event.title }}</h3>
-                            <p class="mt-1 text-sm font-medium text-slate-600">{{ event.location || event.subtitle }}</p>
-                            <p class="mt-3 text-slate-600 text-sm leading-relaxed">{{ event.description }}</p>
-                            <div class="mt-4 flex flex-wrap gap-2">
-                                <a :href="calendarHref(event)" target="_blank" rel="noreferrer" class="text-sm font-medium text-slate-900 hover:underline">+ Adicionar calendário</a>
-                                <Link v-if="event.id" :href="eventHref(event)" class="text-sm font-medium text-slate-900 hover:underline">+ Saber mais</Link>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-sm font-black uppercase tracking-wide text-emerald-800">{{ featuredEvent.badge || 'Evento' }}</p>
+                            <h3 class="mt-2 text-3xl font-black leading-tight text-slate-950">{{ featuredEvent.title }}</h3>
+                            <p class="mt-3 font-bold text-slate-600">{{ featuredEvent.date }} - {{ featuredEvent.location || featuredEvent.subtitle }}</p>
+                            <p class="mt-4 leading-relaxed text-slate-600">{{ featuredEvent.description || 'Mais informações em breve.' }}</p>
+                            <div class="mt-6 flex flex-wrap gap-2">
+                                <Link v-if="featuredEvent.id" :href="eventHref(featuredEvent)" class="rounded-md bg-slate-950 px-4 py-2.5 text-sm font-black text-white hover:bg-slate-800">
+                                    Ver detalhes
+                                </Link>
+                                <a :href="calendarHref(featuredEvent)" target="_blank" rel="noreferrer" class="rounded-md border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-800 hover:bg-slate-50">
+                                    Adicionar ao calendário
+                                </a>
+                                <button type="button" class="rounded-md border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-800 hover:bg-slate-50" @click="shareEvent(featuredEvent)">
+                                    Partilhar
+                                </button>
                             </div>
                         </div>
                     </article>
+
+                    <div class="grid gap-3">
+                        <article
+                            v-for="event in filteredEvents"
+                            :key="event.id || event.title"
+                            class="group grid gap-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-700 hover:shadow-md md:grid-cols-[11rem_1fr]"
+                        >
+                            <img :src="event.poster || associationLogo" :alt="event.title" class="h-44 w-full rounded-md object-cover md:h-full">
+                            <div class="flex min-w-0 flex-col justify-between gap-4 p-1">
+                                <div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="rounded-md bg-emerald-50 px-2 py-1 text-xs font-black uppercase text-emerald-800">{{ event.badge || 'Evento' }}</span>
+                                        <span class="text-sm font-bold text-slate-500">{{ event.date }}</span>
+                                    </div>
+                                    <h3 class="mt-2 text-xl font-black text-slate-950">{{ event.title }}</h3>
+                                    <p class="mt-1 text-sm font-bold text-slate-600">{{ event.location || event.subtitle }}</p>
+                                    <p class="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-600">{{ event.description || 'Mais informações em breve.' }}</p>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2">
+                                    <Link v-if="event.id" :href="eventHref(event)" class="rounded-md bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800">
+                                        Saber mais
+                                    </Link>
+                                    <a :href="calendarHref(event)" target="_blank" rel="noreferrer" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+                                        Calendário
+                                    </a>
+                                    <button type="button" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50" @click="copyEventLink(event)">
+                                        Copiar link
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
                 </div>
 
-                <div v-else class="rounded-lg bg-slate-50 p-8 text-center border border-slate-200">
-                    <p class="text-slate-600">Ainda não há eventos publicados. Consulta-nos em breve.</p>
+                <div v-else class="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+                    <p class="text-lg font-black text-slate-950">Sem eventos nesta seleção.</p>
+                    <p class="mt-2 text-slate-600">Escolhe outro filtro ou publica novos eventos no backoffice.</p>
+                    <button type="button" class="mt-5 rounded-md bg-slate-950 px-4 py-2.5 text-sm font-black text-white" @click="selectedEventTab = 'todos'">
+                        Ver todos
+                    </button>
                 </div>
             </div>
         </section>
-
         <section class="py-16 bg-slate-900 text-white">
             <div class="mx-auto max-w-7xl px-5 lg:px-8">
                 <div class="reveal grid lg:grid-cols-[0.9fr_1.1fr] gap-8">
@@ -416,10 +569,18 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div v-if="recommendedEvents.length" class="grid gap-3">
-                        <article v-for="event in recommendedEvents" :key="event.id || event.title" class="rounded-lg bg-slate-800 p-4 border border-slate-700">
+                        <article v-for="event in recommendedEvents" :key="event.id || event.title" class="bg-slate-800 p-4 border border-slate-700 transition hover:border-amber-300">
                             <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide">{{ event.badge || 'Recomendado' }}</p>
                             <h3 class="mt-2 text-lg font-bold">{{ event.title }}</h3>
                             <p class="mt-1 text-sm text-slate-300">{{ event.date }} · {{ event.location || event.subtitle }}</p>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <Link v-if="event.id" :href="eventHref(event)" class="rounded-md bg-white px-3 py-2 text-xs font-black text-slate-950 hover:bg-slate-100">
+                                    Abrir evento
+                                </Link>
+                                <a :href="calendarHref(event)" target="_blank" rel="noreferrer" class="rounded-md border border-slate-600 px-3 py-2 text-xs font-black text-white hover:border-slate-400">
+                                    Calendário
+                                </a>
+                            </div>
                         </article>
                     </div>
                     <div v-else class="rounded-lg bg-slate-800 p-4 border border-slate-700 font-medium text-slate-300">
@@ -523,7 +684,7 @@ onBeforeUnmount(() => {
                     <article v-for="(faq, index) in faqs" :key="faq[0]" class="reveal rounded-lg border border-slate-200 bg-white overflow-hidden">
                         <button type="button" class="flex w-full items-center justify-between gap-4 p-5 text-left font-semibold text-slate-900 hover:bg-slate-50" @click="openFaq = openFaq === index ? null : index">
                             {{ faq[0] }}
-                            <span class="text-xl text-slate-600 flex-shrink-0">{{ openFaq === index ? '−' : '+' }}</span>
+                            <span class="text-xl text-slate-600 flex-shrink-0">{{ openFaq === index ? '-' : '+' }}</span>
                         </button>
                         <p v-if="openFaq === index" class="px-5 pb-5 leading-relaxed text-slate-600 border-t border-slate-200">{{ faq[1] }}</p>
                     </article>
@@ -557,6 +718,8 @@ onBeforeUnmount(() => {
             </div>
         </section>
 
+        <SponsorsSlider :patrocinadores="props.patrocinadores || []" />
+
         <footer class="bg-slate-900 text-white py-8 border-t border-slate-800">
             <div class="mx-auto grid max-w-7xl gap-6 px-5 md:grid-cols-[1fr_auto] lg:px-8">
                 <div>
@@ -568,9 +731,21 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="flex flex-wrap gap-4 text-sm font-medium md:justify-end">
                     <button v-for="link in navLinks" :key="link[0]" type="button" class="text-slate-400 hover:text-white" @click="scrollTo(link[1])">{{ link[0] }}</button>
+                    <Link :href="route('legal.privacidade')" class="text-slate-400 hover:text-white">Política de Privacidade</Link>
+                    <Link :href="route('legal.termos')" class="text-slate-400 hover:text-white">Termos e Condições</Link>
+                    <Link :href="route('legal.cookies')" class="text-slate-400 hover:text-white">Política de Cookies</Link>
+                    <a href="https://www.livroreclamacoes.pt" target="_blank" rel="noopener" class="text-slate-400 hover:text-white">Livro de Reclamações</a>
                 </div>
             </div>
+            <div class="mx-auto mt-6 flex max-w-7xl flex-col gap-2 border-t border-slate-800 px-5 pt-5 text-xs text-slate-400 md:flex-row md:items-center md:justify-between lg:px-8">
+                <p>Copyright © {{ currentYear }} Associação de Santana.</p>
+                <a href="https://ateneya.com/" target="_blank" rel="noopener" class="font-semibold text-slate-300 hover:text-white">
+                    #CreatingDevelopingImproving4you
+                </a>
+            </div>
         </footer>
+
+        <CookieBanner />
 
         <Transition name="lightbox">
             <div v-if="lightboxItem" class="fixed inset-0 z-[60] grid place-items-center bg-black/80 p-5" @click.self="lightboxItem = null">
@@ -741,3 +916,4 @@ onBeforeUnmount(() => {
     transform: translateX(-1rem) scale(0.98);
 }
 </style>
+

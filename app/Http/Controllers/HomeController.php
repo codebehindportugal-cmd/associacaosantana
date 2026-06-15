@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Evento;
+use App\Models\Sponsor;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -20,6 +21,7 @@ class HomeController extends Controller
         return Inertia::render('Home', [
             'upcomingEvents' => $upcoming,
             'pastEvents' => $past,
+            'patrocinadores' => $this->patrocinadores(),
         ]);
     }
 
@@ -33,6 +35,19 @@ class HomeController extends Controller
                 ->orderBy('ordem')
                 ->get()
                 ->map(fn (Evento $evento) => $this->formatarEvento($evento));
+        } catch (Throwable) {
+            return collect();
+        }
+    }
+
+    private function patrocinadores(): Collection
+    {
+        try {
+            return Sponsor::where('ativo', true)
+                ->where('mostrar_no_slider', true)
+                ->orderBy('ordem')
+                ->orderBy('empresa')
+                ->get();
         } catch (Throwable) {
             return collect();
         }

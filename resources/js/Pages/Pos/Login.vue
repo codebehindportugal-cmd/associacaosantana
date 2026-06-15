@@ -17,10 +17,11 @@ const entrar = () => form.post(route('pos.login.store'));
     <main class="min-h-screen bg-gray-900 p-5 text-white">
         <section class="mx-auto max-w-5xl">
             <h1 class="mb-6 text-center text-4xl font-black">{{ tituloPagina }}</h1>
-            <div class="mb-6 grid gap-2 sm:grid-cols-3">
+            <div class="mb-6 grid gap-2 sm:grid-cols-4">
                 <a class="rounded-lg bg-gray-800 px-4 py-3 text-center font-black" :href="route('pos.login', { tipo: 'restaurante' })">Restaurante</a>
                 <a class="rounded-lg bg-gray-800 px-4 py-3 text-center font-black" :href="route('pos.login', { tipo: 'bar' })">Bares</a>
                 <a class="rounded-lg bg-gray-800 px-4 py-3 text-center font-black" :href="route('pos.login', { tipo: 'cafe' })">Café</a>
+                <a class="rounded-lg bg-gray-800 px-4 py-3 text-center font-black" :href="route('pos.login', { tipo: 'cotas' })">Cotas</a>
             </div>
             <div class="grid gap-4 md:grid-cols-3">
                 <button v-for="item in terminais" :key="item.id" type="button" class="rounded-lg border-2 p-5 text-left" :class="escolhido === item.id ? 'border-emerald-400 bg-gray-800' : 'border-gray-700 bg-gray-800/60'" @click="escolher(item)">

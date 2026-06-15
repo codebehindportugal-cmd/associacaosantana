@@ -91,6 +91,7 @@ const showingNavigationDropdown = ref(false);
                         <!-- Hamburger -->
                         <div class="-me-2 flex items-center sm:hidden">
                             <button
+                                type="button"
                                 @click="
                                     showingNavigationDropdown =
                                         !showingNavigationDropdown

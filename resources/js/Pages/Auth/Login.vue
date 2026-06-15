@@ -42,7 +42,7 @@ const submit = () => {
             <div class="grid gap-2 sm:grid-cols-4">
                 <Link :href="route('pos.login', { tipo: 'restaurante' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Restaurante</Link>
                 <Link :href="route('pos.login', { tipo: 'bar' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Bares</Link>
-                <Link :href="route('sala.index')" class="rounded-md bg-emerald-700 px-3 py-2 text-center text-sm font-bold text-white">Sala</Link>
+                <Link :href="route('pos.login', { tipo: 'cotas' })" class="rounded-md bg-emerald-700 px-3 py-2 text-center text-sm font-bold text-white">Cotas</Link>
                 <Link :href="route('pos.login', { tipo: 'cafe' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Café</Link>
             </div>
         </div>
