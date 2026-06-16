@@ -46,9 +46,9 @@ class PrintJobService
         ]);
     }
 
-    public function criarConta(Pedido $pedido): ?PrintJob
+    public function criarConta(Pedido $pedido, string $secao = 'contas'): ?PrintJob
     {
-        $impressora = $this->impressoraParaSecao('contas');
+        $impressora = $this->impressoraParaSecao($secao);
 
         if (! $impressora) {
             return null;
@@ -70,6 +70,30 @@ class PrintJobService
         ]);
     }
 
+    public function criarTalaoBar(Pedido $pedido, string $secao = 'bar'): ?PrintJob
+    {
+        $impressora = $this->impressoraParaSecao($secao);
+
+        if (! $impressora) {
+            return null;
+        }
+
+        $pedido->loadMissing('user', 'pos', 'items.produto.categoria');
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $pedido::class,
+            'printable_id' => $pedido->id,
+            'tipo' => 'talao_bar',
+            'payload' => [
+                'titulo' => 'ARDC Santana',
+                'subtitulo' => 'SENHA',
+                'linhas' => $this->linhasTalaoBar($pedido),
+                'cortar' => true,
+            ],
+        ]);
+    }
+
     private function impressoraParaSecao(?string $secao): ?Impressora
     {
         $query = Impressora::query()
@@ -80,7 +104,15 @@ class PrintJobService
             return $query->first();
         }
 
-        return $query
+        $impressora = (clone $query)
+            ->where('secao', $secao)
+            ->first();
+
+        if ($impressora) {
+            return $impressora;
+        }
+
+        return (clone $query)
             ->whereIn('secao', $this->secoesEquivalentes($secao))
             ->first();
     }
@@ -88,10 +120,13 @@ class PrintJobService
     private function secoesEquivalentes(string $secao): array
     {
         return match ($secao) {
-            'bebidas' => ['bebidas', 'bar'],
+            'bebidas' => ['bebidas', 'bar', 'cafe'],
+            'bar' => ['bar', 'bebidas', 'cafe'],
+            'cafe' => ['cafe', 'bar', 'bebidas'],
             'comida' => ['comida', 'cozinha'],
             'cozinha' => ['cozinha', 'comida'],
-            'contas' => ['contas', 'caixa'],
+            'contas' => ['contas', 'pos', 'caixa'],
+            'pos' => ['pos', 'contas', 'caixa'],
             default => [$secao],
         };
     }
@@ -168,6 +203,40 @@ class PrintJobService
             'Troco: '.$this->euros($troco),
             ...($doacao > 0 ? ['Donativo: '.$this->euros($doacao)] : []),
             'Pagamento: '.($pedido->metodo_pagamento ?: 'dinheiro'),
+            '',
+            'Este documento nao serve de fatura',
+        ];
+    }
+
+    private function linhasTalaoBar(Pedido $pedido): array
+    {
+        $operador = $pedido->operador_nome ?: ($pedido->user?->name ?: $pedido->pos?->nome);
+        $total = (float) ($pedido->total ?: $pedido->total_calculado);
+        $valorRecebido = (float) ($pedido->valor_recebido ?: $total);
+        $troco = (float) ($pedido->troco ?: 0);
+        $doacao = (float) ($pedido->doacao ?: 0);
+
+        return [
+            'Ponto: '.($pedido->ponto_bar ?: 'Bar/Cafe'),
+            'Operador: '.($operador ?: 'Sem operador'),
+            'Hora: '.now()->format('H:i'),
+            ...($pedido->numero_senha ? [[
+                'texto' => 'SENHA #'.$pedido->numero_senha,
+                'alinhamento' => 'centro',
+                'tamanho' => 'grande',
+            ]] : []),
+            '------------------------------',
+            ...$pedido->items->map(fn ($item) => sprintf(
+                '%sx %s  %s',
+                $item->quantidade,
+                $item->produto?->nome ?? 'Produto',
+                $this->euros((float) $item->preco_unitario * (int) $item->quantidade)
+            ))->all(),
+            '------------------------------',
+            'Total: '.$this->euros($total),
+            'Recebido: '.$this->euros($valorRecebido),
+            'Troco: '.$this->euros($troco),
+            ...($doacao > 0 ? ['Donativo: '.$this->euros($doacao)] : []),
             '',
             'Este documento nao serve de fatura',
         ];

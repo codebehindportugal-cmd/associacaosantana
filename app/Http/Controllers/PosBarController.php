@@ -6,6 +6,7 @@ use App\Models\CaixaDiaria;
 use App\Models\Configuracao;
 use App\Models\Pedido;
 use App\Models\Produto;
+use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,7 +39,7 @@ class PosBarController extends Controller
         ]);
     }
 
-    public function storePrepago(Request $request): RedirectResponse
+    public function storePrepago(Request $request, PrintJobService $printJobs): RedirectResponse
     {
         $data = $request->validate([
             'valor_recebido' => ['required', 'numeric', 'min:0'],
@@ -94,6 +95,11 @@ class PosBarController extends Controller
                 ]);
             }
 
+            $printJobs->criarTalaoBar(
+                $pedido->fresh('items.produto.categoria', 'pos'),
+                $this->secaoImpressora()
+            );
+
             return to_route('pos.pedido.talao', $pedido);
         });
     }
@@ -123,5 +129,10 @@ class PosBarController extends Controller
         $config->update(['valor' => (string) $senha]);
 
         return $senha;
+    }
+
+    private function secaoImpressora(): string
+    {
+        return session('pos_tipo') === 'cafe' ? 'cafe' : 'bar';
     }
 }

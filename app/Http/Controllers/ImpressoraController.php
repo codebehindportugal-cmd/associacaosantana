@@ -19,6 +19,8 @@ class ImpressoraController extends Controller
         'sobremesas' => 'Sobremesas',
         'servico' => 'Servico',
         'bar' => 'Bar',
+        'cafe' => 'Cafe',
+        'pos' => 'POS',
         'contas' => 'Contas',
     ];
 

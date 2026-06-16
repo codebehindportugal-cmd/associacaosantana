@@ -26,12 +26,6 @@ const gallery = [
     ['/images/santa-ana.png', 'Comunidade'],
 ];
 
-const team = [
-    ['Nome a preencher', 'Presidente'],
-    ['Nome a preencher', 'Vice-presidente'],
-    ['Nome a preencher', 'Tesouraria'],
-    ['Nome a preencher', 'Secretariado'],
-];
 </script>
 
 <template>
@@ -91,12 +85,13 @@ const team = [
                         <p class="text-sm font-semibold uppercase tracking-wide text-slate-500">Equipa diretiva</p>
                         <h2 class="mt-3 text-4xl font-bold text-slate-900">Pessoas ao serviço da associação.</h2>
                     </div>
-                    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                        <article v-for="person in team" :key="person[1]" class="rounded-lg border border-slate-200 bg-white p-5">
-                            <div class="grid aspect-square place-items-center rounded-md bg-slate-100 text-4xl font-bold text-slate-400">{{ person[0][0] }}</div>
-                            <h3 class="mt-4 text-lg font-bold text-slate-900">{{ person[0] }}</h3>
-                            <p class="text-sm font-medium text-slate-600">{{ person[1] }}</p>
-                        </article>
+                    <div class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                        <img
+                            src="/images/grupo-recortado.jpg"
+                            alt="Grupo ao serviço da associação"
+                            class="aspect-[16/9] w-full object-cover"
+                            loading="lazy"
+                        >
                     </div>
                 </div>
             </section>

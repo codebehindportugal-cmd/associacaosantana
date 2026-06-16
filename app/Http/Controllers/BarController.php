@@ -49,7 +49,7 @@ class BarController extends Controller
         return Inertia::render('Bar/NovoPrepago', ['produtos' => $this->produtos()]);
     }
 
-    public function storePrepago(Request $request): RedirectResponse
+    public function storePrepago(Request $request, PrintJobService $printJobs): RedirectResponse
     {
         $data = $this->validarPedidoBar($request, true);
 
@@ -87,6 +87,10 @@ class BarController extends Controller
             ]);
 
             $this->criarItems($pedido, $data['items']);
+            $printJobs->criarTalaoBar(
+                $pedido->fresh('items.produto.categoria', 'user', 'pos'),
+                $this->secaoImpressoraBar($pedido->ponto_bar)
+            );
 
             return to_route('bar.talao', $pedido)->with('success', 'Senha emitida.');
         });
@@ -156,7 +160,10 @@ class BarController extends Controller
             'troco' => $troco,
             'doacao' => max(0, round($excedente - $troco, 2)),
         ]);
-        $printJobs->criarConta($pedido->fresh('items.produto.categoria', 'user', 'pos'));
+        $printJobs->criarConta(
+            $pedido->fresh('items.produto.categoria', 'user', 'pos'),
+            $this->secaoImpressoraBar($pedido->ponto_bar)
+        );
 
         return to_route('bar.talao', $pedido)->with('success', 'Conta fechada.');
     }
@@ -230,5 +237,10 @@ class BarController extends Controller
             ->disponiveis()
             ->orderBy('nome')
             ->get();
+    }
+
+    private function secaoImpressoraBar(?string $ponto): string
+    {
+        return str_contains(strtolower((string) $ponto), 'cafe') ? 'cafe' : 'bar';
     }
 }
