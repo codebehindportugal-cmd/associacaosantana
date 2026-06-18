@@ -82,7 +82,10 @@ const apagar = (sponsor) => {
                 <h1 class="text-2xl font-black">Patrocinadores</h1>
                 <p class="mt-1 text-sm text-slate-500">Gere logos, links e visibilidade dos patrocinadores no site.</p>
             </div>
-            <a :href="route('patrocinios.index')" target="_blank" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-white">Ver página pública</a>
+            <div class="flex flex-wrap gap-2">
+                <a :href="route('patrocinios.ecra')" target="_blank" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">Ecrã da festa</a>
+                <a :href="route('patrocinios.index')" target="_blank" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-white">Ver página pública</a>
+            </div>
         </div>
 
         <form class="mb-8 rounded-lg bg-white p-5 shadow-sm" @submit.prevent="criar">

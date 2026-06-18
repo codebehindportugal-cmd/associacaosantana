@@ -14,10 +14,14 @@ class Produto extends Model
         'nome',
         'preco',
         'disponivel',
+        'disponivel_restaurante',
+        'disponivel_bar',
     ];
 
     protected $casts = [
         'disponivel' => 'boolean',
+        'disponivel_restaurante' => 'boolean',
+        'disponivel_bar' => 'boolean',
         'preco' => 'decimal:2',
     ];
 
@@ -29,5 +33,15 @@ class Produto extends Model
     public function scopeDisponiveis($query)
     {
         return $query->where('disponivel', true);
+    }
+
+    public function scopeDisponiveisRestaurante($query)
+    {
+        return $query->disponiveis()->where('disponivel_restaurante', true);
+    }
+
+    public function scopeDisponiveisBar($query)
+    {
+        return $query->disponiveis()->where('disponivel_bar', true);
     }
 }

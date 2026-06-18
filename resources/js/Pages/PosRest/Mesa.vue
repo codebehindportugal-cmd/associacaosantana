@@ -13,6 +13,7 @@ const recebido = ref('');
 const lugaresOcupados = ref('');
 const letraSubmesaNova = ref('');
 const carrinho = ref([]);
+const aviso = ref('');
 const qrAberto = ref(false);
 const qrDataUrl = ref('');
 const qrTitulo = ref('');
@@ -24,6 +25,7 @@ const mesasGrupo = ref('');
 const itemForm = useForm({ items: [] });
 const lugaresForm = useForm({ lugares_ocupados: lugaresAtuais.value });
 const fecharForm = useForm({ metodo_pagamento: 'dinheiro', valor_recebido: 0, troco: 0 });
+let avisoTimer;
 const categorias = computed(() => Object.keys(props.produtos ?? {}));
 const lista = computed(() => props.produtos?.[categoriaAtual.value] ?? []);
 const total = computed(() => (props.pedido?.items ?? []).reduce((s, i) => s + Number(i.preco_unitario) * i.quantidade, 0));
@@ -66,13 +68,20 @@ const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
     novoForm.mesas_grupo = mesasGrupo.value || null;
     novoForm.post(route('pos.rest.pedido.novo', mesa.id));
 };
+const mostrarAviso = (mensagem) => {
+    aviso.value = mensagem;
+    window.clearTimeout(avisoTimer);
+    avisoTimer = window.setTimeout(() => {
+        aviso.value = '';
+    }, 3500);
+};
 const addProduto = (produto) => {
     if (!props.pedido) return;
     const existente = carrinho.value.find((item) => item.produto_id === produto.id && !item.observacoes);
 
     if (existente) {
         existente.quantidade += 1;
-        separadorAtual.value = 'envio';
+        mostrarAviso('Produto registado. No fim, abre Envio para validar e enviar o pedido.');
         return;
     }
 
@@ -84,7 +93,7 @@ const addProduto = (produto) => {
         prioridade: false,
         observacoes: '',
     });
-    separadorAtual.value = 'envio';
+    mostrarAviso('Produto registado. No fim, abre Envio para validar e enviar o pedido.');
 };
 const alterarQuantidadeCarrinho = (item, delta) => {
     item.quantidade += delta;
@@ -105,6 +114,7 @@ const enviarPedido = () => {
         onSuccess: () => {
             carrinho.value = [];
             itemForm.reset();
+            mostrarAviso('Pedido validado e enviado.');
         },
     });
 };
@@ -187,7 +197,7 @@ const copiarLinkCliente = async () => {
             <section class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 opacity-50 sm:p-4">
                 <div class="mb-4 rounded bg-gray-900 p-3 text-center text-sm font-black text-gray-300">Abre o pedido para adicionar produtos.</div>
                 <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-2">
-                    <button v-for="cat in categorias" :key="cat" class="shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
+                    <button v-for="cat in categorias" :key="cat" class="min-h-12 shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                     <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="secaoClasse(produto)" @click="addProduto(produto)">
@@ -197,23 +207,28 @@ const copiarLinkCliente = async () => {
             </section>
         </div>
         <div v-else class="min-w-0 space-y-4">
-            <nav class="grid grid-cols-4 gap-2 rounded-2xl bg-gray-800 p-1">
+            <nav class="overflow-x-auto rounded-2xl bg-gray-800 p-1">
+                <div class="flex min-w-max gap-2">
                 <button
                     v-for="separador in separadores"
                     :key="separador.key"
                     type="button"
-                    class="min-h-12 rounded-xl px-2 py-2 text-sm font-black"
+                    class="min-h-12 min-w-28 shrink-0 rounded-xl px-4 py-2 text-sm font-black"
                     :class="separadorAtual === separador.key ? 'bg-white text-gray-950' : 'text-gray-200'"
                     @click="separadorAtual = separador.key"
                 >
                     {{ separador.label }}
                     <span v-if="separador.count" class="ml-1 rounded-full bg-emerald-500 px-2 py-0.5 text-xs text-gray-950">{{ separador.count }}</span>
                 </button>
+                </div>
             </nav>
+            <div v-if="aviso" class="rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-3 text-sm font-black text-emerald-100">
+                {{ aviso }}
+            </div>
 
             <section v-if="separadorAtual === 'produtos'" class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 sm:p-4">
                 <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-2">
-                    <button v-for="cat in categorias" :key="cat" class="shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
+                    <button v-for="cat in categorias" :key="cat" class="min-h-12 shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                     <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="secaoClasse(produto)" @click="addProduto(produto)">

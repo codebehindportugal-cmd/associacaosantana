@@ -102,7 +102,7 @@ class PosRestController extends Controller
         $pedido?->makeVisible('cliente_token');
 
         $produtos = Produto::with('categoria')
-            ->disponiveis()
+            ->disponiveisRestaurante()
             ->orderBy('nome')
             ->get()
             ->groupBy(fn ($produto) => $produto->categoria->nome ?? 'Outros');
@@ -170,7 +170,7 @@ class PosRestController extends Controller
     public function adicionarItem(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
     {
         $data = $request->validate([
-            'produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'produto_id' => ['required', $this->produtoRestauranteRule()],
             'quantidade' => ['required', 'integer', 'min:1'],
             'prioridade' => ['nullable', 'boolean'],
             'observacoes' => ['nullable', 'string', 'max:255'],
@@ -214,7 +214,7 @@ class PosRestController extends Controller
     {
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'items.*.produto_id' => ['required', $this->produtoRestauranteRule()],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
             'items.*.prioridade' => ['nullable', 'boolean'],
             'items.*.observacoes' => ['nullable', 'string', 'max:255'],
@@ -766,5 +766,12 @@ class PosRestController extends Controller
     private function capacidadeFisicaMesa(Mesa $mesa): int
     {
         return min(10, max(1, (int) $mesa->capacidade));
+    }
+
+    private function produtoRestauranteRule()
+    {
+        return Rule::exists('produtos', 'id')
+            ->where('disponivel', true)
+            ->where('disponivel_restaurante', true);
     }
 }

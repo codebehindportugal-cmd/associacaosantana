@@ -26,7 +26,7 @@ class PosBarController extends Controller
             'caixaAberta' => $this->caixaAberta($ponto),
             'produtos' => Produto::with('categoria')
                 ->whereHas('categoria', fn ($query) => $query->where('secao', 'bebidas'))
-                ->disponiveis()
+                ->disponiveisBar()
                 ->orderBy('nome')
                 ->get(),
             'senhasHoje' => Pedido::where('ponto_bar', $ponto)
@@ -45,7 +45,7 @@ class PosBarController extends Controller
             'valor_recebido' => ['required', 'numeric', 'min:0'],
             'troco' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'items.*.produto_id' => ['required', $this->produtoBarRule()],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
         ]);
 
@@ -134,5 +134,12 @@ class PosBarController extends Controller
     private function secaoImpressora(): string
     {
         return session('pos_tipo') === 'cafe' ? 'cafe' : 'bar';
+    }
+
+    private function produtoBarRule()
+    {
+        return Rule::exists('produtos', 'id')
+            ->where('disponivel', true)
+            ->where('disponivel_bar', true);
     }
 }

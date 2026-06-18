@@ -63,6 +63,8 @@ class ProdutoController extends Controller
             'nome' => ['required', 'string', 'max:255'],
             'preco' => ['required', 'numeric', 'min:0'],
             'disponivel' => ['boolean'],
+            'disponivel_restaurante' => ['boolean'],
+            'disponivel_bar' => ['boolean'],
         ]);
     }
 }

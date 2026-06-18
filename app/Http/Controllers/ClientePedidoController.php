@@ -16,10 +16,10 @@ class ClientePedidoController extends Controller
     public function show(string $token): Response
     {
         $pedido = $this->pedidoPorToken($token);
-        $pedido->load('mesa.mesaPrincipal');
+        $pedido->load('mesa.mesaPrincipal', 'items.produto');
 
         $produtos = Produto::with('categoria')
-            ->disponiveis()
+            ->disponiveisRestaurante()
             ->orderBy('nome')
             ->get()
             ->groupBy(fn (Produto $produto) => $produto->categoria->nome ?? 'Outros')
@@ -42,6 +42,7 @@ class ClientePedidoController extends Controller
                 'mesa' => $this->nomeMesa($pedido),
             ],
             'produtos' => $produtos,
+            'itemsEnviados' => $this->itemsEnviados($pedido),
         ]);
     }
 
@@ -54,7 +55,7 @@ class ClientePedidoController extends Controller
         }
 
         $data = $request->validate([
-            'produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'produto_id' => ['required', $this->produtoRestauranteRule()],
             'quantidade' => ['required', 'integer', 'min:1', 'max:10'],
             'observacoes' => ['nullable', 'string', 'max:255'],
         ]);
@@ -88,7 +89,7 @@ class ClientePedidoController extends Controller
 
         $data = $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'items.*.produto_id' => ['required', $this->produtoRestauranteRule()],
             'items.*.quantidade' => ['required', 'integer', 'min:1', 'max:10'],
             'items.*.observacoes' => ['nullable', 'string', 'max:255'],
         ]);
@@ -138,10 +139,10 @@ class ClientePedidoController extends Controller
         return to_route('cliente.confirmacao', $token);
     }
 
-    public function confirmacao(Request $request, string $token): Response
+    public function confirmacao(string $token): Response
     {
         $pedido = $this->pedidoPorToken($token);
-        $pedido->load('mesa.mesaPrincipal');
+        $pedido->load('mesa.mesaPrincipal', 'items.produto');
 
         return Inertia::render('Cliente/Confirmacao', [
             'token' => $token,
@@ -150,7 +151,7 @@ class ClientePedidoController extends Controller
                 'disponivel' => $this->pedidoDisponivel($pedido),
                 'mesa' => $this->nomeMesa($pedido),
             ],
-            'items' => $request->session()->get($this->sessionKey($token), []),
+            'items' => $this->itemsEnviados($pedido),
         ]);
     }
 
@@ -195,6 +196,22 @@ class ClientePedidoController extends Controller
         return 'cliente_pedido_items_'.$token;
     }
 
+    private function itemsEnviados(Pedido $pedido): array
+    {
+        return $pedido->items
+            ->sortByDesc('created_at')
+            ->map(fn ($item) => [
+                'id' => $item->id,
+                'nome' => $item->produto?->nome ?? 'Produto',
+                'quantidade' => $item->quantidade,
+                'observacoes' => $item->observacoes,
+                'estado' => $item->estado,
+                'hora' => $item->created_at?->format('H:i'),
+            ])
+            ->values()
+            ->toArray();
+    }
+
     private function nomeMesa(Pedido $pedido): string
     {
         $mesa = $pedido->mesa;
@@ -219,5 +236,12 @@ class ClientePedidoController extends Controller
     private function normalizarSecao(string $secao): string
     {
         return $secao;
+    }
+
+    private function produtoRestauranteRule()
+    {
+        return Rule::exists('produtos', 'id')
+            ->where('disponivel', true)
+            ->where('disponivel_restaurante', true);
     }
 }

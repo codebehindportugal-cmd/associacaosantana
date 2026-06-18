@@ -9,6 +9,8 @@ const form = useForm({
     nome: '',
     preco: '',
     disponivel: true,
+    disponivel_restaurante: true,
+    disponivel_bar: true,
 });
 
 const criarProduto = () => {
@@ -24,6 +26,8 @@ const atualizarProduto = (produto) => {
         nome: produto.nome,
         preco: produto.preco,
         disponivel: produto.disponivel,
+        disponivel_restaurante: produto.disponivel_restaurante,
+        disponivel_bar: produto.disponivel_bar,
     }, { preserveScroll: true });
 };
 
@@ -41,7 +45,7 @@ const eliminarProduto = (produto) => {
             <p class="mt-1 text-sm text-slate-500">Lista de preços usada nos pedidos.</p>
         </div>
 
-        <form class="mb-6 grid gap-3 rounded-lg bg-white p-5 shadow-sm md:grid-cols-[1fr_2fr_120px_140px_auto]" @submit.prevent="criarProduto">
+        <form class="mb-6 grid gap-3 rounded-lg bg-white p-5 shadow-sm md:grid-cols-[1fr_2fr_120px_1fr_auto]" @submit.prevent="criarProduto">
             <select v-model="form.categoria_id" class="rounded-md border-slate-300 text-sm">
                 <option v-for="categoria in categoriasOptions" :key="categoria.id" :value="categoria.id">
                     {{ categoria.nome }}
@@ -49,10 +53,20 @@ const eliminarProduto = (produto) => {
             </select>
             <input v-model="form.nome" class="rounded-md border-slate-300 text-sm" placeholder="Nome do produto">
             <input v-model="form.preco" type="number" min="0" step="0.01" class="rounded-md border-slate-300 text-sm" placeholder="Preço">
-            <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input v-model="form.disponivel" type="checkbox" class="rounded border-slate-300 text-slate-900">
-                Disponível
-            </label>
+            <div class="grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-3">
+                <label class="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                    <input v-model="form.disponivel" type="checkbox" class="rounded border-slate-300 text-slate-900">
+                    Ativo
+                </label>
+                <label class="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                    <input v-model="form.disponivel_restaurante" type="checkbox" class="rounded border-slate-300 text-slate-900">
+                    Restaurante
+                </label>
+                <label class="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                    <input v-model="form.disponivel_bar" type="checkbox" class="rounded border-slate-300 text-slate-900">
+                    Bar
+                </label>
+            </div>
             <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Adicionar</button>
         </form>
 
@@ -67,13 +81,23 @@ const eliminarProduto = (produto) => {
                 </div>
 
                 <div class="divide-y divide-slate-100">
-                    <div v-for="produto in categoria.produtos" :key="produto.id" class="grid gap-3 px-5 py-3 md:grid-cols-[1fr_120px_140px_auto]">
+                    <div v-for="produto in categoria.produtos" :key="produto.id" class="grid gap-3 px-5 py-3 md:grid-cols-[1fr_120px_1fr_auto]">
                         <input v-model="produto.nome" class="rounded-md border-slate-300 text-sm">
                         <input v-model="produto.preco" type="number" min="0" step="0.01" class="rounded-md border-slate-300 text-sm">
-                        <label class="flex items-center gap-2 text-sm text-slate-700">
-                            <input v-model="produto.disponivel" type="checkbox" class="rounded border-slate-300 text-slate-900">
-                            Disponível
-                        </label>
+                        <div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-3">
+                            <label class="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                                <input v-model="produto.disponivel" type="checkbox" class="rounded border-slate-300 text-slate-900">
+                                Ativo
+                            </label>
+                            <label class="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                                <input v-model="produto.disponivel_restaurante" type="checkbox" class="rounded border-slate-300 text-slate-900">
+                                Restaurante
+                            </label>
+                            <label class="flex min-h-10 items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                                <input v-model="produto.disponivel_bar" type="checkbox" class="rounded border-slate-300 text-slate-900">
+                                Bar
+                            </label>
+                        </div>
                         <div class="flex gap-3">
                             <button type="button" class="font-semibold text-emerald-700" @click="atualizarProduto(produto)">Guardar</button>
                             <button type="button" class="font-semibold text-red-700" @click="eliminarProduto(produto)">Eliminar</button>

@@ -11,7 +11,7 @@ class PrecarioController extends Controller
     public function __invoke(): Response
     {
         $produtos = Produto::with('categoria')
-            ->disponiveis()
+            ->disponiveisRestaurante()
             ->orderBy('nome')
             ->get()
             ->groupBy(fn (Produto $produto) => $produto->categoria->nome ?? 'Outros')

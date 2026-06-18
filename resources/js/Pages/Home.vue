@@ -33,7 +33,10 @@ const errors = ref({});
 const upcoming = computed(() => props.upcomingEvents ?? []);
 const archived = computed(() => props.pastEvents ?? []);
 const allEvents = computed(() => [...upcoming.value, ...archived.value]);
-const heroEvents = computed(() => upcoming.value);
+const heroEvents = computed(() => {
+    const source = upcoming.value.length ? upcoming.value : allEvents.value;
+    return source.slice(0, 6);
+});
 const activeHeroEvent = computed(() => heroEvents.value[activeHeroSlide.value] ?? null);
 const heroVisual = computed(() => activeHeroEvent.value?.poster || santaAnaImage || associationLogo);
 const heroKpis = computed(() => [
@@ -222,6 +225,26 @@ const selectHeroSlide = (index) => {
 const nextHeroSlide = () => selectHeroSlide(activeHeroSlide.value + 1);
 const previousHeroSlide = () => selectHeroSlide(activeHeroSlide.value - 1);
 
+const heroCardStyle = (index) => {
+    const total = heroEvents.value.length || 1;
+    let offset = index - activeHeroSlide.value;
+
+    if (offset > total / 2) offset -= total;
+    if (offset < -total / 2) offset += total;
+
+    const abs = Math.abs(offset);
+    const rotate = offset * -18;
+    const translate = offset * 42;
+    const depth = 1 - Math.min(abs, 3) * 0.16;
+
+    return {
+        opacity: abs > 2 ? 0 : 1,
+        pointerEvents: offset === 0 ? 'auto' : 'none',
+        transform: `translateX(${translate}%) translateZ(${-abs * 150}px) rotateY(${rotate}deg) rotateX(${abs * 3}deg) scale(${depth})`,
+        zIndex: 20 - abs,
+    };
+};
+
 const validateForm = () => {
     errors.value = {};
 
@@ -317,22 +340,23 @@ onBeforeUnmount(() => {
             </Transition>
         </header>
 
-        <section class="relative isolate min-h-[88vh] overflow-hidden bg-slate-950 pt-24 text-white">
+        <section class="home-hero relative isolate overflow-hidden bg-slate-950 pt-24 text-white">
             <Transition name="hero-slide" mode="out-in">
                 <img
                     :key="heroVisual"
                     :src="heroVisual"
                     alt=""
-                    class="absolute inset-0 -z-20 h-full w-full object-cover"
+                    class="absolute inset-0 -z-20 h-full w-full object-cover motion-safe:scale-105"
                 >
             </Transition>
-            <div class="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(23,36,29,0.94),rgba(33,76,56,0.78),rgba(33,76,56,0.24))]" />
+            <div class="absolute inset-0 -z-10 bg-[linear-gradient(100deg,rgba(3,15,48,0.97),rgba(0,91,187,0.76)_48%,rgba(0,220,255,0.2))]" />
+            <div class="absolute inset-0 -z-10 hero-cyber-grid" />
             <div class="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-slate-950 to-transparent" />
 
-            <div class="mx-auto flex min-h-[calc(88vh-6rem)] max-w-7xl flex-col justify-end px-5 pb-8 lg:px-8">
+            <div class="mx-auto flex min-h-[calc(100svh-6rem)] max-w-7xl flex-col justify-end px-5 pb-8 lg:px-8">
                 <div class="reveal max-w-4xl pb-8">
                     <p class="text-sm font-black uppercase tracking-wide text-amber-300">Associação Recreativa, Desportiva e Cultural</p>
-                    <h1 class="font-display mt-4 max-w-3xl text-5xl leading-none text-white sm:text-6xl lg:text-7xl">
+                    <h1 class="hero-title font-display mt-4 max-w-5xl text-white">
                         ARDC Santana
                     </h1>
                     <p class="mt-5 max-w-2xl text-xl font-medium leading-relaxed text-slate-100">
@@ -343,65 +367,77 @@ onBeforeUnmount(() => {
                     </p>
 
                     <div class="mt-8 flex flex-wrap gap-3">
-                        <button type="button" class="rounded-md bg-amber-300 px-6 py-3 font-bold text-slate-950 shadow-sm transition hover:bg-amber-200" @click="scrollTo('#eventos')">
+                        <button type="button" class="hero-cta rounded-md bg-amber-300 px-6 py-3 font-black text-slate-950 shadow-sm transition hover:bg-amber-200" @click="scrollTo('#eventos')">
                             Ver próximos eventos
                         </button>
-                        <button type="button" class="rounded-md border border-white/35 bg-white/10 px-6 py-3 font-bold text-white backdrop-blur transition hover:bg-white/20" @click="scrollTo('#socios')">
+                        <button type="button" class="rounded-md border border-white/35 bg-white/10 px-6 py-3 font-black text-white backdrop-blur transition hover:bg-white/20" @click="scrollTo('#socios')">
                             Tornar-me sócio
                         </button>
-                        <Link :href="route('patrocinios.index')" class="rounded-md bg-emerald-500 px-6 py-3 font-bold text-white shadow-sm transition hover:bg-emerald-400">
+                        <Link :href="route('patrocinios.index')" class="hero-cta rounded-md bg-emerald-500 px-6 py-3 font-black text-white shadow-sm transition hover:bg-emerald-400">
                             Torna-te patrocinador
                         </Link>
                     </div>
                 </div>
 
-                <div class="reveal grid gap-4 lg:grid-cols-[1.4fr_0.8fr] lg:items-end">
-                    <article v-if="activeHeroEvent" class="border border-white/20 bg-slate-950/55 p-4 backdrop-blur-md">
-                        <div class="grid gap-4 md:grid-cols-[8rem_1fr_auto] md:items-center">
-                            <img :src="activeHeroEvent.poster || associationLogo" :alt="activeHeroEvent.title" class="h-32 w-full object-cover md:h-28">
-                            <div>
-                                <p class="text-xs font-black uppercase tracking-wide text-amber-300">{{ activeHeroEvent.badge || 'Próximo evento' }}</p>
-                                <h2 class="mt-1 text-2xl font-black text-white">{{ activeHeroEvent.title }}</h2>
-                                <p class="mt-1 font-bold text-slate-200">{{ activeHeroEvent.date }} · {{ activeHeroEvent.location || activeHeroEvent.subtitle }}</p>
-                            </div>
-                            <div class="flex flex-wrap gap-2 md:justify-end">
-                                <Link v-if="activeHeroEvent.id" :href="eventHref(activeHeroEvent)" class="rounded-md bg-white px-4 py-2 text-sm font-black text-slate-950 hover:bg-slate-100">
-                                    Detalhes
-                                </Link>
-                                <button type="button" class="rounded-md border border-white/30 px-4 py-2 text-sm font-black text-white hover:bg-white/10" @click="shareEvent(activeHeroEvent)">
-                                    Partilhar
-                                </button>
-                            </div>
+                <div class="reveal grid gap-5 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
+                    <div v-if="heroEvents.length" class="hero-event-carousel">
+                        <button type="button" class="hero-nav-button hero-nav-button--left" aria-label="Evento anterior" @click="previousHeroSlide">
+                            ‹
+                        </button>
+
+                        <div class="hero-event-stage">
+                            <article
+                                v-for="(event, index) in heroEvents"
+                                :key="event.id || event.title"
+                                class="hero-event-card"
+                                :class="{ 'is-active': activeHeroSlide === index }"
+                                :style="heroCardStyle(index)"
+                            >
+                                <img :src="event.poster || associationLogo" :alt="event.title" class="hero-event-card__image">
+                                <div class="hero-event-card__shade" />
+                                <div class="hero-event-card__content">
+                                    <p class="text-xs font-black uppercase tracking-wide text-amber-300">{{ event.badge || 'Próximo evento' }}</p>
+                                    <h2 class="mt-2 text-2xl font-black leading-tight text-white sm:text-3xl">{{ event.title }}</h2>
+                                    <p class="mt-2 font-bold text-white/85">{{ event.date }} · {{ event.location || event.subtitle }}</p>
+                                    <div class="mt-4 flex flex-wrap gap-2">
+                                        <Link v-if="event.id" :href="eventHref(event)" class="rounded-md bg-white px-4 py-2 text-sm font-black text-slate-950 hover:bg-slate-100">
+                                            Detalhes
+                                        </Link>
+                                        <button type="button" class="rounded-md border border-white/40 bg-white/10 px-4 py-2 text-sm font-black text-white backdrop-blur hover:bg-white/20" @click="shareEvent(event)">
+                                            Partilhar
+                                        </button>
+                                    </div>
+                                </div>
+                            </article>
                         </div>
 
-                        <div v-if="heroEvents.length > 1" class="mt-4 flex items-center gap-3">
-                            <button type="button" class="grid h-9 w-9 place-items-center border border-white/25 text-xl font-black text-white hover:bg-white/10" aria-label="Evento anterior" @click="previousHeroSlide">
-                                ‹
-                            </button>
-                            <div class="flex flex-1 gap-2">
-                                <button
-                                    v-for="(event, index) in heroEvents"
-                                    :key="event.id || event.title"
-                                    type="button"
-                                    class="h-2 flex-1 bg-white/25 transition"
-                                    :class="activeHeroSlide === index ? 'bg-amber-300' : 'hover:bg-white/45'"
-                                    :aria-label="`Ver destaque ${index + 1}`"
-                                    @click="selectHeroSlide(index)"
-                                />
-                            </div>
-                            <button type="button" class="grid h-9 w-9 place-items-center border border-white/25 text-xl font-black text-white hover:bg-white/10" aria-label="Evento seguinte" @click="nextHeroSlide">
-                                ›
-                            </button>
-                        </div>
-                    </article>
+                        <button type="button" class="hero-nav-button hero-nav-button--right" aria-label="Evento seguinte" @click="nextHeroSlide">
+                            ›
+                        </button>
 
-                    <div class="grid grid-cols-3 gap-2">
+                        <div v-if="heroEvents.length > 1" class="hero-event-dots">
+                            <button
+                                v-for="(event, index) in heroEvents"
+                                :key="event.id || event.title"
+                                type="button"
+                                :class="{ 'is-active': activeHeroSlide === index }"
+                                :aria-label="`Ver destaque ${index + 1}`"
+                                @click="selectHeroSlide(index)"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 lg:grid-cols-1">
                         <div v-for="kpi in heroKpis" :key="kpi[0]" class="border border-white/15 bg-white/10 p-3 backdrop-blur-md">
                             <div class="text-[11px] font-black uppercase tracking-wide text-slate-300">{{ kpi[0] }}</div>
                             <div class="mt-1 text-lg font-black text-white">{{ kpi[1] }}</div>
                         </div>
                     </div>
                 </div>
+
+                <button type="button" class="scroll-cue mx-auto mt-6 grid h-12 w-8 place-items-center rounded-full border border-white/35 text-white/80" aria-label="Descer para a página" @click="scrollTo('#sobre')">
+                    <span class="block h-3 w-1 rounded-full bg-amber-300"></span>
+                </button>
             </div>
         </section>
 
@@ -788,13 +824,178 @@ onBeforeUnmount(() => {
 }
 
 .hero-nav-button {
+    align-items: center;
+    border: 1px solid rgb(0 215 255 / 0.62);
+    box-shadow:
+        0 18px 42px rgb(0 0 0 / 0.32),
+        0 0 28px rgb(0 215 255 / 0.26);
+    display: grid;
+    justify-content: center;
+    position: absolute;
+    top: 50%;
+    z-index: 35;
+}
+
+.hero-cyber-grid {
+    background:
+        linear-gradient(90deg, rgb(0 215 255 / 0.11) 0 1px, transparent 1px 5rem),
+        linear-gradient(0deg, rgb(120 247 255 / 0.1) 0 1px, transparent 1px 5rem),
+        radial-gradient(circle at 78% 22%, rgb(0 215 255 / 0.22), transparent 22rem);
+    mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.8), transparent 82%);
+    transform: perspective(680px) rotateX(58deg) translateY(7rem) scale(1.25);
+    transform-origin: center bottom;
+}
+
+.hero-cyber-grid::after {
+    animation: cyber-scan 4.8s linear infinite;
+    background: linear-gradient(180deg, transparent, rgb(120 247 255 / 0.3), transparent);
+    content: "";
+    height: 14rem;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: -14rem;
+}
+
+.hero-event-carousel {
+    min-height: 24rem;
+    perspective: 1500px;
+    position: relative;
+}
+
+.hero-event-stage {
+    height: 22rem;
+    position: relative;
+    transform-style: preserve-3d;
+}
+
+.hero-event-card {
+    background: rgb(3 15 48 / 0.72);
+    border: 1px solid rgb(0 215 255 / 0.5);
+    border-radius: 0.85rem;
+    bottom: 0;
+    box-shadow:
+        0 34px 84px rgb(0 0 0 / 0.42),
+        0 0 44px rgb(0 215 255 / 0.22),
+        inset 0 0 0 1px rgb(255 255 255 / 0.08);
+    left: 6%;
+    overflow: hidden;
+    position: absolute;
+    right: 6%;
+    top: 0;
+    transform-style: preserve-3d;
+    transition:
+        opacity 520ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        transform 720ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hero-event-card::before {
+    background:
+        linear-gradient(135deg, rgb(120 247 255 / 0.9), rgb(0 215 255 / 0.58), rgb(108 92 255 / 0.72)),
+        linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent);
+    content: "";
+    inset: 0;
+    opacity: 0;
+    position: absolute;
+    transition: opacity 240ms ease;
+    z-index: 2;
+}
+
+.hero-event-card.is-active::before {
+    animation: card-sheen 3.4s ease-in-out infinite;
+}
+
+.hero-event-card.is-active::before {
+    opacity: 0.16;
+}
+
+.hero-event-card::after {
+    background:
+        linear-gradient(90deg, rgb(120 247 255 / 0.18) 0 1px, transparent 1px 5rem),
+        linear-gradient(0deg, rgb(120 247 255 / 0.12) 0 1px, transparent 1px 5rem);
+    content: "";
+    inset: 0;
+    mix-blend-mode: screen;
+    opacity: 0.5;
+    position: absolute;
+    transform: translateZ(32px);
+    z-index: 3;
+}
+
+.hero-event-card__image {
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.05);
+    transition: transform 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    width: 100%;
+}
+
+.hero-event-card.is-active .hero-event-card__image {
+    transform: scale(1.12);
+}
+
+.hero-event-card__shade {
+    background:
+        linear-gradient(0deg, rgb(2 8 23 / 0.95), rgb(3 15 48 / 0.22) 58%, rgb(0 91 187 / 0.2)),
+        radial-gradient(circle at 20% 20%, rgb(0 215 255 / 0.28), transparent 18rem);
+    inset: 0;
+    position: absolute;
+    z-index: 3;
+}
+
+.hero-event-card__content {
+    bottom: 0;
+    left: 0;
+    padding: clamp(1rem, 3vw, 1.75rem);
+    position: absolute;
+    right: 0;
+    text-shadow: 0 12px 28px rgb(0 0 0 / 0.5);
+    transform: translateZ(54px);
+    z-index: 5;
+}
+
+.hero-nav-button--left {
+    left: -0.35rem;
+    transform: translateY(-50%);
+}
+
+.hero-nav-button--right {
+    right: -0.35rem;
+    transform: translateY(-50%);
+}
+
+.hero-event-dots {
+    bottom: -1.75rem;
+    display: flex;
+    gap: 0.45rem;
+    justify-content: center;
+    left: 0;
+    position: absolute;
+    right: 0;
+}
+
+.hero-event-dots button {
+    background: rgb(120 247 255 / 0.22);
+    border: 1px solid rgb(0 215 255 / 0.5);
+    border-radius: 999px;
+    height: 0.55rem;
+    width: 1.6rem;
+}
+
+.hero-event-dots button.is-active {
+    background: #00d7ff;
+    box-shadow: 0 0 22px rgb(0 215 255 / 0.7);
+    width: 3rem;
+}
+
+.hero-nav-button {
     display: grid;
     height: 2.75rem;
     place-items: center;
     width: 2.75rem;
     border-radius: 999px;
-    background: rgb(255 255 255 / 0.88);
-    color: #214c38;
+    background: rgb(3 15 48 / 0.86);
+    color: #78f7ff;
     font-size: 2rem;
     font-weight: 900;
     line-height: 1;
@@ -802,8 +1003,60 @@ onBeforeUnmount(() => {
 }
 
 .hero-nav-button:hover {
-    background: #e5b84b;
+    background: #00d7ff;
+    color: #030f30;
     transform: scale(1.06);
+}
+
+.hero-nav-button--left:hover {
+    transform: translateY(-50%) scale(1.06) rotate(-4deg);
+}
+
+.hero-nav-button--right:hover {
+    transform: translateY(-50%) scale(1.06) rotate(4deg);
+}
+
+@keyframes cyber-scan {
+    0% {
+        transform: translateY(0);
+    }
+
+    100% {
+        transform: translateY(42rem);
+    }
+}
+
+@keyframes card-sheen {
+    0%, 100% {
+        background-position: -120% 0, 0 0;
+    }
+
+    50% {
+        background-position: 120% 0, 0 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .hero-event-carousel {
+        min-height: 20rem;
+    }
+
+    .hero-event-stage {
+        height: 18rem;
+    }
+
+    .hero-event-card {
+        left: 3%;
+        right: 3%;
+    }
+
+    .hero-nav-button--left {
+        left: 0.25rem;
+    }
+
+    .hero-nav-button--right {
+        right: 0.25rem;
+    }
 }
 
 .menu-icon,

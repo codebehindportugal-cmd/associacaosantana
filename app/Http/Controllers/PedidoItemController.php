@@ -23,7 +23,12 @@ class PedidoItemController extends Controller
     {
         $data = $request->validate([
             'pedido_id' => ['required', 'exists:pedidos,id'],
-            'produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'produto_id' => [
+                'required',
+                Rule::exists('produtos', 'id')
+                    ->where('disponivel', true)
+                    ->where('disponivel_restaurante', true),
+            ],
             'quantidade' => ['required', 'integer', 'min:1'],
             'prioridade' => ['nullable', 'boolean'],
             'observacoes' => ['nullable', 'string', 'max:1000'],

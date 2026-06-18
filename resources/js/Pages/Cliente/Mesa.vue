@@ -1,11 +1,12 @@
 <script setup>
-import { Link, useForm } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
     token: String,
     pedido: Object,
     produtos: Object,
+    itemsEnviados: Array,
 });
 
 const categoriaAtual = ref(Object.keys(props.produtos ?? {})[0] || '');
@@ -13,15 +14,26 @@ const separadorAtual = ref('produtos');
 const quantidades = ref({});
 const observacoes = ref({});
 const carrinho = ref([]);
+const aviso = ref('');
 const form = useForm({ items: [] });
+let avisoTimer;
 
 const categorias = computed(() => Object.keys(props.produtos ?? {}));
 const lista = computed(() => props.produtos?.[categoriaAtual.value] ?? []);
 const totalItens = computed(() => carrinho.value.reduce((soma, item) => soma + Number(item.quantidade), 0));
+const totalEnviados = computed(() => (props.itemsEnviados ?? []).reduce((soma, item) => soma + Number(item.quantidade), 0));
 
 const quantidade = (produto) => Number(quantidades.value[produto.id] ?? 1);
 const alterarQuantidade = (produto, delta) => {
     quantidades.value[produto.id] = Math.min(10, Math.max(1, quantidade(produto) + delta));
+};
+
+const mostrarAviso = (mensagem) => {
+    aviso.value = mensagem;
+    window.clearTimeout(avisoTimer);
+    avisoTimer = window.setTimeout(() => {
+        aviso.value = '';
+    }, 3500);
 };
 
 const adicionar = (produto) => {
@@ -45,7 +57,7 @@ const adicionar = (produto) => {
 
     quantidades.value[produto.id] = 1;
     observacoes.value[produto.id] = '';
-    separadorAtual.value = 'envio';
+    mostrarAviso('Produto registado. No fim, abre "Validar e enviar" para enviar o pedido ao funcionário.');
 };
 
 const alterarQuantidadeCarrinho = (item, delta) => {
@@ -78,7 +90,7 @@ const enviarPedido = () => {
                     <div class="text-xs font-black uppercase tracking-wide text-emerald-300">ARDC Santana</div>
                     <h1 class="text-2xl font-black">Mesa {{ pedido.mesa }}</h1>
                 </div>
-                <Link :href="route('cliente.confirmacao', token)" class="rounded-full bg-white/10 px-3 py-2 text-xs font-black">Enviados</Link>
+                <button type="button" class="rounded-full bg-white/10 px-3 py-2 text-xs font-black" @click="separadorAtual = 'enviados'">Enviados</button>
             </div>
         </header>
 
@@ -89,10 +101,11 @@ const enviarPedido = () => {
             </div>
 
             <template v-else>
-                <div class="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/10 p-1">
+                <div class="mb-4 overflow-x-auto rounded-2xl bg-white/10 p-1">
+                    <div class="flex min-w-max gap-2">
                     <button
                         type="button"
-                        class="rounded-xl px-3 py-3 text-sm font-black"
+                        class="min-h-12 shrink-0 rounded-xl px-4 py-3 text-sm font-black"
                         :class="separadorAtual === 'produtos' ? 'bg-white text-slate-950' : 'text-white'"
                         @click="separadorAtual = 'produtos'"
                     >
@@ -100,13 +113,23 @@ const enviarPedido = () => {
                     </button>
                     <button
                         type="button"
-                        class="rounded-xl px-3 py-3 text-sm font-black"
+                        class="min-h-12 shrink-0 rounded-xl px-4 py-3 text-sm font-black"
                         :class="separadorAtual === 'envio' ? 'bg-white text-slate-950' : 'text-white'"
                         @click="separadorAtual = 'envio'"
                     >
                         Validar e enviar
                         <span v-if="totalItens" class="ml-1 rounded-full bg-emerald-500 px-2 py-0.5 text-xs text-slate-950">{{ totalItens }}</span>
                     </button>
+                    <button
+                        type="button"
+                        class="min-h-12 shrink-0 rounded-xl px-4 py-3 text-sm font-black"
+                        :class="separadorAtual === 'enviados' ? 'bg-white text-slate-950' : 'text-white'"
+                        @click="separadorAtual = 'enviados'"
+                    >
+                        Enviados
+                        <span v-if="totalEnviados" class="ml-1 rounded-full bg-sky-400 px-2 py-0.5 text-xs text-slate-950">{{ totalEnviados }}</span>
+                    </button>
+                    </div>
                 </div>
 
                 <div v-if="form.errors.pedido" class="mb-4 rounded-xl bg-red-600 p-3 text-sm font-bold">
@@ -115,6 +138,9 @@ const enviarPedido = () => {
                 <div v-if="form.errors.items" class="mb-4 rounded-xl bg-red-600 p-3 text-sm font-bold">
                     Não foi possível enviar esse pedido.
                 </div>
+                <div v-if="aviso" class="mb-4 rounded-xl border border-emerald-400/40 bg-emerald-400/15 p-3 text-sm font-black text-emerald-100">
+                    {{ aviso }}
+                </div>
 
                 <div v-if="separadorAtual === 'produtos'" class="mb-4 overflow-x-auto pb-2">
                     <div class="flex min-w-max gap-2">
@@ -122,7 +148,7 @@ const enviarPedido = () => {
                             v-for="categoria in categorias"
                             :key="categoria"
                             type="button"
-                            class="rounded-full px-4 py-2 text-sm font-black"
+                            class="min-h-11 shrink-0 rounded-full px-4 py-2 text-sm font-black"
                             :class="categoria === categoriaAtual ? 'bg-emerald-500 text-slate-950' : 'bg-white/10 text-white'"
                             @click="categoriaAtual = categoria"
                         >
@@ -166,7 +192,7 @@ const enviarPedido = () => {
                     </article>
                 </div>
 
-                <div v-else class="rounded-2xl bg-white p-4 text-slate-950 shadow-sm">
+                <div v-else-if="separadorAtual === 'envio'" class="rounded-2xl bg-white p-4 text-slate-950 shadow-sm">
                     <div class="mb-4">
                         <h2 class="text-xl font-black">Confirmar pedido</h2>
                         <p class="mt-1 text-sm font-semibold text-slate-500">Revê as escolhas antes de enviar para a equipa.</p>
@@ -208,6 +234,36 @@ const enviarPedido = () => {
                         >
                             {{ form.processing ? 'A enviar...' : 'Enviar pedido' }}
                         </button>
+                    </div>
+                </div>
+
+                <div v-else class="rounded-2xl bg-white p-4 text-slate-950 shadow-sm">
+                    <div class="mb-4">
+                        <h2 class="text-xl font-black">Produtos enviados</h2>
+                        <p class="mt-1 text-sm font-semibold text-slate-500">Aqui aparecem os produtos que já foram enviados para a equipa.</p>
+                    </div>
+
+                    <div v-if="!itemsEnviados?.length" class="rounded-2xl bg-slate-100 p-5 text-center text-sm font-bold text-slate-500">
+                        Ainda não foram enviados produtos.
+                        <button type="button" class="mt-3 block w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white" @click="separadorAtual = 'produtos'">
+                            Escolher produtos
+                        </button>
+                    </div>
+
+                    <div v-else class="grid gap-3">
+                        <article v-for="item in itemsEnviados" :key="item.id" class="rounded-2xl bg-slate-100 p-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <h3 class="font-black">{{ item.nome }}</h3>
+                                    <p class="mt-1 text-xs font-semibold uppercase text-slate-500">
+                                        {{ item.hora || 'Enviado' }}
+                                        <span v-if="item.estado"> · {{ item.estado }}</span>
+                                    </p>
+                                    <p v-if="item.observacoes" class="mt-1 text-sm font-semibold text-slate-700">{{ item.observacoes }}</p>
+                                </div>
+                                <span class="shrink-0 rounded-full bg-slate-950 px-3 py-1 text-sm font-black text-white">{{ item.quantidade }}x</span>
+                            </div>
+                        </article>
                     </div>
                 </div>
             </template>

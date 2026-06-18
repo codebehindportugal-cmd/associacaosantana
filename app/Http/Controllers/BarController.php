@@ -185,7 +185,7 @@ class BarController extends Controller
             'valor_recebido' => [$prepago ? 'required' : 'nullable', 'numeric', 'min:0'],
             'troco' => ['nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'items.*.produto_id' => ['required', $this->produtoBarRule()],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
         ]);
     }
@@ -234,9 +234,16 @@ class BarController extends Controller
     {
         return Produto::with('categoria')
             ->whereHas('categoria', fn ($query) => $query->where('secao', 'bebidas'))
-            ->disponiveis()
+            ->disponiveisBar()
             ->orderBy('nome')
             ->get();
+    }
+
+    private function produtoBarRule()
+    {
+        return Rule::exists('produtos', 'id')
+            ->where('disponivel', true)
+            ->where('disponivel_bar', true);
     }
 
     private function secaoImpressoraBar(?string $ponto): string

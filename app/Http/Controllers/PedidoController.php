@@ -55,7 +55,7 @@ class PedidoController extends Controller
     {
         return Inertia::render('Pedidos/Show', [
             'mesas' => $this->mesasParaPedido(),
-            'produtos' => Produto::with('categoria')->disponiveis()->orderBy('nome')->get(),
+            'produtos' => Produto::with('categoria')->disponiveisRestaurante()->orderBy('nome')->get(),
             'paraLevar' => request()->boolean('para_levar'),
         ]);
     }
@@ -149,7 +149,7 @@ class PedidoController extends Controller
         return Inertia::render('Pedidos/Show', [
             'pedido' => $pedido->load('mesa', 'user', 'pos', 'items.produto.categoria'),
             'mesas' => $this->mesasParaPedido(),
-            'produtos' => Produto::with('categoria')->disponiveis()->orderBy('nome')->get(),
+            'produtos' => Produto::with('categoria')->disponiveisRestaurante()->orderBy('nome')->get(),
         ]);
     }
 
