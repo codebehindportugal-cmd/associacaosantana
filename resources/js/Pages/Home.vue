@@ -273,12 +273,12 @@ onBeforeUnmount(() => {
         >
     </Head>
 
-    <main class="min-h-screen scroll-smooth bg-white text-slate-900">
-        <header class="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+    <main class="public-theme min-h-screen scroll-smooth bg-white text-slate-900">
+        <header class="fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3.5 lg:px-8">
                 <Link href="/" class="flex items-center gap-3">
-                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-10 w-10 rounded bg-slate-100 object-contain p-2">
-                    <span class="text-base font-semibold text-slate-900">ARDC Santana</span>
+                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-11 w-11 rounded bg-white object-contain p-2 shadow-sm">
+                    <span class="font-display text-lg text-slate-900">ARDC Santana</span>
                 </Link>
 
                 <div class="hidden items-center gap-1 md:flex">
@@ -286,14 +286,14 @@ onBeforeUnmount(() => {
                         v-for="link in navLinks"
                         :key="link[0]"
                         type="button"
-                        class="rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-slate-900 hover:bg-slate-100"
+                        class="rounded-md px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900 hover:bg-slate-100"
                         @click="scrollTo(link[1])"
                     >
                         {{ link[0] }}
                     </button>
                 </div>
 
-                <a :href="`mailto:${contactEmail}`" class="hidden rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 lg:inline-flex">
+                <a :href="`mailto:${contactEmail}`" class="hidden rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 lg:inline-flex">
                     Contactar
                 </a>
 
@@ -326,13 +326,13 @@ onBeforeUnmount(() => {
                     class="absolute inset-0 -z-20 h-full w-full object-cover"
                 >
             </Transition>
-            <div class="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(2,6,23,0.92),rgba(15,23,42,0.72),rgba(15,23,42,0.28))]" />
+            <div class="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(23,36,29,0.94),rgba(33,76,56,0.78),rgba(33,76,56,0.24))]" />
             <div class="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-slate-950 to-transparent" />
 
             <div class="mx-auto flex min-h-[calc(88vh-6rem)] max-w-7xl flex-col justify-end px-5 pb-8 lg:px-8">
                 <div class="reveal max-w-4xl pb-8">
                     <p class="text-sm font-black uppercase tracking-wide text-amber-300">Associação Recreativa, Desportiva e Cultural</p>
-                    <h1 class="mt-4 max-w-3xl text-5xl font-black leading-none text-white sm:text-6xl lg:text-7xl">
+                    <h1 class="font-display mt-4 max-w-3xl text-5xl leading-none text-white sm:text-6xl lg:text-7xl">
                         ARDC Santana
                     </h1>
                     <p class="mt-5 max-w-2xl text-xl font-medium leading-relaxed text-slate-100">
@@ -343,13 +343,13 @@ onBeforeUnmount(() => {
                     </p>
 
                     <div class="mt-8 flex flex-wrap gap-3">
-                        <button type="button" class="rounded-md bg-amber-300 px-6 py-3 font-black text-slate-950 transition hover:bg-amber-200" @click="scrollTo('#eventos')">
+                        <button type="button" class="rounded-md bg-amber-300 px-6 py-3 font-bold text-slate-950 shadow-sm transition hover:bg-amber-200" @click="scrollTo('#eventos')">
                             Ver próximos eventos
                         </button>
-                        <button type="button" class="rounded-md border border-white/35 bg-white/10 px-6 py-3 font-black text-white backdrop-blur transition hover:bg-white/20" @click="scrollTo('#socios')">
+                        <button type="button" class="rounded-md border border-white/35 bg-white/10 px-6 py-3 font-bold text-white backdrop-blur transition hover:bg-white/20" @click="scrollTo('#socios')">
                             Tornar-me sócio
                         </button>
-                        <Link :href="route('patrocinios.index')" class="rounded-md bg-emerald-500 px-6 py-3 font-black text-white transition hover:bg-emerald-400">
+                        <Link :href="route('patrocinios.index')" class="rounded-md bg-emerald-500 px-6 py-3 font-bold text-white shadow-sm transition hover:bg-emerald-400">
                             Torna-te patrocinador
                         </Link>
                     </div>

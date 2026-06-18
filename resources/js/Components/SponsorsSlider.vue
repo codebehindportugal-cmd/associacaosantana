@@ -45,13 +45,13 @@ onMounted(() => {
 </script>
 
 <template>
-    <section v-if="patrocinadores.length" class="bg-slate-50 py-10">
+    <section v-if="patrocinadores.length" class="bg-slate-50 py-12">
         <div class="mx-auto max-w-6xl px-5 lg:px-8">
-            <h2 class="mb-6 text-center text-2xl font-bold text-slate-900">Os nossos patrocinadores</h2>
+            <h2 class="font-display mb-6 text-center text-3xl text-slate-900">Os nossos patrocinadores</h2>
             <div class="swiper sponsors-swiper">
                 <div class="swiper-wrapper items-center">
                     <div v-for="sponsor in patrocinadores" :key="sponsor.id || sponsor.empresa" class="swiper-slide flex justify-center">
-                        <a :href="sponsor.website || '#'" target="_blank" rel="noopener noreferrer" :title="sponsor.empresa" class="block rounded-md bg-white p-4 grayscale transition hover:grayscale-0">
+                        <a :href="sponsor.website || '#'" target="_blank" rel="noopener noreferrer" :title="sponsor.empresa" class="block rounded-md border border-slate-200 bg-white p-4 grayscale transition hover:-translate-y-0.5 hover:grayscale-0">
                             <img :src="sponsor.logo_url" :alt="sponsor.empresa" class="max-h-20 max-w-[200px] object-contain" loading="lazy">
                         </a>
                     </div>

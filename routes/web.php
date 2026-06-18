@@ -44,6 +44,7 @@ Route::post('/contacto', ContactController::class)->name('contacto.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
 Route::get('/cliente/{token}', [ClientePedidoController::class, 'show'])->name('cliente.mesa');
 Route::post('/cliente/{token}/item', [ClientePedidoController::class, 'addItem'])->name('cliente.item');
+Route::post('/cliente/{token}/items', [ClientePedidoController::class, 'addItems'])->name('cliente.items');
 Route::get('/cliente/{token}/confirmacao', [ClientePedidoController::class, 'confirmacao'])->name('cliente.confirmacao');
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');

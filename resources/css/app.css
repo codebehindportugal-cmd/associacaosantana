@@ -1,3 +1,163 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --santana-ink: #17241d;
+    --santana-muted: #607067;
+    --santana-green: #214c38;
+    --santana-green-soft: #e8f1ea;
+    --santana-gold: #d7a83f;
+    --santana-gold-soft: #fbf1d6;
+    --santana-paper: #fffdf8;
+    --santana-mist: #f3f6f1;
+    --santana-line: #dfe7de;
+    --santana-radius: 0.75rem;
+    --santana-shadow: 0 18px 44px rgb(23 36 29 / 0.08);
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background: var(--santana-paper);
+        color: var(--santana-ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        text-rendering: optimizeLegibility;
+    }
+}
+
+@layer components {
+    .font-display {
+        font-family: "Fraunces", Georgia, serif;
+    }
+}
+
+.public-theme {
+    background:
+        radial-gradient(circle at top left, rgb(215 168 63 / 0.08), transparent 28rem),
+        var(--santana-paper);
+    color: var(--santana-ink);
+}
+
+.public-theme h1,
+.public-theme h2,
+.public-theme .font-display {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 700;
+}
+
+.public-theme .tracking-wide,
+.public-theme .uppercase {
+    letter-spacing: 0.08em;
+}
+
+.public-theme.bg-white,
+.public-theme .bg-white {
+    background-color: var(--santana-paper);
+}
+
+.public-theme.bg-slate-50,
+.public-theme .bg-slate-50 {
+    background-color: var(--santana-mist);
+}
+
+.public-theme.bg-slate-100,
+.public-theme .bg-slate-100 {
+    background-color: var(--santana-green-soft);
+}
+
+.public-theme.bg-slate-900,
+.public-theme.bg-slate-950,
+.public-theme .bg-slate-900,
+.public-theme .bg-slate-950 {
+    background-color: var(--santana-green);
+}
+
+.public-theme.bg-slate-800,
+.public-theme .bg-slate-800 {
+    background-color: #173629;
+}
+
+.public-theme .text-slate-950,
+.public-theme .text-slate-900 {
+    color: var(--santana-ink);
+}
+
+.public-theme .text-slate-700,
+.public-theme .text-slate-600,
+.public-theme .text-slate-500 {
+    color: var(--santana-muted);
+}
+
+.public-theme .text-amber-300,
+.public-theme .text-emerald-300,
+.public-theme .text-emerald-800 {
+    color: var(--santana-gold);
+}
+
+.public-theme .bg-amber-300,
+.public-theme .bg-emerald-500,
+.public-theme .bg-emerald-600 {
+    background-color: var(--santana-gold);
+    color: var(--santana-ink);
+}
+
+.public-theme .bg-emerald-700,
+.public-theme .hover\:bg-emerald-400:hover,
+.public-theme .hover\:bg-emerald-700:hover,
+.public-theme .hover\:bg-slate-800:hover,
+.public-theme .hover\:bg-slate-900:hover {
+    background-color: #173629;
+    color: #fffdf8;
+}
+
+.public-theme .border-slate-200,
+.public-theme .border-slate-300,
+.public-theme .border-slate-700,
+.public-theme .border-slate-800 {
+    border-color: var(--santana-line);
+}
+
+.public-theme .shadow-sm,
+.public-theme .shadow-md,
+.public-theme .shadow-lg {
+    box-shadow: var(--santana-shadow);
+}
+
+.public-theme :is(.rounded, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl) {
+    border-radius: var(--santana-radius);
+}
+
+.public-theme :is(a, button, input, textarea, select) {
+    transition-duration: 180ms;
+    transition-property: background-color, border-color, box-shadow, color, opacity, transform;
+}
+
+.public-theme :is(button, a):focus-visible,
+.public-theme :is(input, textarea, select):focus {
+    outline: 2px solid rgb(215 168 63 / 0.55);
+    outline-offset: 3px;
+}
+
+.public-theme input,
+.public-theme textarea,
+.public-theme select {
+    background-color: #fff;
+    border-color: var(--santana-line);
+    border-radius: var(--santana-radius);
+}
+
+.public-theme input:focus,
+.public-theme textarea:focus,
+.public-theme select:focus {
+    border-color: var(--santana-green);
+    box-shadow: 0 0 0 4px rgb(33 76 56 / 0.12);
+}
+
+.public-theme .section-pad {
+    padding-bottom: clamp(4rem, 8vw, 7rem);
+    padding-top: clamp(4rem, 8vw, 7rem);
+}

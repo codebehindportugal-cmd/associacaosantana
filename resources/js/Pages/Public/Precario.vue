@@ -22,11 +22,11 @@ const euros = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
 </script>
 
 <template>
-    <main class="min-h-screen bg-slate-950 px-4 py-5 text-white">
+    <main class="public-theme min-h-screen bg-slate-950 px-4 py-5 text-white">
         <section class="mx-auto max-w-2xl">
             <header class="mb-5">
                 <div class="text-xs font-black uppercase text-emerald-300">ARDC Santana</div>
-                <h1 class="mt-1 text-3xl font-black">Preçário</h1>
+                <h1 class="font-display mt-1 text-3xl">Preçário</h1>
             </header>
 
             <div class="sticky top-0 z-10 -mx-4 mb-5 overflow-x-auto bg-slate-950 px-4 py-3">
@@ -45,7 +45,7 @@ const euros = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
             </div>
 
             <div v-if="!categorias.length" class="rounded-2xl bg-white p-5 text-center font-bold text-slate-600">
-                Ainda nao existem produtos disponiveis.
+                Ainda não existem produtos disponíveis.
             </div>
 
             <div v-else class="space-y-5">

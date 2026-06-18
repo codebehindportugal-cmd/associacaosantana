@@ -78,6 +78,66 @@ class ClientePedidoController extends Controller
         return to_route('cliente.confirmacao', $token);
     }
 
+    public function addItems(Request $request, string $token, PrintJobService $printJobs): RedirectResponse
+    {
+        $pedido = $this->pedidoPorToken($token);
+
+        if (! $this->pedidoDisponivel($pedido)) {
+            return back()->withErrors(['pedido' => 'Este pedido ja nao esta disponivel para adicionar itens.']);
+        }
+
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where('disponivel', true)],
+            'items.*.quantidade' => ['required', 'integer', 'min:1', 'max:10'],
+            'items.*.observacoes' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $produtos = Produto::with('categoria')
+            ->whereIn('id', collect($data['items'])->pluck('produto_id'))
+            ->get()
+            ->keyBy('id');
+
+        $itemsParaImpressao = collect();
+
+        foreach ($data['items'] as $item) {
+            $produto = $produtos[(int) $item['produto_id']];
+            $quantidade = (int) $item['quantidade'];
+            $observacoes = trim((string) ($item['observacoes'] ?? '')) ?: null;
+            $secao = $this->normalizarSecao($produto->categoria->secao ?? 'cozinha');
+
+            $this->guardarItemPedido($pedido, $produto, $quantidade, $secao, $observacoes);
+            $this->registarItemNaSessao($request, $token, $produto->nome, $quantidade, $observacoes);
+
+            $itemsParaImpressao->push([
+                'quantidade' => $quantidade,
+                'nome' => $produto->nome,
+                'observacoes' => $observacoes,
+                'secao' => $secao,
+            ]);
+        }
+
+        $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+
+        $itemsParaImpressao
+            ->groupBy('secao')
+            ->each(function ($items, string $secao) use ($pedido, $printJobs) {
+                foreach ($items as $item) {
+                    $printJobs->criarItemPedido(
+                        $pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'),
+                        [
+                            'quantidade' => $item['quantidade'],
+                            'nome' => $item['nome'],
+                            'observacoes' => $item['observacoes'],
+                        ],
+                        $secao
+                    );
+                }
+            });
+
+        return to_route('cliente.confirmacao', $token);
+    }
+
     public function confirmacao(Request $request, string $token): Response
     {
         $pedido = $this->pedidoPorToken($token);

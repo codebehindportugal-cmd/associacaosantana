@@ -15,7 +15,7 @@ const setConsent = (value) => {
 </script>
 
 <template>
-    <div v-if="visible" class="fixed inset-x-0 bottom-0 z-50 bg-slate-950 p-4 text-white shadow-2xl">
+    <div v-if="visible" class="public-theme fixed inset-x-0 bottom-0 z-50 bg-slate-950 p-4 text-white shadow-2xl">
         <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 md:flex-row">
             <p class="text-sm text-slate-200">
                 Utilizamos cookies para melhorar a sua experiência.

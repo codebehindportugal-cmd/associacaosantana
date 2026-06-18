@@ -16,21 +16,21 @@ const navItems = [
 </script>
 
 <template>
-    <div class="min-h-screen bg-white text-slate-900">
-        <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+    <div class="public-theme min-h-screen bg-white text-slate-900">
+        <header class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3.5 lg:px-8">
                 <Link :href="route('home')" class="flex items-center gap-3">
-                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-10 w-10 rounded bg-slate-100 object-contain p-2">
-                    <span class="text-base font-semibold text-slate-900">ARDC Santana</span>
+                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-11 w-11 rounded bg-white object-contain p-2 shadow-sm">
+                    <span class="font-display text-lg text-slate-900">ARDC Santana</span>
                 </Link>
 
                 <div class="hidden items-center gap-1 md:flex">
-                    <Link v-for="item in navItems" :key="item[0]" :href="item[1]" class="rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+                    <Link v-for="item in navItems" :key="item[0]" :href="item[1]" class="rounded-md px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
                         {{ item[0] }}
                     </Link>
                 </div>
 
-                <a :href="`mailto:${contactEmail}`" class="hidden rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 lg:inline-flex">
+                <a :href="`mailto:${contactEmail}`" class="hidden rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 lg:inline-flex">
                     Contactar
                 </a>
             </nav>
@@ -44,11 +44,11 @@ const navItems = [
 
         <slot />
 
-        <footer class="bg-slate-900 py-10 text-white">
+        <footer class="bg-slate-900 py-12 text-white">
             <div class="mx-auto grid max-w-7xl gap-8 px-5 md:grid-cols-[1fr_1.2fr] lg:px-8">
                 <div>
-                    <div class="flex items-center gap-3 font-semibold">
-                        <img :src="associationLogo" alt="" class="h-10 w-10 rounded bg-slate-700 object-contain p-2">
+                    <div class="font-display flex items-center gap-3 text-lg">
+                        <img :src="associationLogo" alt="" class="h-11 w-11 rounded bg-white/10 object-contain p-2">
                         ARDC Santana
                     </div>
                     <div class="mt-4 space-y-1 text-sm text-slate-300">

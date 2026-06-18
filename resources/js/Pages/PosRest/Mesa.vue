@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 const props = defineProps({ mesa: Object, pedido: Object, produtos: Object });
 const page = usePage();
 const categoriaAtual = ref(Object.keys(props.produtos ?? {})[0] || '');
+const separadorAtual = ref('produtos');
 const pagamentoAberto = ref(false);
 const metodo = ref('dinheiro');
 const recebido = ref('');
@@ -43,6 +44,12 @@ const podeAbrirPedido = computed(() => !mesaDividida.value
     && lugaresNumero.value > 0
     && (!precisaSubmesa.value || letraSubmesaNova.value.trim())
     && (!precisaMesasGrupo.value || mesasGrupo.value.trim()));
+const separadores = computed(() => [
+    { key: 'conta', label: 'Conta', count: props.pedido?.items?.length ?? 0 },
+    { key: 'produtos', label: 'Produtos', count: null },
+    { key: 'envio', label: 'Envio', count: carrinho.value.reduce((soma, item) => soma + Number(item.quantidade), 0) },
+    { key: 'qrs', label: 'QRs', count: podeSelfOrder.value ? 2 : 1 },
+]);
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const secaoClasse = (produto) => ({
     bebidas: 'bg-blue-600',
@@ -65,6 +72,7 @@ const addProduto = (produto) => {
 
     if (existente) {
         existente.quantidade += 1;
+        separadorAtual.value = 'envio';
         return;
     }
 
@@ -76,6 +84,7 @@ const addProduto = (produto) => {
         prioridade: false,
         observacoes: '',
     });
+    separadorAtual.value = 'envio';
 };
 const alterarQuantidadeCarrinho = (item, delta) => {
     item.quantidade += delta;
@@ -187,8 +196,22 @@ const copiarLinkCliente = async () => {
                 </div>
             </section>
         </div>
-        <div v-else class="grid min-w-0 gap-4 lg:grid-cols-[3fr_2fr]">
-            <section class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 sm:p-4">
+        <div v-else class="min-w-0 space-y-4">
+            <nav class="grid grid-cols-4 gap-2 rounded-2xl bg-gray-800 p-1">
+                <button
+                    v-for="separador in separadores"
+                    :key="separador.key"
+                    type="button"
+                    class="min-h-12 rounded-xl px-2 py-2 text-sm font-black"
+                    :class="separadorAtual === separador.key ? 'bg-white text-gray-950' : 'text-gray-200'"
+                    @click="separadorAtual = separador.key"
+                >
+                    {{ separador.label }}
+                    <span v-if="separador.count" class="ml-1 rounded-full bg-emerald-500 px-2 py-0.5 text-xs text-gray-950">{{ separador.count }}</span>
+                </button>
+            </nav>
+
+            <section v-if="separadorAtual === 'produtos'" class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 sm:p-4">
                 <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-2">
                     <button v-for="cat in categorias" :key="cat" class="shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
@@ -198,24 +221,53 @@ const copiarLinkCliente = async () => {
                     </button>
                 </div>
             </section>
-            <aside class="min-w-0 rounded-lg bg-gray-800 p-4">
+
+            <section v-if="separadorAtual === 'envio'" class="min-w-0 rounded-lg border-2 border-emerald-500 bg-gray-800 p-4">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                    <h2 class="text-2xl font-black">Para enviar</h2>
+                    <strong class="text-2xl text-emerald-400">{{ euros(totalCarrinho) }}</strong>
+                </div>
+                <div v-if="!carrinho.length" class="rounded bg-gray-900 p-5 text-center font-bold text-gray-400">
+                    Escolhe produtos no separador Produtos.
+                </div>
+                <div v-for="(item, index) in carrinho" :key="`${item.produto_id}-${index}`" class="mb-2 rounded bg-gray-900 p-3">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                        <strong>{{ item.nome }}</strong>
+                        <button class="rounded bg-red-700 px-3 py-2 font-black" @click="alterarQuantidadeCarrinho(item, -1)">-</button>
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="font-mono text-lg">{{ item.quantidade }} x {{ euros(item.preco) }}</span>
+                        <button class="rounded bg-emerald-700 px-3 py-2 font-black" @click="alterarQuantidadeCarrinho(item, 1)">+</button>
+                    </div>
+                    <label class="mt-2 flex items-center gap-2 text-sm font-black text-amber-300">
+                        <input v-model="item.prioridade" type="checkbox" class="rounded border-gray-600 bg-gray-800 text-amber-500">
+                        A terminar
+                    </label>
+                    <textarea
+                        v-model="item.observacoes"
+                        rows="2"
+                        maxlength="255"
+                        class="mt-2 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-sm font-bold text-white placeholder:text-gray-500"
+                        placeholder="Observações: sem cebola, bem passado..."
+                    ></textarea>
+                </div>
+                <div v-if="itemForm.errors.items" class="mt-2 rounded bg-red-700 p-3 text-sm font-bold">{{ itemForm.errors.items }}</div>
+                <button
+                    class="mt-2 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-50"
+                    :disabled="!carrinho.length || itemForm.processing"
+                    @click="enviarPedido"
+                >
+                    {{ itemForm.processing ? 'A ENVIAR...' : 'ENVIAR PEDIDO' }}
+                </button>
+            </section>
+
+            <section v-if="separadorAtual === 'conta'" class="min-w-0 rounded-lg bg-gray-800 p-4">
                 <h2 class="break-words text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
                 <div class="my-4 inline-flex rounded bg-blue-600 px-3 py-1 text-sm font-black uppercase">{{ pedido.estado }}</div>
                 <div class="mb-4 rounded-lg bg-gray-900 p-3">
                     <div class="text-sm font-bold text-gray-400">Pedido feito por</div>
                     <div class="text-xl font-black">{{ pedidoAutor }}</div>
                 </div>
-                <section v-if="podeSelfOrder" class="mb-4 rounded-lg border-2 border-cyan-500 bg-gray-950 p-3">
-                    <h3 class="text-xl font-black">SELF-ORDER DO CLIENTE</h3>
-                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR ao cliente para adicionar itens pelo telemovel.</p>
-                    <button class="mt-3 w-full rounded-lg bg-cyan-600 p-4 text-lg font-black" @click="mostrarQr">MOSTRAR QR AO CLIENTE</button>
-                    <button class="mt-2 w-full rounded-lg bg-gray-800 p-3 text-sm font-black" @click="copiarLinkCliente">COPIAR LINK</button>
-                </section>
-                <section class="mb-4 rounded-lg border-2 border-emerald-500 bg-gray-950 p-3">
-                    <h3 class="text-xl font-black">PREÇÁRIO DO SITE</h3>
-                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR para o cliente consultar produtos e preços.</p>
-                    <button class="mt-3 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="mostrarQrPrecario">MOSTRAR QR PREÇÁRIO</button>
-                </section>
                 <div class="mb-4 rounded-lg bg-gray-900 p-3">
                     <label class="block font-black">
                         Pessoas na mesa
@@ -223,42 +275,6 @@ const copiarLinkCliente = async () => {
                     </label>
                     <button class="mt-2 w-full rounded bg-gray-700 p-3 font-black" @click="atualizarLugares">ATUALIZAR PESSOAS</button>
                     <div v-if="lugaresForm.errors.lugares_ocupados" class="mt-2 rounded bg-red-700 p-2 text-sm font-bold">{{ lugaresForm.errors.lugares_ocupados }}</div>
-                </div>
-                <div class="mb-4 rounded-lg border-2 border-emerald-500 bg-gray-950 p-3">
-                    <div class="mb-3 flex items-center justify-between gap-2">
-                        <h3 class="text-xl font-black">PARA ENVIAR</h3>
-                        <strong class="text-emerald-400">{{ euros(totalCarrinho) }}</strong>
-                    </div>
-                    <div v-if="!carrinho.length" class="rounded bg-gray-900 p-4 text-center font-bold text-gray-400">Escolhe os produtos e envia o pedido.</div>
-                    <div v-for="(item, index) in carrinho" :key="`${item.produto_id}-${index}`" class="mb-2 rounded bg-gray-900 p-3">
-                        <div class="mb-2 flex items-center justify-between gap-2">
-                            <strong>{{ item.nome }}</strong>
-                            <button class="rounded bg-red-700 px-3 py-2 font-black" @click="alterarQuantidadeCarrinho(item, -1)">-</button>
-                        </div>
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="font-mono text-lg">{{ item.quantidade }} x {{ euros(item.preco) }}</span>
-                            <button class="rounded bg-emerald-700 px-3 py-2 font-black" @click="alterarQuantidadeCarrinho(item, 1)">+</button>
-                        </div>
-                        <label class="mt-2 flex items-center gap-2 text-sm font-black text-amber-300">
-                            <input v-model="item.prioridade" type="checkbox" class="rounded border-gray-600 bg-gray-800 text-amber-500">
-                            A terminar
-                        </label>
-                        <textarea
-                            v-model="item.observacoes"
-                            rows="2"
-                            maxlength="255"
-                            class="mt-2 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-sm font-bold text-white placeholder:text-gray-500"
-                            placeholder="Observações: sem cebola, bem passado..."
-                        ></textarea>
-                    </div>
-                    <div v-if="itemForm.errors.items" class="mt-2 rounded bg-red-700 p-3 text-sm font-bold">{{ itemForm.errors.items }}</div>
-                    <button
-                        class="mt-2 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-50"
-                        :disabled="!carrinho.length || itemForm.processing"
-                        @click="enviarPedido"
-                    >
-                        {{ itemForm.processing ? 'A ENVIAR...' : 'ENVIAR PEDIDO' }}
-                    </button>
                 </div>
                 <div class="space-y-3">
                     <div v-if="erroItem" class="rounded bg-red-700 p-3 text-sm font-black">{{ erroItem }}</div>
@@ -276,7 +292,21 @@ const copiarLinkCliente = async () => {
                 <div class="my-5 text-right text-3xl font-black text-emerald-400">{{ euros(total) }}</div>
                 <button class="w-full rounded-lg bg-emerald-600 p-5 text-xl font-black" @click="pagamentoAberto = true">FECHAR CONTA</button>
                 <button class="mt-3 w-full rounded-lg bg-red-700 p-3 font-black" @click="router.patch(route('pos.rest.pedido.estado', pedido.id), { estado: 'cancelado' })">CANCELAR PEDIDO</button>
-            </aside>
+            </section>
+
+            <section v-if="separadorAtual === 'qrs'" class="grid min-w-0 gap-4 md:grid-cols-2">
+                <article v-if="podeSelfOrder" class="rounded-lg border-2 border-cyan-500 bg-gray-800 p-4">
+                    <h2 class="text-xl font-black">SELF-ORDER DO CLIENTE</h2>
+                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR ao cliente para adicionar itens pelo telemóvel.</p>
+                    <button class="mt-3 w-full rounded-lg bg-cyan-600 p-4 text-lg font-black" @click="mostrarQr">MOSTRAR QR AO CLIENTE</button>
+                    <button class="mt-2 w-full rounded-lg bg-gray-900 p-3 text-sm font-black" @click="copiarLinkCliente">COPIAR LINK</button>
+                </article>
+                <article class="rounded-lg border-2 border-emerald-500 bg-gray-800 p-4">
+                    <h2 class="text-xl font-black">PREÇÁRIO DO SITE</h2>
+                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR para o cliente consultar produtos e preços.</p>
+                    <button class="mt-3 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="mostrarQrPrecario">MOSTRAR QR PREÇÁRIO</button>
+                </article>
+            </section>
         </div>
         <div v-if="pagamentoAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
             <div class="mx-auto max-w-xl">
