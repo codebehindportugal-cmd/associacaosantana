@@ -80,7 +80,12 @@ onBeforeUnmount(() => clearInterval(polling));
                 <div class="hidden text-sm text-slate-600 md:block">{{ page.props.auth?.user?.name }}</div>
                 <Link :href="route('logout')" method="post" as="button" class="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Logout</Link>
             </header>
-            <section class="p-4 lg:p-8"><slot /></section>
+            <section class="p-4 lg:p-8">
+                <div v-if="page.props.flash?.success" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 shadow-sm">
+                    {{ page.props.flash.success }}
+                </div>
+                <slot />
+            </section>
             <footer class="px-4 pb-24 text-center text-xs text-slate-500 md:pb-6 lg:px-8">
                 <span>Copyright © {{ year }} Associação de Santana.</span>
                 <span class="mx-2">·</span>

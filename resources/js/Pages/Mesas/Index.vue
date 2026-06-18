@@ -15,6 +15,7 @@ const lugaresOcupados = ref('');
 const letraSubmesaNova = ref('');
 const mesasGrupo = ref('');
 const lugaresSubmesa = ref({});
+const submesaLetras = ['A', 'B', 'C', 'D'];
 const tiposZona = [
     ['zona', 'Zona'],
     ['texto', 'Texto'],
@@ -359,7 +360,7 @@ const criarPedido = (mesa, lugares = '', letra = '') => {
     router.post(route('pedidos.store'), {
         mesa_id: mesa.id,
         lugares_ocupados: lugares || null,
-        submesa_letra: lugares ? (letra || null) : null,
+        submesa_letra: lugares ? (letra ? letra.toUpperCase() : null) : null,
         mesas_grupo: mesasGrupo.value || null,
         observacoes: '',
     });
@@ -695,7 +696,10 @@ const textoLugaresVaziosCurto = (mesa) => `${lugaresVazios(mesa)} livres`;
                         <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Obrigatorio">
                         <label v-if="precisaSubmesaSelecionada" class="mt-3 block text-xs font-semibold uppercase text-slate-500">
                             Letra da submesa
-                            <input v-model="letraSubmesaNova" type="text" maxlength="1" class="mt-1 w-full rounded-md border-slate-300 text-sm uppercase" placeholder="Ex.: A">
+                            <select v-model="letraSubmesaNova" class="mt-1 w-full rounded-md border-slate-300 text-sm uppercase">
+                                <option value="">Escolher letra</option>
+                                <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
+                            </select>
                         </label>
                         <label v-if="precisaMesasGrupoSelecionada" class="mt-3 block text-xs font-semibold uppercase text-slate-500">
                             Mesas do grupo

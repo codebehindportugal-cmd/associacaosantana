@@ -69,7 +69,7 @@ class MesaController extends Controller
     {
         $data = $request->validate([
             'capacidade_submesa' => ['nullable', 'integer', 'between:1,10'],
-            'partes' => ['nullable', 'integer', 'between:2,10'],
+            'partes' => ['nullable', 'integer', 'between:2,4'],
         ]);
 
         if ($this->temPedidosAtivos($mesa)) {
@@ -81,6 +81,11 @@ class MesaController extends Controller
         $capacidadeMesa = max(1, (int) $mesa->capacidade);
         $capacidadeSubmesa = (int) ($data['capacidade_submesa'] ?? ceil($capacidadeMesa / (int) ($data['partes'] ?? 2)));
         $quantidadeSubmesas = (int) ceil($capacidadeMesa / $capacidadeSubmesa);
+
+        if ($quantidadeSubmesas > 4) {
+            return back()->withErrors(['capacidade_submesa' => 'A divisao da mesa so pode criar submesas de A a D.']);
+        }
+
         $inicio = 1;
 
         foreach (range(1, $quantidadeSubmesas) as $parte) {

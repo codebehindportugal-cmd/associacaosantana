@@ -1,6 +1,6 @@
 <script setup>
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 
 const props = defineProps({ mesa: Object, pedido: Object, produtos: Object });
@@ -20,12 +20,15 @@ const qrTitulo = ref('');
 const qrSubtitulo = ref('');
 const qrLink = ref('');
 const lugaresAtuais = ref(props.pedido?.mesa?.capacidade ?? props.mesa?.capacidade ?? '');
+const agora = ref(Date.now());
 const novoForm = useForm({ lugares_ocupados: null, submesa_letra: null, mesas_grupo: null });
 const mesasGrupo = ref('');
+const submesaLetras = ['A', 'B', 'C', 'D'];
 const itemForm = useForm({ items: [] });
 const lugaresForm = useForm({ lugares_ocupados: lugaresAtuais.value });
 const fecharForm = useForm({ metodo_pagamento: 'dinheiro', valor_recebido: 0, troco: 0 });
 let avisoTimer;
+let relogioAnulacaoTimer;
 const categorias = computed(() => Object.keys(props.produtos ?? {}));
 const lista = computed(() => props.produtos?.[categoriaAtual.value] ?? []);
 const total = computed(() => (props.pedido?.items ?? []).reduce((s, i) => s + Number(i.preco_unitario) * i.quantidade, 0));
@@ -52,6 +55,16 @@ const separadores = computed(() => [
     { key: 'envio', label: 'Envio', count: carrinho.value.reduce((soma, item) => soma + Number(item.quantidade), 0) },
     { key: 'qrs', label: 'QRs', count: podeSelfOrder.value ? 2 : 1 },
 ]);
+const limiteAnulacaoMs = 2 * 60 * 1000;
+const itemDentroPrazoAnulacao = (item) => {
+    if (!item?.created_at) return false;
+
+    const criadoEm = new Date(item.created_at).getTime();
+
+    if (Number.isNaN(criadoEm)) return false;
+
+    return agora.value - criadoEm <= limiteAnulacaoMs;
+};
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const secaoClasse = (produto) => ({
     bebidas: 'bg-blue-600',
@@ -64,7 +77,7 @@ const secaoClasse = (produto) => ({
 const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
     if (!podeAbrirPedido.value) return;
     novoForm.lugares_ocupados = lugares;
-    novoForm.submesa_letra = letraSubmesaNova.value || null;
+    novoForm.submesa_letra = letraSubmesaNova.value ? letraSubmesaNova.value.toUpperCase() : null;
     novoForm.mesas_grupo = mesasGrupo.value || null;
     novoForm.post(route('pos.rest.pedido.novo', mesa.id));
 };
@@ -103,6 +116,7 @@ const alterarQuantidadeCarrinho = (item, delta) => {
 };
 const enviarPedido = () => {
     if (!props.pedido || !carrinho.value.length) return;
+    mostrarAviso('A validar e enviar o pedido...');
     itemForm.items = carrinho.value.map((item) => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -116,9 +130,29 @@ const enviarPedido = () => {
             itemForm.reset();
             mostrarAviso('Pedido validado e enviado.');
         },
+        onError: () => mostrarAviso('Nao foi possivel enviar o pedido. Confirma os produtos e tenta novamente.'),
     });
 };
-const remover = (item) => router.delete(route('pos.rest.pedido.item.remover', [props.pedido.id, item.id]), { preserveScroll: true });
+const cancelarPedido = () => {
+    if (!props.pedido || !confirm('Cancelar este pedido e libertar a mesa?')) return;
+    mostrarAviso('A cancelar pedido...');
+    router.patch(route('pos.rest.pedido.estado', props.pedido.id), { estado: 'cancelado' }, {
+        preserveScroll: true,
+        onSuccess: () => mostrarAviso('Pedido cancelado. A mesa foi libertada.'),
+        onError: () => mostrarAviso('Nao foi possivel cancelar o pedido. Tenta novamente.'),
+    });
+};
+const remover = (item) => {
+    if (!itemDentroPrazoAnulacao(item)) {
+        mostrarAviso('Este item ja so pode ser anulado no backoffice.');
+        return;
+    }
+
+    router.delete(route('pos.rest.pedido.item.remover', [props.pedido.id, item.id]), {
+        preserveScroll: true,
+        onError: () => mostrarAviso('Este item ja so pode ser anulado no backoffice.'),
+    });
+};
 const urgente = (item) => router.patch(route('pos.rest.pedido.item.urgente', [props.pedido.id, item.id]), {}, { preserveScroll: true });
 const atualizarLugares = () => {
     if (!props.pedido) return;
@@ -154,6 +188,15 @@ const copiarLinkCliente = async () => {
         await navigator.clipboard.writeText(link);
     }
 };
+onMounted(() => {
+    relogioAnulacaoTimer = window.setInterval(() => {
+        agora.value = Date.now();
+    }, 10000);
+});
+onBeforeUnmount(() => {
+    window.clearInterval(relogioAnulacaoTimer);
+    window.clearTimeout(avisoTimer);
+});
 </script>
 
 <template>
@@ -170,7 +213,10 @@ const copiarLinkCliente = async () => {
                         <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Obrigatorio">
                     </label>
                     <label v-if="precisaSubmesa" class="block font-black">Letra da submesa
-                        <input v-model="letraSubmesaNova" type="text" maxlength="1" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black uppercase text-white" placeholder="Ex.: A">
+                        <select v-model="letraSubmesaNova" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black uppercase text-white">
+                            <option value="">Escolher letra</option>
+                            <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
+                        </select>
                     </label>
                     <label v-if="precisaMesasGrupo" class="block font-black">Mesas do grupo
                         <input v-model="mesasGrupo" type="text" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Ex.: 32 33 34">
@@ -222,8 +268,8 @@ const copiarLinkCliente = async () => {
                 </button>
                 </div>
             </nav>
-            <div v-if="aviso" class="rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-3 text-sm font-black text-emerald-100">
-                {{ aviso }}
+            <div v-if="aviso || page.props.flash?.success" class="rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-3 text-sm font-black text-emerald-100">
+                {{ aviso || page.props.flash.success }}
             </div>
 
             <section v-if="separadorAtual === 'produtos'" class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 sm:p-4">
@@ -294,7 +340,10 @@ const copiarLinkCliente = async () => {
                 <div class="space-y-3">
                     <div v-if="erroItem" class="rounded bg-red-700 p-3 text-sm font-black">{{ erroItem }}</div>
                     <div v-for="item in pedido.items" :key="item.id" class="rounded-lg border bg-gray-900 p-3" :class="item.prioridade ? 'animate-pulse border-amber-500' : 'border-gray-700'">
-                        <div class="flex items-start justify-between gap-3"><strong>{{ item.produto?.nome }}</strong><button class="rounded bg-red-700 px-3 py-2 font-black" @click="remover(item)">-1</button></div>
+                        <div class="flex items-start justify-between gap-3">
+                            <strong>{{ item.produto?.nome }}</strong>
+                            <button v-if="itemDentroPrazoAnulacao(item)" class="rounded bg-red-700 px-3 py-2 font-black" @click="remover(item)">-1</button>
+                        </div>
                         <div class="mt-3 flex items-center justify-between gap-2">
                             <div class="font-mono text-lg">{{ item.quantidade }} × {{ euros(item.preco_unitario) }} = {{ euros(item.quantidade * item.preco_unitario) }}</div>
                             <button class="rounded px-3 py-2 font-black" :class="item.prioridade ? 'bg-amber-600' : 'bg-gray-700'" @click="urgente(item)">Fim</button>
@@ -306,7 +355,7 @@ const copiarLinkCliente = async () => {
                 </div>
                 <div class="my-5 text-right text-3xl font-black text-emerald-400">{{ euros(total) }}</div>
                 <button class="w-full rounded-lg bg-emerald-600 p-5 text-xl font-black" @click="pagamentoAberto = true">FECHAR CONTA</button>
-                <button class="mt-3 w-full rounded-lg bg-red-700 p-3 font-black" @click="router.patch(route('pos.rest.pedido.estado', pedido.id), { estado: 'cancelado' })">CANCELAR PEDIDO</button>
+                <button class="mt-3 w-full rounded-lg bg-red-700 p-3 font-black" @click="cancelarPedido">CANCELAR PEDIDO</button>
             </section>
 
             <section v-if="separadorAtual === 'qrs'" class="grid min-w-0 gap-4 md:grid-cols-2">

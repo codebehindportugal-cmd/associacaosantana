@@ -114,7 +114,7 @@ class PosRestController extends Controller
     {
         $data = $request->validate([
             'lugares_ocupados' => ['required', 'integer', 'min:1'],
-            'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
+            'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Da-d]$/'],
             'mesas_grupo' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -207,7 +207,7 @@ class PosRestController extends Controller
             'observacoes' => $observacoes,
         ], $secao);
 
-        return back();
+        return back()->with('success', 'Pedido validado e enviado para a equipa.');
     }
 
     public function adicionarItems(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
@@ -264,7 +264,7 @@ class PosRestController extends Controller
     {
         abort_unless($item->pedido_id === $pedido->id, 404);
         if (! $this->itemPodeSerAnulado($item)) {
-            return back()->withErrors(['item' => 'Este item ja passou os 2 minutos permitidos para anulacao.']);
+            return back()->withErrors(['item' => 'Este item ja passou os 2 minutos. A anulacao so pode ser feita no backoffice.']);
         }
 
         $item->loadMissing('produto.categoria');
@@ -360,12 +360,20 @@ class PosRestController extends Controller
     public function atualizarEstado(Request $request, Pedido $pedido): RedirectResponse
     {
         $data = $request->validate(['estado' => ['required', 'in:pendente,preparacao,entregue,cancelado']]);
+        $pedido->load('mesa.mesaPrincipal');
+        $mesaDestino = $pedido->mesa?->mesaPrincipal ?: $pedido->mesa;
+
         $pedido->update($data);
+
         if (in_array($pedido->estado, ['entregue', 'cancelado'], true)) {
             $this->libertarMesaDoPedido($pedido);
+
+            return $mesaDestino
+                ? to_route('pos.rest.mesa', $mesaDestino)->with('success', $pedido->estado === 'cancelado' ? 'Pedido cancelado e mesa libertada.' : 'Pedido concluido e mesa libertada.')
+                : to_route('pos.rest.mesas')->with('success', $pedido->estado === 'cancelado' ? 'Pedido cancelado.' : 'Pedido concluido.');
         }
 
-        return back();
+        return back()->with('success', 'Estado do pedido atualizado.');
     }
 
     public function historico(): Response
@@ -527,20 +535,20 @@ class PosRestController extends Controller
             ->values()
             ->all();
 
-        foreach (range('A', 'Z') as $letra) {
+        foreach (range('A', 'D') as $letra) {
             if (! in_array($letra, $usadas, true)) {
                 return $letra;
             }
         }
 
-        return (string) ($mesaPrincipal->submesas()->count() + 1);
+        return 'D';
     }
 
     private function normalizarLetraSubmesa(?string $letra): ?string
     {
         $letra = strtoupper(trim((string) $letra));
 
-        return preg_match('/^[A-Z]$/', $letra) ? $letra : null;
+        return preg_match('/^[A-D]$/', $letra) ? $letra : null;
     }
 
     private function letraSubmesaEmUso(Mesa $mesaPrincipal, string $letra): bool

@@ -78,7 +78,7 @@ class PedidoController extends Controller
             'tipo_atendimento' => ['nullable', 'in:mesa,para_levar'],
             'mesa_id' => ['nullable', 'required_if:tipo_atendimento,mesa', 'exists:mesas,id'],
             'lugares_ocupados' => ['nullable', 'required_if:tipo_atendimento,mesa', 'integer', 'min:1'],
-            'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
+            'submesa_letra' => ['nullable', 'string', 'regex:/^[A-Da-d]$/'],
             'mesas_grupo' => ['nullable', 'string', 'max:255'],
             'observacoes' => ['nullable', 'string'],
         ]);
@@ -186,7 +186,9 @@ class PedidoController extends Controller
             $this->libertarMesaDoPedido($pedido);
         }
 
-        return back()->with('success', 'Estado atualizado.');
+        return back()->with('success', $pedido->estado === 'cancelado'
+            ? 'Pedido cancelado e mesa libertada.'
+            : 'Estado do pedido atualizado.');
     }
 
     public function fecharConta(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
@@ -319,20 +321,20 @@ class PedidoController extends Controller
             ->values()
             ->all();
 
-        foreach (range('A', 'Z') as $letra) {
+        foreach (range('A', 'D') as $letra) {
             if (! in_array($letra, $usadas, true)) {
                 return $letra;
             }
         }
 
-        return (string) ($mesaPrincipal->submesas()->count() + 1);
+        return 'D';
     }
 
     private function normalizarLetraSubmesa(?string $letra): ?string
     {
         $letra = strtoupper(trim((string) $letra));
 
-        return preg_match('/^[A-Z]$/', $letra) ? $letra : null;
+        return preg_match('/^[A-D]$/', $letra) ? $letra : null;
     }
 
     private function letraSubmesaEmUso(Mesa $mesaPrincipal, string $letra): bool

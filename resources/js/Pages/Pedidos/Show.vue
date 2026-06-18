@@ -20,6 +20,9 @@ const fecharContaForm = useForm({ metodo_pagamento: 'dinheiro', valor_recebido: 
 const quantidade = ref(1);
 const termo = ref('');
 const caixaRef = ref(null);
+const submesaLetras = ['A', 'B', 'C', 'D'];
+const aviso = ref('');
+let avisoTimer;
 
 const secoes = [
     ['todos', 'Todos'],
@@ -43,6 +46,14 @@ const produtosFiltrados = computed(() => {
     });
 });
 
+const mostrarAviso = (mensagem) => {
+    aviso.value = mensagem;
+    window.clearTimeout(avisoTimer);
+    avisoTimer = window.setTimeout(() => {
+        aviso.value = '';
+    }, 4000);
+};
+
 const totalPedido = computed(() => Number(props.pedido?.total ?? props.pedido?.total_calculado ?? 0));
 const pedidoFechado = computed(() => ['entregue', 'cancelado'].includes(props.pedido?.estado));
 const valorRecebido = computed(() => Number(fecharContaForm.valor_recebido || totalPedido.value));
@@ -61,6 +72,7 @@ const adicionarProduto = (produto) => {
     itemForm.pedido_id = props.pedido?.id;
     itemForm.produto_id = produto.id;
     itemForm.quantidade = quantidade.value || 1;
+    mostrarAviso('A enviar produto para a secção...');
     itemForm.post(route('pedido-items.store'), {
         preserveScroll: true,
         onSuccess: () => {
@@ -68,7 +80,9 @@ const adicionarProduto = (produto) => {
             quantidade.value = 1;
             itemForm.prioridade = false;
             itemForm.observacoes = '';
+            mostrarAviso('Produto enviado para a secção.');
         },
+        onError: () => mostrarAviso('Nao foi possivel enviar o produto. Confirma o pedido e tenta novamente.'),
     });
 };
 
@@ -89,7 +103,12 @@ const cancelarPedido = () => {
         return;
     }
 
-    cancelamentoForm.patch(route('pedidos.estado', props.pedido.id), { preserveScroll: true });
+    mostrarAviso('A cancelar pedido...');
+    cancelamentoForm.patch(route('pedidos.estado', props.pedido.id), {
+        preserveScroll: true,
+        onSuccess: () => mostrarAviso('Pedido cancelado e mesa libertada.'),
+        onError: () => mostrarAviso('Nao foi possivel cancelar o pedido. Tenta novamente.'),
+    });
 };
 
 const fecharConta = () => {
@@ -138,7 +157,7 @@ const criarPedido = () => {
             ...dados,
             mesa_id: dados.tipo_atendimento === 'para_levar' ? null : dados.mesa_id,
             lugares_ocupados: dados.tipo_atendimento === 'para_levar' ? null : dados.lugares_ocupados,
-            submesa_letra: dados.tipo_atendimento === 'para_levar' ? null : dados.submesa_letra,
+            submesa_letra: dados.tipo_atendimento === 'para_levar' ? null : (dados.submesa_letra ? dados.submesa_letra.toUpperCase() : null),
         }))
         .post(route('pedidos.store'), {
             onFinish: () => pedidoForm.transform((dados) => dados),
@@ -170,6 +189,10 @@ onMounted(() => {
             </div>
         </div>
 
+        <div v-if="aviso" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 shadow-sm">
+            {{ aviso }}
+        </div>
+
         <form v-if="!pedido" class="max-w-xl space-y-4 rounded-lg bg-white p-6 shadow-sm" @submit.prevent="criarPedido">
             <div class="grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-2">
                 <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'mesa' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="escolherTipoAtendimento('mesa')">Mesa</button>
@@ -192,7 +215,10 @@ onMounted(() => {
 
             <label v-if="pedidoForm.tipo_atendimento === 'mesa' && pedidoForm.lugares_ocupados" class="block">
                 <span class="mb-1 block text-sm font-semibold text-slate-700">Letra da submesa</span>
-                <input v-model="pedidoForm.submesa_letra" type="text" maxlength="1" class="w-full rounded-md border-slate-300 uppercase" placeholder="Ex.: A">
+                <select v-model="pedidoForm.submesa_letra" class="w-full rounded-md border-slate-300 uppercase">
+                    <option value="">Escolher letra</option>
+                    <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
+                </select>
                 <div v-if="pedidoForm.errors.submesa_letra" class="mt-1 text-sm font-semibold text-red-600">{{ pedidoForm.errors.submesa_letra }}</div>
             </label>
 
