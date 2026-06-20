@@ -100,7 +100,7 @@ class CaixaDiariaController extends Controller
             'observacoes_fecho' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $vendas = $this->vendasDoPonto($caixa)->total;
+        $vendas = $this->vendasDoPonto($caixa)?->total ?? 0;
         $esperado = round((float) $caixa->fundo_maneio + (float) $vendas, 2);
         $valorContado = round((float) $data['valor_contado'], 2);
 

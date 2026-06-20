@@ -1,19 +1,10 @@
 <script setup>
-import Checkbox from '@/Components/Checkbox.vue';
 import GuestLayout from '@/Layouts/GuestLayout.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 defineProps({
-    canResetPassword: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
+    canResetPassword: Boolean,
+    status: String,
 });
 
 const form = useForm({
@@ -31,80 +22,70 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Log in" />
+        <Head title="Entrar" />
 
-        <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
+        <h2 class="mb-6 text-xl font-bold text-stone-800">Entrar na plataforma</h2>
+
+        <div v-if="status" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
             {{ status }}
         </div>
 
-        <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-            <div class="mb-3 text-sm font-bold text-gray-700">Acessos rápidos</div>
+        <!-- Acessos rápidos -->
+        <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div class="mb-3 text-xs font-bold uppercase tracking-wide text-amber-700">Acessos rápidos</div>
             <div class="grid gap-2 sm:grid-cols-4">
-                <Link :href="route('pos.login', { tipo: 'restaurante' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Restaurante</Link>
-                <Link :href="route('pos.login', { tipo: 'bar' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Bares</Link>
-                <Link :href="route('pos.login', { tipo: 'cotas' })" class="rounded-md bg-emerald-700 px-3 py-2 text-center text-sm font-bold text-white">Cotas</Link>
-                <Link :href="route('pos.login', { tipo: 'cafe' })" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-bold text-white">Café</Link>
+                <Link :href="route('pos.login', { tipo: 'restaurante' })" class="rounded-md bg-stone-800 px-3 py-2 text-center text-sm font-bold text-white transition hover:bg-stone-700">Restaurante</Link>
+                <Link :href="route('pos.login', { tipo: 'bar' })" class="rounded-md bg-stone-800 px-3 py-2 text-center text-sm font-bold text-white transition hover:bg-stone-700">Bares</Link>
+                <Link :href="route('pos.login', { tipo: 'cotas' })" class="rounded-md bg-amber-600 px-3 py-2 text-center text-sm font-bold text-white transition hover:bg-amber-700">Cotas</Link>
+                <Link :href="route('pos.login', { tipo: 'cafe' })" class="rounded-md bg-stone-800 px-3 py-2 text-center text-sm font-bold text-white transition hover:bg-stone-700">Café</Link>
             </div>
         </div>
 
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="email" value="Email" />
-
-                <TextInput
+        <form @submit.prevent="submit" class="space-y-4">
+            <label class="block">
+                <span class="mb-1 block text-sm font-semibold text-stone-700">Email</span>
+                <input
                     id="email"
-                    type="email"
-                    class="mt-1 block w-full"
                     v-model="form.email"
+                    type="email"
                     required
                     autofocus
                     autocomplete="username"
-                />
+                    class="w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-stone-900 shadow-sm transition focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                >
+                <p v-if="form.errors.email" class="mt-1 text-xs text-red-600">{{ form.errors.email }}</p>
+            </label>
 
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel for="password" value="Password" />
-
-                <TextInput
+            <label class="block">
+                <span class="mb-1 block text-sm font-semibold text-stone-700">Password</span>
+                <input
                     id="password"
-                    type="password"
-                    class="mt-1 block w-full"
                     v-model="form.password"
+                    type="password"
                     required
                     autocomplete="current-password"
-                />
+                    class="w-full rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-stone-900 shadow-sm transition focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                >
+                <p v-if="form.errors.password" class="mt-1 text-xs text-red-600">{{ form.errors.password }}</p>
+            </label>
 
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
-
-            <div class="mt-4 block">
-                <label class="flex items-center">
-                    <Checkbox name="remember" v-model:checked="form.remember" />
-                    <span class="ms-2 text-sm text-gray-600"
-                        >Remember me</span
-                    >
+            <div class="flex items-center justify-between">
+                <label class="flex items-center gap-2 text-sm text-stone-600">
+                    <input type="checkbox" name="remember" v-model="form.remember" class="rounded border-amber-300 text-amber-600 focus:ring-amber-500">
+                    Manter sessão
                 </label>
-            </div>
-
-            <div class="mt-4 flex items-center justify-end">
-                <Link
-                    v-if="canResetPassword"
-                    :href="route('password.request')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                    Forgot your password?
+                <Link v-if="canResetPassword" :href="route('password.request')" class="text-sm font-semibold text-amber-700 hover:text-amber-900 transition">
+                    Esqueceu a password?
                 </Link>
-
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Log in
-                </PrimaryButton>
             </div>
+
+            <button
+                type="submit"
+                class="w-full rounded-md bg-amber-600 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-50"
+                :disabled="form.processing"
+            >
+                {{ form.processing ? 'A entrar...' : 'Entrar' }}
+            </button>
         </form>
     </GuestLayout>
 </template>

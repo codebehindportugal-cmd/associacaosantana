@@ -43,7 +43,24 @@ const clienteUrl = computed(() => podeSelfOrder.value ? route('cliente.mesa', pr
 const precarioUrl = computed(() => route('precario'));
 const capacidadeMesa = computed(() => Number(props.mesa?.capacidade ?? 0));
 const lugaresNumero = computed(() => Number(lugaresOcupados.value || 0));
-const precisaSubmesa = computed(() => !props.pedido && !props.mesa?.mesa_principal_id && lugaresNumero.value > 0 && lugaresNumero.value < capacidadeMesa.value);
+const extrairLetraSubmesa = (mesa) => {
+    const base = String(mesa?.mesa_principal?.numero ?? props.mesa?.mesa_principal?.numero ?? props.mesa?.numero ?? '');
+    const designacao = String(mesa?.designacao ?? mesa?.nome ?? '');
+
+    return designacao.replace(new RegExp(`^Mesa\\s*${base}`, 'i'), '').trim().toUpperCase();
+};
+const letraSubmesaAtual = computed(() => props.mesa?.mesa_principal_id ? extrairLetraSubmesa(props.mesa) : '');
+const letrasSubmesaUsadas = computed(() => (props.mesa?.submesas ?? [])
+    .map((submesa) => extrairLetraSubmesa(submesa))
+    .filter(Boolean));
+const submesaLetrasDisponiveis = computed(() => submesaLetras.filter((letra) => {
+    if (letra === letraSubmesaAtual.value) {
+        return true;
+    }
+
+    return ! letrasSubmesaUsadas.value.includes(letra);
+}));
+const precisaSubmesa = computed(() => !props.pedido && lugaresNumero.value > 0 && lugaresNumero.value < capacidadeMesa.value);
 const precisaMesasGrupo = computed(() => !props.pedido && lugaresNumero.value > capacidadeMesa.value);
 const podeAbrirPedido = computed(() => !mesaDividida.value
     && lugaresNumero.value > 0
@@ -215,7 +232,7 @@ onBeforeUnmount(() => {
                     <label v-if="precisaSubmesa" class="block font-black">Letra da submesa
                         <select v-model="letraSubmesaNova" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black uppercase text-white">
                             <option value="">Escolher letra</option>
-                            <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
+                            <option v-for="letra in submesaLetrasDisponiveis" :key="letra" :value="letra">{{ letra }}</option>
                         </select>
                     </label>
                     <label v-if="precisaMesasGrupo" class="block font-black">Mesas do grupo

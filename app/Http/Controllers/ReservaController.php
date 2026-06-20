@@ -80,7 +80,7 @@ class ReservaController extends Controller
         return $request->validate([
             'nome' => ['required', 'string', 'max:255'],
             'data' => ['required', 'date'],
-            'hora' => ['required'],
+            'hora' => ['required', 'date_format:H:i'],
             'pessoas' => ['required', 'integer', 'min:1'],
             'estado' => ['nullable', 'in:confirmada,sentada,cancelada'],
             'observacoes' => ['nullable', 'string'],
