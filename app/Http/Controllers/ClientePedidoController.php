@@ -22,7 +22,7 @@ class ClientePedidoController extends Controller
             ->disponiveisRestaurante()
             ->orderBy('nome')
             ->get()
-            ->groupBy(fn (Produto $produto) => $produto->categoria->nome ?? 'Outros')
+            ->groupBy(fn (Produto $produto) => $produto->categoria?->nome ?? 'Outros')
             ->map(fn ($grupo) => $grupo->map(fn (Produto $produto) => [
                 'id' => $produto->id,
                 'nome' => $produto->nome,

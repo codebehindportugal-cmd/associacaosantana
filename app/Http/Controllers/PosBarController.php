@@ -55,7 +55,7 @@ class PosBarController extends Controller
             return back()->withErrors(['ponto_bar' => 'Abre a caixa deste ponto no backoffice antes de vender.']);
         }
 
-        return DB::transaction(function () use ($data, $ponto) {
+        return DB::transaction(function () use ($data, $ponto, $printJobs) {
             $produtos = Produto::with('categoria')->whereIn('id', collect($data['items'])->pluck('produto_id'))->get()->keyBy('id');
             $total = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->preco * (int) $item['quantidade']), 2);
             $valorRecebido = round((float) $data['valor_recebido'], 2);

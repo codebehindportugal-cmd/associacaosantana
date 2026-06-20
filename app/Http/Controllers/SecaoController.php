@@ -7,6 +7,7 @@ use App\Models\PedidoItem;
 use App\Models\Mesa;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -118,12 +119,14 @@ class SecaoController extends Controller
         $quantidadePronta = min((int) ($data['quantidade'] ?? $pedidoItem->quantidade), (int) $pedidoItem->quantidade);
 
         if ($quantidadePronta < $pedidoItem->quantidade) {
-            $itemPronto = $pedidoItem->replicate();
-            $itemPronto->quantidade = $quantidadePronta;
-            $itemPronto->estado = 'pronto';
-            $itemPronto->save();
+            DB::transaction(function () use ($pedidoItem, $quantidadePronta) {
+                $itemPronto = $pedidoItem->replicate();
+                $itemPronto->quantidade = $quantidadePronta;
+                $itemPronto->estado = 'pronto';
+                $itemPronto->save();
 
-            $pedidoItem->decrement('quantidade', $quantidadePronta);
+                $pedidoItem->decrement('quantidade', $quantidadePronta);
+            });
         } else {
             $pedidoItem->update(['estado' => 'pronto']);
         }
