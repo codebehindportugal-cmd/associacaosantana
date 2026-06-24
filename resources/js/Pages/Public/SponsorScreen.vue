@@ -2,6 +2,8 @@
 import { Head } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
+const DURACAO = 6000;
+
 const props = defineProps({
     patrocinadores: {
         type: Array,
@@ -9,35 +11,37 @@ const props = defineProps({
     },
 });
 
-const slideAtual = ref(0);
+const indice = ref(0);
 let timer;
 
-const logos = computed(() => props.patrocinadores.filter((sponsor) => sponsor.logo_url));
-const porSlide = computed(() => (logos.value.length <= 6 ? Math.max(logos.value.length, 1) : 6));
-const slides = computed(() => {
-    if (!logos.value.length) {
-        return [];
+// Lista plana: para cada patrocinador, usa as suas imagens ou, se não tiver, o logótipo
+const sequencia = computed(() => {
+    const items = [];
+    for (const s of props.patrocinadores) {
+        const imgs = s.images?.length
+            ? s.images
+            : [{ id: `logo-${s.id}`, url: s.logo_url }];
+        for (const img of imgs) {
+            items.push({
+                key: String(img.id),
+                url: img.url,
+                empresa: s.empresa,
+                logo_url: s.logo_url,
+            });
+        }
     }
-
-    const grupos = [];
-    for (let i = 0; i < logos.value.length; i += porSlide.value) {
-        grupos.push(logos.value.slice(i, i + porSlide.value));
-    }
-
-    return grupos;
+    return items;
 });
-const slide = computed(() => slides.value[slideAtual.value] ?? []);
+
+const atual = computed(() => sequencia.value[indice.value] ?? null);
 
 const avancar = () => {
-    if (slides.value.length <= 1) {
-        return;
-    }
-
-    slideAtual.value = (slideAtual.value + 1) % slides.value.length;
+    if (sequencia.value.length <= 1) return;
+    indice.value = (indice.value + 1) % sequencia.value.length;
 };
 
 onMounted(() => {
-    timer = window.setInterval(avancar, 7000);
+    timer = window.setInterval(avancar, DURACAO);
 });
 
 onBeforeUnmount(() => {
@@ -48,106 +52,217 @@ onBeforeUnmount(() => {
 <template>
     <Head title="Ecrã de Patrocinadores" />
 
-    <main class="sponsor-screen min-h-screen overflow-hidden bg-slate-950 text-white">
-        <div class="absolute inset-0 sponsor-screen__texture"></div>
+    <main class="sponsor-screen">
+        <div class="sponsor-screen__bg" aria-hidden="true"></div>
 
-        <section class="relative flex min-h-screen flex-col px-8 py-8 sm:px-12 lg:px-16">
-            <header class="flex shrink-0 items-center justify-between gap-6">
-                <div>
-                    <div class="text-sm font-black uppercase tracking-[0.28em] text-emerald-300">ARDC Santana</div>
-                    <h1 class="mt-2 text-3xl font-black sm:text-5xl">Patrocinadores</h1>
-                </div>
-                <div class="hidden rounded-full border border-white/15 px-5 py-3 text-right text-sm font-black uppercase tracking-wide text-white/70 sm:block">
-                    Obrigado pelo apoio
-                </div>
-            </header>
+        <!-- Estado vazio -->
+        <div v-if="!sequencia.length" class="sponsor-screen__empty">
+            <div>
+                <h2 class="text-4xl font-black">Ainda não há patrocinadores ativos</h2>
+                <p class="mt-3 text-lg font-bold text-white/55">Adicione patrocinadores no backoffice.</p>
+            </div>
+        </div>
 
-            <div v-if="!logos.length" class="grid flex-1 place-items-center text-center">
-                <div>
-                    <h2 class="text-4xl font-black">Ainda não há logos ativos</h2>
-                    <p class="mt-3 text-lg font-bold text-white/60">Adicione patrocinadores ativos no backoffice.</p>
-                </div>
+        <!-- Slider -->
+        <template v-else>
+            <!-- Marca topo-esquerdo -->
+            <div class="sponsor-screen__brand">
+                <span class="brand-label">ARDC Santana</span>
+                <span class="brand-sep">·</span>
+                <span class="brand-title">Patrocinadores</span>
             </div>
 
-            <div v-else class="flex flex-1 items-center py-8">
-                <Transition name="sponsor-fade" mode="out-in">
-                    <div :key="slideAtual" class="grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                        <article
-                            v-for="sponsor in slide"
-                            :key="sponsor.id"
-                            class="sponsor-logo-tile grid aspect-[16/9] place-items-center rounded-lg border border-white/10 bg-white p-8 shadow-2xl shadow-black/30"
+            <!-- Imagem full-screen com fade -->
+            <Transition name="img-fade" mode="out-in">
+                <div :key="indice" class="sponsor-screen__slide">
+                    <img
+                        :src="atual.url"
+                        :alt="atual.empresa"
+                        class="sponsor-screen__img"
+                    >
+                </div>
+            </Transition>
+
+            <!-- Rodapé: nome do patrocinador + contador + barra de progresso -->
+            <footer class="sponsor-screen__footer">
+                <div class="footer-inner">
+                    <div class="footer-sponsor">
+                        <img
+                            :src="atual.logo_url"
+                            :alt="atual.empresa"
+                            class="footer-logo"
                         >
-                            <img :src="sponsor.logo_url" :alt="sponsor.empresa" class="max-h-full max-w-full object-contain">
-                        </article>
+                        <span class="footer-name">{{ atual.empresa }}</span>
                     </div>
-                </Transition>
-            </div>
-
-            <footer v-if="logos.length" class="relative shrink-0">
-                <div class="h-1 overflow-hidden rounded-full bg-white/10">
-                    <div class="sponsor-screen__progress h-full rounded-full bg-emerald-400" :key="slideAtual"></div>
+                    <span class="footer-counter">{{ indice + 1 }}&thinsp;/&thinsp;{{ sequencia.length }}</span>
                 </div>
-                <div class="mt-4 flex items-center justify-between text-xs font-black uppercase tracking-wide text-white/55">
-                    <span>{{ logos.length }} patrocinadores</span>
-                    <span>{{ slideAtual + 1 }} / {{ slides.length }}</span>
+
+                <div class="footer-progress-track">
+                    <div :key="indice" class="footer-progress-bar"></div>
                 </div>
             </footer>
-        </section>
+        </template>
     </main>
 </template>
 
 <style scoped>
 .sponsor-screen {
     position: relative;
+    min-height: 100vh;
+    background: #020617;
+    color: #fff;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
-.sponsor-screen__texture {
+.sponsor-screen__bg {
+    position: absolute;
+    inset: 0;
     background:
-        radial-gradient(circle at 15% 10%, rgba(16, 185, 129, 0.18), transparent 30%),
-        radial-gradient(circle at 85% 85%, rgba(59, 130, 246, 0.16), transparent 30%),
-        linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 18px);
-    opacity: 0.9;
+        radial-gradient(ellipse at 20% 15%, rgba(16, 185, 129, 0.14) 0%, transparent 40%),
+        radial-gradient(ellipse at 80% 80%, rgba(59, 130, 246, 0.12) 0%, transparent 40%);
+    pointer-events: none;
 }
 
-.sponsor-logo-tile {
-    animation: tile-in 700ms ease both;
+/* Marca */
+.sponsor-screen__brand {
+    position: absolute;
+    top: 2rem;
+    left: 2.5rem;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
 }
 
-.sponsor-screen__progress {
-    animation: progress 7s linear both;
+.brand-label {
+    color: #6ee7b7;
+}
+
+.brand-sep {
+    opacity: 0.4;
+}
+
+/* Imagem */
+.sponsor-screen__slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5rem 4rem 7rem;
+    z-index: 10;
+}
+
+.sponsor-screen__img {
+    max-width: 82vw;
+    max-height: 78vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 0.75rem;
+    filter: drop-shadow(0 8px 40px rgba(0, 0, 0, 0.6));
+}
+
+/* Estado vazio */
+.sponsor-screen__empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    padding: 2rem;
+    z-index: 10;
+}
+
+/* Rodapé */
+.sponsor-screen__footer {
+    position: absolute;
+    bottom: 0;
+    inset-x: 0;
+    z-index: 20;
+    padding: 0 2.5rem 0;
+    background: linear-gradient(to top, rgba(2, 6, 23, 0.9) 0%, transparent 100%);
+    padding-top: 3rem;
+}
+
+.footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.75rem;
+}
+
+.footer-sponsor {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.footer-logo {
+    height: 2.25rem;
+    width: auto;
+    max-width: 6rem;
+    object-fit: contain;
+    background: white;
+    border-radius: 0.375rem;
+    padding: 0.2rem 0.4rem;
+    flex-shrink: 0;
+}
+
+.footer-name {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.footer-counter {
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(255, 255, 255, 0.45);
+    flex-shrink: 0;
+}
+
+.footer-progress-track {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+.footer-progress-bar {
+    height: 100%;
+    background: #34d399;
+    animation: progress 6s linear both;
     transform-origin: left;
 }
 
-.sponsor-fade-enter-active,
-.sponsor-fade-leave-active {
-    transition: opacity 450ms ease, transform 450ms ease;
+/* Transições */
+.img-fade-enter-active,
+.img-fade-leave-active {
+    transition: opacity 500ms ease, transform 500ms ease;
 }
 
-.sponsor-fade-enter-from,
-.sponsor-fade-leave-to {
+.img-fade-enter-from,
+.img-fade-leave-to {
     opacity: 0;
-    transform: translateY(12px);
-}
-
-@keyframes tile-in {
-    from {
-        opacity: 0;
-        transform: scale(0.96);
-    }
-
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+    transform: scale(1.03);
 }
 
 @keyframes progress {
-    from {
-        transform: scaleX(0);
-    }
-
-    to {
-        transform: scaleX(1);
-    }
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
 }
 </style>

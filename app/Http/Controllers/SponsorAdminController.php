@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sponsor;
+use App\Models\SponsorImage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -17,7 +18,7 @@ class SponsorAdminController extends Controller
     {
         return Inertia::render('Patrocinadores/Index', [
             'patrocinadores' => Schema::hasTable('sponsors')
-                ? Sponsor::orderBy('ordem')->orderBy('empresa')->get()
+                ? Sponsor::with('images')->orderBy('ordem')->orderBy('empresa')->get()
                 : [],
         ]);
     }
@@ -52,6 +53,10 @@ class SponsorAdminController extends Controller
 
     public function destroy(Sponsor $patrocinadore): RedirectResponse
     {
+        foreach ($patrocinadore->images as $imagem) {
+            $this->apagarLogo($imagem->path);
+        }
+        $patrocinadore->images()->delete();
         $this->apagarLogo($patrocinadore->logotipo);
         $patrocinadore->delete();
 

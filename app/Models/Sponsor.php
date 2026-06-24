@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Sponsor extends Model
 {
@@ -25,6 +26,11 @@ class Sponsor extends Model
     protected $appends = [
         'logo_url',
     ];
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(SponsorImage::class)->orderBy('ordem');
+    }
 
     public function getLogoUrlAttribute(): string
     {

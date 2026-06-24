@@ -22,9 +22,10 @@ class SponsorScreenController extends Controller
         try {
             return Sponsor::where('ativo', true)
                 ->where('mostrar_no_slider', true)
+                ->with('images')
                 ->orderBy('ordem')
                 ->orderBy('empresa')
-                ->get(['id', 'empresa', 'logotipo', 'website', 'ordem']);
+                ->get(['id', 'empresa', 'logotipo', 'ordem']);
         } catch (Throwable) {
             return collect();
         }

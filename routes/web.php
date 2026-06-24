@@ -27,6 +27,7 @@ use App\Http\Controllers\RelatorioController;
 use App\Http\Controllers\SecaoController;
 use App\Http\Controllers\SitePageController;
 use App\Http\Controllers\SponsorAdminController;
+use App\Http\Controllers\SponsorImageController;
 use App\Http\Controllers\SponsorScreenController;
 use App\Http\Controllers\SponsorshipController;
 use App\Http\Controllers\SocioController;
@@ -128,6 +129,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('patrocinadores', SponsorAdminController::class)
         ->parameters(['patrocinadores' => 'patrocinadore'])
         ->except(['create', 'edit', 'show']);
+    Route::post('patrocinadores/{patrocinadore}/imagens', [SponsorImageController::class, 'store'])->name('patrocinadores.imagens.store');
+    Route::delete('patrocinadores/imagens/{imagem}', [SponsorImageController::class, 'destroy'])->name('patrocinadores.imagens.destroy');
     Route::get('manutencao/limpeza', [MaintenanceController::class, 'cleanup'])->name('manutencao.limpeza.index');
     Route::delete('manutencao/limpeza', [MaintenanceController::class, 'destroyCleanup'])->name('manutencao.limpeza.destroy');
     Route::get('manutencao/logs', [MaintenanceController::class, 'logs'])->name('manutencao.logs.index');
