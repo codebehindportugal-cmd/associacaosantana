@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             MesaSeeder::class,
             SocioSeeder::class,
             EventoSeeder::class,
+            SponsorSeeder::class,
         ]);
     }
 }

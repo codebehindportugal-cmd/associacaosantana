@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 120">
+  <rect width="300" height="120" rx="8" fill="#3b1f4f"/>
+  <polygon points="60,25 90,80 30,80" fill="#7c3aed"/>
+  <text x="185" y="52" font-family="Arial,sans-serif" font-size="22" font-weight="bold" fill="#e2e8f0" text-anchor="middle">Patrocinador</text>
+  <text x="185" y="78" font-family="Arial,sans-serif" font-size="18" fill="#94a3b8" text-anchor="middle">Exemplo C</text>
+</svg>
