@@ -14,7 +14,7 @@ class ReservaController extends Controller
     {
         $this->middleware('permission:reservas.ver')->only(['index', 'show']);
         $this->middleware('permission:reservas.criar')->only(['create', 'store']);
-        $this->middleware('permission:reservas.editar')->only(['edit', 'update', 'sentar']);
+        $this->middleware('permission:reservas.editar')->only(['edit', 'update', 'sentar', 'chamar']);
         $this->middleware('permission:reservas.apagar')->only('destroy');
     }
 
@@ -24,7 +24,7 @@ class ReservaController extends Controller
 
         return Inertia::render('Reservas/Index', [
             'reservas' => Reserva::query()
-                ->where('estado', 'confirmada')
+                ->whereIn('estado', ['confirmada', 'sentada'])
                 ->orderByRaw('CASE WHEN data >= ? THEN 0 ELSE 1 END', [$hoje])
                 ->orderBy('data')
                 ->orderBy('hora')
@@ -70,9 +70,19 @@ class ReservaController extends Controller
 
     public function sentar(Reserva $reserva): RedirectResponse
     {
-        $reserva->update(['estado' => 'sentada']);
+        $reserva->update([
+            'estado' => 'sentada',
+            'sentada_em' => $reserva->sentada_em ?? now(),
+        ]);
 
         return back()->with('success', 'Reserva marcada como sentada.');
+    }
+
+    public function chamar(Reserva $reserva): RedirectResponse
+    {
+        $reserva->update(['chamada_em' => now()]);
+
+        return back()->with('success', 'Reserva marcada como chamada.');
     }
 
     private function validated(Request $request): array

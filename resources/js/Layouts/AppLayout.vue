@@ -15,6 +15,7 @@ const links = [
     ['Pedidos', 'pedidos.index', 'pedidos.ver', 'Pedidos'],
     ['Caixas', 'caixa.index', 'caixa.ver', 'Caixas'],
     ['Produtos', 'produtos.index', 'produtos.ver', 'Produtos'],
+    ['Faturas/Stock', 'faturas-compras.index', 'produtos.ver', 'Stock'],
     ['Impressoras', 'impressoras.index', null, 'Impressoras'],
     ['Reservas', 'reservas.index', 'reservas.ver', 'Reservas'],
     ['Eventos', 'eventos.index', null, 'Eventos'],
@@ -68,6 +69,7 @@ onBeforeUnmount(() => clearInterval(polling));
                     <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.comida')" target="_blank">Comida</a>
                     <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.sobremesas')" target="_blank">Sobremesas</a>
                     <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.bar')" target="_blank">Bar</a>
+                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('pos.reservas.index')" target="_blank">Reservas POS</a>
                 </div>
             </div>
         </aside>

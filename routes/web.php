@@ -7,6 +7,7 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventoController;
+use App\Http\Controllers\FaturaCompraController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ImpressoraController;
 use App\Http\Controllers\LegalController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\PagesController;
 use App\Http\Controllers\PosBarController;
 use App\Http\Controllers\PosCotasController;
 use App\Http\Controllers\PosLoginController;
+use App\Http\Controllers\PosReservasController;
 use App\Http\Controllers\PosRestController;
 use App\Http\Controllers\PrecarioController;
 use App\Http\Controllers\ProdutoController;
@@ -76,6 +78,15 @@ Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(func
     Route::get('/historico', [PosRestController::class, 'historico'])->name('historico');
 });
 
+Route::middleware('pos.auth')->prefix('pos-reservas')->name('pos.reservas.')->group(function () {
+    Route::get('/', [PosReservasController::class, 'index'])->name('index');
+    Route::post('/', [PosReservasController::class, 'store'])->name('store');
+    Route::patch('/{reserva}', [PosReservasController::class, 'update'])->name('update');
+    Route::patch('/{reserva}/chamar', [PosReservasController::class, 'chamar'])->name('chamar');
+    Route::patch('/{reserva}/sentar', [PosReservasController::class, 'sentar'])->name('sentar');
+    Route::patch('/{reserva}/cancelar', [PosReservasController::class, 'cancelar'])->name('cancelar');
+});
+
 Route::middleware('pos.auth')->prefix('pos-cotas')->name('pos.cotas.')->group(function () {
     Route::get('/', [PosCotasController::class, 'index'])->name('index');
     Route::get('/socio/pesquisa', [PosCotasController::class, 'pesquisa'])->name('socio.pesquisa');
@@ -121,6 +132,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('mesas/{mesa}/libertar', [MesaController::class, 'libertar'])->name('mesas.libertar');
     Route::resource('mesas', MesaController::class);
     Route::patch('reservas/{reserva}/sentar', [ReservaController::class, 'sentar'])->name('reservas.sentar');
+    Route::patch('reservas/{reserva}/chamar', [ReservaController::class, 'chamar'])->name('reservas.chamar');
     Route::resource('reservas', ReservaController::class);
     Route::resource('eventos', EventoController::class)->except(['create']);
     Route::post('eventos/{evento}/media', [EventoController::class, 'storeMedia'])->name('eventos.media.store');
@@ -154,6 +166,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('pedidos/{pedido}/estado', [PedidoController::class, 'atualizarEstado'])->name('pedidos.estado');
     Route::resource('pedido-items', PedidoItemController::class)->parameters(['pedido-items' => 'pedidoItem'])->except(['index', 'create', 'show', 'edit']);
     Route::resource('produtos', ProdutoController::class)->except(['create', 'show', 'edit']);
+    Route::get('faturas-compras', [FaturaCompraController::class, 'index'])->name('faturas-compras.index');
+    Route::post('faturas-compras', [FaturaCompraController::class, 'store'])->name('faturas-compras.store');
     Route::resource('impressoras', ImpressoraController::class)->except(['create', 'show', 'edit']);
     Route::resource('users', UserController::class)->except(['create', 'show']);
     Route::post('users/pos', [UserController::class, 'storePos'])->name('users.pos.store');

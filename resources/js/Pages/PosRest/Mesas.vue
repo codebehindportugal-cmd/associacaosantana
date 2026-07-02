@@ -74,9 +74,9 @@ onBeforeUnmount(() => clearInterval(refresh));
         </div>
         <section v-for="(lista, local) in grupos" :key="local" class="mb-7">
             <h2 class="mb-3 text-xl font-black uppercase text-gray-300">{{ local }}</h2>
-            <div class="grid grid-cols-3 gap-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
                 <Link v-for="mesa in lista" :key="mesa.id" :href="route('pos.rest.mesa', mesa.id)" class="flex min-h-[116px] flex-col items-center justify-center rounded-lg p-3 text-center font-black shadow" :class="cor(mesa)">
-                    <span class="text-3xl">{{ mesa.numero }}</span>
+                    <span class="text-2xl sm:text-3xl">{{ mesa.numero }}</span>
                     <span class="text-xs">Cap. {{ mesa.capacidade }}</span>
                     <span class="mt-1 rounded bg-black/15 px-2 py-0.5 text-xs">{{ textoLugaresLivres(mesa) }}</span>
                     <span v-if="mesa.submesas?.length" class="mt-1 text-xs">{{ mesa.submesas.length }} submesas</span>

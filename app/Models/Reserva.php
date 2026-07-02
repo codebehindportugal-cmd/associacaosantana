@@ -17,7 +17,14 @@ class Reserva extends Model
         'hora',
         'pessoas',
         'estado',
+        'chamada_em',
+        'sentada_em',
         'observacoes',
+    ];
+
+    protected $casts = [
+        'chamada_em' => 'datetime',
+        'sentada_em' => 'datetime',
     ];
 
     public function mesa()

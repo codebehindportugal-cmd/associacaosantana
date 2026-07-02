@@ -35,6 +35,21 @@ const formatarDia = (data) => new Date(`${data}T00:00:00`).toLocaleDateString('p
     month: '2-digit',
 });
 
+const formatarHoraData = (data) => {
+    if (!data) {
+        return 'Nao';
+    }
+
+    return new Date(data).toLocaleTimeString('pt-PT', {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+const marcarChamada = (reserva) => {
+    router.patch(route('reservas.chamar', reserva.id), {}, { preserveScroll: true });
+};
+
 const marcarSentada = (reserva) => {
     if (!confirm(`Marcar ${reserva.nome} como sentada?`)) {
         return;
@@ -64,14 +79,15 @@ const marcarSentada = (reserva) => {
             </div>
         </form>
 
-        <div class="overflow-hidden rounded-lg bg-white shadow-sm">
-            <table class="w-full text-left text-sm">
+        <div class="overflow-x-auto rounded-lg bg-white shadow-sm">
+            <table class="w-full min-w-[860px] text-left text-sm">
                 <thead class="bg-slate-50">
                     <tr>
                         <th class="p-3">Hora</th>
                         <th>Dia</th>
                         <th>Nome</th>
                         <th>Pessoas</th>
+                        <th>Chamada</th>
                         <th>Estado</th>
                         <th></th>
                     </tr>
@@ -82,15 +98,45 @@ const marcarSentada = (reserva) => {
                         <td class="font-semibold">{{ formatarDia(reserva.data) }}</td>
                         <td>{{ reserva.nome }}</td>
                         <td>{{ reserva.pessoas }}</td>
-                        <td>{{ reserva.estado }}</td>
+                        <td>
+                            <span
+                                class="inline-flex min-w-16 justify-center rounded-full px-3 py-1 text-xs font-bold"
+                                :class="reserva.chamada_em ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'"
+                            >
+                                {{ formatarHoraData(reserva.chamada_em) }}
+                            </span>
+                        </td>
+                        <td>
+                            <span
+                                class="inline-flex min-w-20 justify-center rounded-full px-3 py-1 text-xs font-bold capitalize"
+                                :class="reserva.estado === 'sentada' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'"
+                            >
+                                {{ reserva.estado }}
+                            </span>
+                        </td>
                         <td class="pr-3 text-right">
-                            <button type="button" class="rounded-md border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50" @click="marcarSentada(reserva)">
-                                Sentada
-                            </button>
+                            <div class="flex justify-end gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded-md border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                                    :disabled="reserva.estado === 'sentada'"
+                                    @click="marcarChamada(reserva)"
+                                >
+                                    Chamada
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-md border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+                                    :disabled="reserva.estado === 'sentada'"
+                                    @click="marcarSentada(reserva)"
+                                >
+                                    Sentada
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     <tr v-if="!reservas.data.length">
-                        <td colspan="6" class="p-8 text-center text-slate-500">Ainda não há reservas.</td>
+                        <td colspan="7" class="p-8 text-center text-slate-500">Ainda nao ha reservas.</td>
                     </tr>
                 </tbody>
             </table>

@@ -314,11 +314,15 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1023px) {
     .pos-layout {
-        grid-template-rows: minmax(0, 1fr) minmax(16rem, 38vh);
+        grid-template-rows: minmax(0, 1fr) minmax(22rem, 50vh);
     }
 
     .pos-cart {
         min-height: 0;
+    }
+
+    .pos-sales-panel {
+        display: none;
     }
 }
 </style>

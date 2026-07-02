@@ -62,6 +62,7 @@ class ProdutoController extends Controller
             'categoria_id' => ['required', 'exists:categorias,id'],
             'nome' => ['required', 'string', 'max:255'],
             'preco' => ['required', 'numeric', 'min:0'],
+            'stock_atual' => ['nullable', 'numeric', 'min:0'],
             'disponivel' => ['boolean'],
             'disponivel_restaurante' => ['boolean'],
             'disponivel_bar' => ['boolean'],

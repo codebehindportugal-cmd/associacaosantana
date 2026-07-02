@@ -64,9 +64,9 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
 <template>
     <main class="min-h-screen bg-gray-900 p-5 text-white">
         <header class="mb-6 flex items-center justify-between gap-3">
-            <div><h1 class="text-3xl font-black">POS RESTAURANTE</h1><p class="font-bold text-gray-300">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p></div>
+            <div><h1 class="text-xl font-black sm:text-3xl">POS RESTAURANTE</h1><p class="font-bold text-gray-300">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p></div>
             <div class="flex gap-2">
-                <button class="rounded-lg bg-red-600 px-5 py-3 font-black" @click="logout">LOGOUT</button>
+                <button class="rounded-lg bg-red-600 px-4 py-2 font-black sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
             </div>
         </header>
         
@@ -78,8 +78,9 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
         </section>
 
         <!-- MODO LISTA ALTERNATIVO -->
-        <div class="mt-6">
-            <Link :href="route('pos.rest.mesas')" class="block rounded-lg bg-emerald-600 p-8 text-center text-3xl font-black">📋 VER MESAS EM LISTA</Link>
+        <div class="mt-6 grid gap-3 md:grid-cols-2">
+            <Link :href="route('pos.rest.mesas')" class="block rounded-lg bg-emerald-600 p-8 text-center text-3xl font-black">VER MESAS EM LISTA</Link>
+            <Link :href="route('pos.reservas.index')" class="block rounded-lg bg-blue-600 p-8 text-center text-3xl font-black">POS RESERVAS</Link>
         </div>
     </main>
 </template>

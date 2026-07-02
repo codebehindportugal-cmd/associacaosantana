@@ -13,6 +13,7 @@ class Produto extends Model
         'categoria_id',
         'nome',
         'preco',
+        'stock_atual',
         'disponivel',
         'disponivel_restaurante',
         'disponivel_bar',
@@ -23,11 +24,17 @@ class Produto extends Model
         'disponivel_restaurante' => 'boolean',
         'disponivel_bar' => 'boolean',
         'preco' => 'decimal:2',
+        'stock_atual' => 'decimal:3',
     ];
 
     public function categoria()
     {
         return $this->belongsTo(Categoria::class);
+    }
+
+    public function faturaCompraItems()
+    {
+        return $this->hasMany(FaturaCompraItem::class);
     }
 
     public function scopeDisponiveis($query)

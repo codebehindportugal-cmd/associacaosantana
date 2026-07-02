@@ -392,7 +392,7 @@ onBeforeUnmount(() => {
         <div v-if="pagamentoAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
             <div class="mx-auto max-w-xl">
                 <h2 class="mb-4 text-center text-4xl font-black text-emerald-400">{{ euros(total) }}</h2>
-                <div class="mb-4 grid grid-cols-3 gap-3"><button v-for="m in ['dinheiro','mbway','multibanco']" :key="m" class="rounded-lg p-4 font-black uppercase" :class="metodo === m ? 'bg-emerald-600' : 'bg-gray-800'" @click="metodo = m">{{ m }}</button></div>
+                <div class="mb-4 grid grid-cols-3 gap-3"><button v-for="m in ['dinheiro','mbway','multibanco']" :key="m" class="rounded-lg p-3 text-sm font-black uppercase leading-tight sm:p-4 sm:text-base" :class="metodo === m ? 'bg-emerald-600' : 'bg-gray-800'" @click="metodo = m">{{ m }}</button></div>
                 <input v-model="recebido" class="mb-3 w-full rounded-lg border-gray-700 bg-gray-800 p-4 text-center text-3xl font-black text-white" placeholder="Recebido">
                 <div class="grid grid-cols-3 gap-2">
                     <button v-for="n in ['1','2','3','4','5','6','7','8','9','.','0','del']" :key="n" class="rounded-lg bg-gray-800 p-5 text-2xl font-black" @click="tecla(n)">{{ n === 'del' ? '←' : n }}</button>
