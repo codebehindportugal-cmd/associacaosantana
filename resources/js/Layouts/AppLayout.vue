@@ -19,8 +19,8 @@ const grupos = [
     { label: 'Produtos',          items: [['Produtos','produtos.index','produtos.ver'],['Faturas/Stock','faturas-compras.index','produtos.ver']] },
     { label: 'Eventos & Reservas',items: [['Reservas','reservas.index','reservas.ver'],['Eventos','eventos.index',null]] },
     { label: 'Site',              items: [['Páginas','paginas.index',null],['Patrocinadores','patrocinadores.index',null]] },
-    { label: 'Sócios',            items: [['Sócios','socios.index','socios.ver'],['Cotas','cotas.index','cotas.ver']] },
-    { label: 'Relatórios',        items: [['Relatórios','relatorios.index','relatorios.ver']] },
+    { label: 'Sócios',      items: [['Sócios','socios.index','socios.ver'],['Cotas','cotas.index','cotas.ver']] },
+    { label: 'Relatórios',  items: [['Relatórios','relatorios.index','relatorios.ver'],['Contas da Festa','contas-festa.index','relatorios.ver'],['Valores Extras','valor-extras.index',null]] },
     { label: 'Sistema',           items: [['Limpeza','manutencao.limpeza.index',null],['Logs','manutencao.logs.index',null],['Utilizadores','users.index','users.ver']] },
 ];
 
@@ -62,18 +62,6 @@ onBeforeUnmount(() => clearInterval(polling));
                     </Link>
                 </div>
             </nav>
-            <div v-if="podeGerir()" class="shrink-0 border-t border-amber-200 p-4">
-                <div class="mb-2 text-[10px] font-semibold uppercase tracking-widest text-stone-400">Ecrãs de secção</div>
-                <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs xl:text-sm">
-                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.bebidas')"         target="_blank">Bebidas</a>
-                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.frango')"          target="_blank">Frango</a>
-                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.acompanhamentos')" target="_blank">Acompanhamentos</a>
-                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.comida')"          target="_blank">Comida</a>
-                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.sobremesas')"      target="_blank">Sobremesas</a>
-                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('secao.bar')"             target="_blank">Bar</a>
-                    <a class="truncate text-amber-700 hover:text-amber-900 transition" :href="route('pos.reservas.index')"    target="_blank">Reservas POS</a>
-                </div>
-            </div>
         </aside>
 
         <!-- Drawer mobile overlay -->
