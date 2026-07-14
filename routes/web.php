@@ -3,6 +3,7 @@
 use App\Http\Controllers\BarController;
 use App\Http\Controllers\CaixaDiariaController;
 use App\Http\Controllers\ClientePedidoController;
+use App\Http\Controllers\FuncionarioPedidoController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
@@ -52,7 +53,11 @@ Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('e
 Route::get('/cliente/{token}', [ClientePedidoController::class, 'show'])->name('cliente.mesa');
 Route::post('/cliente/{token}/item', [ClientePedidoController::class, 'addItem'])->name('cliente.item');
 Route::post('/cliente/{token}/items', [ClientePedidoController::class, 'addItems'])->name('cliente.items');
+Route::get('/chamar/{token}', [ClientePedidoController::class, 'showChamar'])->name('cliente.chamar.show');
+Route::post('/cliente/{token}/chamar', [ClientePedidoController::class, 'chamarFuncionario'])->name('cliente.chamar');
 Route::get('/cliente/{token}/confirmacao', [ClientePedidoController::class, 'confirmacao'])->name('cliente.confirmacao');
+Route::get('/funcionario/{token}', [FuncionarioPedidoController::class, 'show'])->name('funcionario.mesa');
+Route::post('/funcionario/{token}/items', [FuncionarioPedidoController::class, 'addItems'])->name('funcionario.items');
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
 Route::post('/pos/login', [PosLoginController::class, 'store'])->name('pos.login.store');
@@ -75,8 +80,10 @@ Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(func
     Route::patch('/pedido/{pedido}/item/{item}/urgente', [PosRestController::class, 'toggleUrgente'])->name('pedido.item.urgente');
     Route::patch('/pedido/{pedido}/fechar', [PosRestController::class, 'fecharConta'])->name('pedido.fechar');
     Route::patch('/pedido/{pedido}/lugares', [PosRestController::class, 'atualizarLugares'])->name('pedido.lugares');
+    Route::patch('/pedido/{pedido}/observacoes', [PosRestController::class, 'atualizarObservacoes'])->name('pedido.observacoes');
     Route::get('/pedido/{pedido}/talao', [PosRestController::class, 'talao'])->name('pedido.talao');
     Route::patch('/pedido/{pedido}/estado', [PosRestController::class, 'atualizarEstado'])->name('pedido.estado');
+    Route::post('/mesa/{mesa}/extra', [PosRestController::class, 'pedidoExtra'])->name('pedido.extra');
     Route::get('/historico', [PosRestController::class, 'historico'])->name('historico');
 });
 
@@ -178,6 +185,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('contas-festa/{contasFesta}', [FestaContaController::class, 'update'])->name('contas-festa.update');
     Route::delete('contas-festa/{contasFesta}', [FestaContaController::class, 'destroy'])->name('contas-festa.destroy');
     Route::get('impressoras/download-agente', [ImpressoraController::class, 'downloadAgente'])->name('impressoras.download-agente');
+    Route::post('impressoras/retentar-falhados', [ImpressoraController::class, 'retentarFalhados'])->name('impressoras.retentar-falhados');
+    Route::get('impressoras/status-jobs', [ImpressoraController::class, 'statusJobs'])->name('impressoras.status-jobs');
     Route::get('impressoras', [ImpressoraController::class, 'index'])->name('impressoras.index');
     Route::post('impressoras', [ImpressoraController::class, 'store'])->name('impressoras.store');
     Route::patch('impressoras/{impressora}', [ImpressoraController::class, 'update'])->name('impressoras.update');
