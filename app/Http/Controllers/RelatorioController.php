@@ -73,12 +73,12 @@ class RelatorioController extends Controller
                 'total_pedidos' => $pedidos->count(),
                 'media_diaria' => $total / $dias,
                 'total_doacoes' => (float) $pedidos->sum('doacao'),
-                'receitas_festa' => (float) FestaMovimento::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])->where('tipo', 'receita')->sum('valor'),
-                'custos_festa' => (float) FestaMovimento::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])->where('tipo', 'custo')->sum('valor'),
+                'receitas_festa' => (float) FestaMovimento::where(fn ($q) => $q->whereNull('data')->orWhereBetween('data', [$inicio->toDateString(), $fim->toDateString()]))->where('tipo', 'receita')->sum('valor'),
+                'custos_festa' => (float) FestaMovimento::where(fn ($q) => $q->whereNull('data')->orWhereBetween('data', [$inicio->toDateString(), $fim->toDateString()]))->where('tipo', 'custo')->sum('valor'),
                 'custos_stock' => (float) FaturaCompra::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])->sum('total'),
                 'lucro_liquido' => $total
-                    + (float) FestaMovimento::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])->where('tipo', 'receita')->sum('valor')
-                    - (float) FestaMovimento::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])->where('tipo', 'custo')->sum('valor')
+                    + (float) FestaMovimento::where(fn ($q) => $q->whereNull('data')->orWhereBetween('data', [$inicio->toDateString(), $fim->toDateString()]))->where('tipo', 'receita')->sum('valor')
+                    - (float) FestaMovimento::where(fn ($q) => $q->whereNull('data')->orWhereBetween('data', [$inicio->toDateString(), $fim->toDateString()]))->where('tipo', 'custo')->sum('valor')
                     - (float) FaturaCompra::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])->sum('total'),
             ],
             'vendas_por_dia' => $pedidos->groupBy(fn ($p) => $p->created_at->subHours(12)->toDateString())->map(fn ($g, $d) => ['data' => $d, 'total' => (float) $g->sum('total')])->values(),
@@ -300,7 +300,7 @@ class RelatorioController extends Controller
             ['label' => 'Doações', 'valor' => (float) $pedidos->sum('doacao')],
         ];
 
-        $manuais = FestaMovimento::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+        $manuais = FestaMovimento::where(fn ($q) => $q->whereNull('data')->orWhereBetween('data', [$inicio->toDateString(), $fim->toDateString()]))
             ->where('tipo', 'receita')
             ->get()
             ->groupBy('categoria')
@@ -323,7 +323,7 @@ class RelatorioController extends Controller
             ['label' => 'Compras de stock', 'valor' => (float) FaturaCompra::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])->sum('total')],
         ];
 
-        $manuais = FestaMovimento::whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+        $manuais = FestaMovimento::where(fn ($q) => $q->whereNull('data')->orWhereBetween('data', [$inicio->toDateString(), $fim->toDateString()]))
             ->where('tipo', 'custo')
             ->get()
             ->groupBy('categoria')

@@ -83,12 +83,12 @@ const guardarEdicao = (movimento) => {
 };
 
 const apagar = (movimento) => {
-    if (confirm(`Apagar "${movimento.descricao}"?`)) {
+    if (confirm('Apagar "' + movimento.descricao + '"?')) {
         router.delete(route('contas-festa.destroy', movimento.id), { preserveScroll: true });
     }
 };
 
-const dataCurta = (data) => data ? new Date(`${String(data).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-PT') : '-';
+const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-PT') : '-';
 </script>
 
 <template>
@@ -123,7 +123,7 @@ const dataCurta = (data) => data ? new Date(`${String(data).slice(0, 10)}T00:00:
         <div class="mb-6 grid gap-6 xl:grid-cols-2">
             <section class="rounded-lg bg-white p-5 shadow-sm">
                 <h2 class="mb-4 text-lg font-black">Compras e aquisicoes</h2>
-                <div v-for="linha in custos" :key="`${linha.origem}-${linha.categoria}`" class="flex justify-between border-t border-slate-100 py-3">
+                <div v-for="linha in custos" :key="linha.categoria + '-' + linha.origem" class="flex justify-between border-t border-slate-100 py-3">
                     <span class="font-bold">{{ linha.label }}</span>
                     <strong class="text-red-700">{{ euros(linha.valor) }}</strong>
                 </div>
@@ -131,7 +131,7 @@ const dataCurta = (data) => data ? new Date(`${String(data).slice(0, 10)}T00:00:
 
             <section class="rounded-lg bg-white p-5 shadow-sm">
                 <h2 class="mb-4 text-lg font-black">Vendas e receitas</h2>
-                <div v-for="linha in receitas" :key="`${linha.origem}-${linha.categoria}`" class="flex justify-between border-t border-slate-100 py-3">
+                <div v-for="linha in receitas" :key="linha.categoria + '-' + linha.origem" class="flex justify-between border-t border-slate-100 py-3">
                     <span class="font-bold">{{ linha.label }}</span>
                     <strong class="text-emerald-700">{{ euros(linha.valor) }}</strong>
                 </div>
@@ -153,9 +153,12 @@ const dataCurta = (data) => data ? new Date(`${String(data).slice(0, 10)}T00:00:
                 <input v-model="form.descricao" required class="rounded-md border-slate-300 text-sm" placeholder="Ex.: Banda X, luz, seguro, patrocinador">
                 <input v-model="form.data" type="date" class="rounded-md border-slate-300 text-sm">
                 <input v-model="form.valor" required type="number" min="0" step="0.01" class="rounded-md border-slate-300 text-sm" placeholder="Valor">
-                <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" :disabled="form.processing">Adicionar</button>
+                <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" :disabled="form.processing">{{ form.processing ? 'A guardar...' : 'Adicionar' }}</button>
             </form>
             <textarea v-model="form.observacoes" class="mt-3 w-full rounded-md border-slate-300 text-sm" rows="2" placeholder="Observacoes"></textarea>
+            <div v-if="Object.keys(form.errors).length" class="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div v-for="(erro, campo) in form.errors" :key="campo"><strong>{{ campo }}:</strong> {{ erro }}</div>
+            </div>
         </section>
 
         <section class="rounded-lg bg-white p-5 shadow-sm">
