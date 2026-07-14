@@ -1,12 +1,19 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
     public function up(): void
     {
+        // valor_extras só existe localmente; no servidor de produção não há dados para migrar
+        if (!Schema::hasTable('valor_extras')) {
+            return;
+        }
+
         $extras = DB::table('valor_extras')->get();
 
         foreach ($extras as $v) {
