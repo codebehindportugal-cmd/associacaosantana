@@ -38,7 +38,8 @@ class RoleSeeder extends Seeder
             'pedidos_restaurante' => ['restaurante.ver', 'mesas.ver', 'pedidos.ver', 'pedidos.criar', 'pedidos.editar', 'pedidos.gerir-estado', 'produtos.ver'],
             'staff_bar' => ['bar.ver', 'bar.vender'],
             'staff_cozinha' => ['pedidos.ver', 'pedidos.editar', 'pedidos.gerir-estado'],
-            'tesoureiro' => ['dashboard.ver', 'socios.ver', 'socios.criar', 'socios.editar', 'cotas.ver', 'cotas.criar', 'cotas.editar', 'cotas.gerar', 'cotas.exportar'],
+            'tesoureiro'       => ['dashboard.ver', 'socios.ver', 'socios.criar', 'socios.editar', 'cotas.ver', 'cotas.criar', 'cotas.editar', 'cotas.gerar', 'cotas.exportar'],
+            'comissao_festas'  => ['dashboard.ver'],
         ];
 
         foreach ($roles as $name => $rolePermissions) {

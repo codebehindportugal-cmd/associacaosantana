@@ -1,6 +1,7 @@
 <script setup>
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 
 const props = defineProps({
     posNome: String,
@@ -47,13 +48,25 @@ const secaoClasse = (produto) => ({
     sobremesas: 'bg-purple-600',
 }[produto.categoria?.secao] || 'bg-gray-700');
 
+// Estilo com imagem de fundo quando disponível
+const btnStyle = (produto) => {
+    if (!produto.imagem) return {};
+    return {
+        backgroundImage: 'linear-gradient(rgba(0,0,0,0.42),rgba(0,0,0,0.58)),url(/storage/' + produto.imagem + ')',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+    };
+};
+
 const total = computed(() => carrinho.value.reduce((soma, item) => soma + Number(item.preco) * item.quantidade, 0));
+const cartQty = computed(() => Object.fromEntries(carrinho.value.map((i) => [i.produto_id, i.quantidade])));
 const troco = computed(() => Math.max(0, Number(recebido.value || 0) - total.value));
 const trocoRegistado = computed(() => trocoEntregue.value === '' ? troco.value : Number(trocoEntregue.value || 0));
 const doacao = computed(() => Math.max(0, troco.value - trocoRegistado.value));
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
 const hora = (data) => new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const logout = () => router.post(route('pos.logout'));
+const chamandoComissao = ref(false);
 
 const adicionar = (produto) => {
     const item = carrinho.value.find((linha) => linha.produto_id === produto.id);
@@ -91,7 +104,10 @@ onBeforeUnmount(() => {
                     <h1 class="pos-title text-2xl font-black sm:text-3xl">POS {{ pontoBar }}</h1>
                     <p class="pos-subtitle font-bold text-gray-300">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p>
                 </div>
-                <button class="pos-logout rounded-lg bg-red-600 px-4 py-2 font-black sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
+                <div class="flex gap-2">
+                    <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
+                    <button class="pos-logout rounded-lg bg-red-600 px-4 py-2 font-black sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
+                </div>
             </header>
 
             <div v-if="!caixaAberta" class="pos-alert mb-3 shrink-0 rounded-lg bg-red-700 p-3 text-center text-lg font-black sm:p-4">
@@ -117,10 +133,19 @@ onBeforeUnmount(() => {
                         <div v-if="produtosVisiveis.length === 0" class="flex flex-1 items-center justify-center text-gray-400 font-bold">
                             Sem produtos nesta secção.
                         </div>
-                        <div v-else class="pos-product-grid grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pr-1 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                            <button v-for="produto in produtosVisiveis" :key="produto.id" class="pos-product-btn min-h-20 rounded-lg p-3 text-left font-black disabled:opacity-50 sm:min-h-24" :class="secaoClasse(produto)" :disabled="!caixaAberta" @click="adicionar(produto)">
-                                <span class="pos-product-name block text-lg">{{ produto.nome }}</span>
-                                <span class="pos-product-price mt-1 block text-xl sm:text-2xl">{{ euros(produto.preco) }}</span>
+                        <div v-else class="pos-product-grid grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto pr-1 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                            <button
+                                v-for="produto in produtosVisiveis"
+                                :key="produto.id"
+                                class="pos-product-btn min-h-20 rounded-lg p-3 text-left font-black disabled:opacity-50 sm:min-h-24 relative overflow-hidden"
+                                :class="produto.imagem ? 'bg-gray-900' : secaoClasse(produto)"
+                                :style="btnStyle(produto)"
+                                :disabled="!caixaAberta"
+                                @click="adicionar(produto)"
+                            >
+                                <span v-if="cartQty[produto.id]" class="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-gray-900 z-10">{{ cartQty[produto.id] }}</span>
+                                <span class="pos-product-name block text-lg relative z-10">{{ produto.nome }}</span>
+                                <span class="pos-product-price mt-1 block text-xl sm:text-2xl relative z-10">{{ euros(produto.preco) }}</span>
                             </button>
                         </div>
                     </section>
@@ -171,6 +196,12 @@ onBeforeUnmount(() => {
                 </aside>
             </div>
         </div>
+
+        <ChamarComissaoModal
+            v-if="chamandoComissao"
+            :operador-nome="posNome"
+            @fechar="chamandoComissao = false"
+        />
     </main>
 </template>
 
@@ -233,8 +264,8 @@ onBeforeUnmount(() => {
 }
 
 .pos-product-btn {
-    min-height: clamp(4.1rem, 10.5vh, 6rem);
-    padding: clamp(0.45rem, 1.2vh, 0.75rem);
+    min-height: clamp(3.5rem, 9vh, 6rem);
+    padding: clamp(0.35rem, 1vh, 0.75rem);
 }
 
 .pos-product-name {
@@ -320,8 +351,7 @@ onBeforeUnmount(() => {
 }
 
 .pos-pay {
-    margin-top: clamp(0.45rem, 1vh, 0.75rem);
-}
+    margin-top: clamp(0.45rem, 1vh, 0.75rem);}
 
 @media (max-height: 700px) {
     .pos-screen {
@@ -337,7 +367,7 @@ onBeforeUnmount(() => {
     }
 
     .pos-product-btn {
-        min-height: 3.8rem;
+        min-height: 3.2rem;
     }
 }
 
@@ -348,7 +378,7 @@ onBeforeUnmount(() => {
     }
 
     .pos-product-btn {
-        min-height: 3.4rem;
+        min-height: 2.8rem;
     }
 
     .pos-total-label {
@@ -358,7 +388,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1023px) {
     .pos-layout {
-        grid-template-rows: minmax(0, 1fr) minmax(22rem, 50vh);
+        grid-template-rows: minmax(0, 1fr) minmax(16rem, 38vh);
     }
 
     .pos-cart {
@@ -370,3 +400,4 @@ onBeforeUnmount(() => {
     }
 }
 </style>
+

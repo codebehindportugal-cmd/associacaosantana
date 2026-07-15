@@ -37,12 +37,25 @@ class HandleInertiaRequests extends Middleware
                 'roles' => fn () => $request->user()?->getRoleNames()->values() ?? [],
                 'permissions' => fn () => $request->user()?->getAllPermissions()->pluck('name')->values() ?? [],
             ],
-            'urgentes_count' => fn () => \App\Models\PedidoItem::urgentes()->count(),
+            'urgentes_count'      => fn () => \App\Models\PedidoItem::urgentes()->count(),
+            'chamadas_comissao'   => fn () => $request->user()
+                ? \App\Models\ChamadaComissao::pendentes()
+                    ->orderBy('created_at')
+                    ->get()
+                    ->map(fn ($c) => [
+                        'id'            => $c->id,
+                        'operador_nome' => $c->operador_nome,
+                        'local'         => $c->local,
+                        'criado_em'     => $c->created_at->diffForHumans(),
+                    ])
+                : [],
             'restaurante' => [
                 'mostrar_estado_items' => (bool) config('restaurante.mostrar_estado_items'),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
+                'avisoCliente' => fn () => $request->session()->get('avisoCliente'),
+                'avisoFuncionario' => fn () => $request->session()->get('avisoFuncionario'),
             ],
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),

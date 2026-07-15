@@ -94,6 +94,47 @@ class PrintJobService
         ]);
     }
 
+    /**
+     * Cria uma senha individual para 1 unidade de um produto (ex: frango).
+     * Usar quando o produto precisa de senha por unidade em vez de "2x Frango".
+     */
+    public function criarTalaoBarUnitario(Pedido $pedido, string $nomeProduto, string $secao = 'bar'): ?PrintJob
+    {
+        $impressora = $this->impressoraParaSecao($secao);
+
+        if (! $impressora) {
+            return null;
+        }
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $pedido::class,
+            'printable_id' => $pedido->id,
+            'tipo' => 'talao_bar',
+            'payload' => [
+                'titulo' => 'ARDC Santana',
+                'subtitulo' => 'SENHA',
+                'linhas' => [
+                    'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
+                    'Hora: '.now()->format('H:i'),
+                    ...($pedido->numero_senha ? [[
+                        'texto' => 'SENHA #'.$pedido->numero_senha,
+                        'alinhamento' => 'centro',
+                        'tamanho' => 'grande',
+                    ]] : []),
+                    '------------------------------',
+                    [
+                        'texto' => '1x '.$nomeProduto,
+                        'alinhamento' => 'centro',
+                        'tamanho' => 'grande',
+                    ],
+                    '------------------------------',
+                ],
+                'cortar' => true,
+            ],
+        ]);
+    }
+
     private function impressoraParaSecao(?string $secao): ?Impressora
     {
         $query = Impressora::query()
@@ -104,6 +145,7 @@ class PrintJobService
             return $query->first();
         }
 
+        // 1. Correspondência exacta
         $impressora = (clone $query)
             ->where('secao', $secao)
             ->first();
@@ -112,22 +154,42 @@ class PrintJobService
             return $impressora;
         }
 
-        return (clone $query)
+        // 2. Secções equivalentes
+        $impressora = (clone $query)
             ->whereIn('secao', $this->secoesEquivalentes($secao))
             ->first();
+
+        if ($impressora) {
+            return $impressora;
+        }
+
+        // 3. Fallback final: bebidas/bar/café e contas nunca usam impressora genérica
+        // para evitar que bebidas do café imprimam na cozinha do restaurante
+        if (in_array($secao, ['contas', 'pos', 'caixa', 'cafe', 'bar', 'bebidas'])) {
+            return null;
+        }
+
+        // Para comida, frango, sobremesas, etc. usa a primeira impressora ativa
+        // para não perder pedidos de cozinha
+        return $query->first();
     }
 
     private function secoesEquivalentes(string $secao): array
     {
         return match ($secao) {
-            'bebidas' => ['bebidas', 'bar', 'cafe'],
-            'bar' => ['bar', 'bebidas', 'cafe'],
-            'cafe' => ['cafe', 'bar', 'bebidas'],
-            'comida' => ['comida', 'cozinha'],
-            'cozinha' => ['cozinha', 'comida'],
-            'contas' => ['contas', 'pos', 'caixa'],
-            'pos' => ['pos', 'contas', 'caixa'],
-            default => [$secao],
+            // Bebidas/bar/café nunca devem cair para a cozinha (restaurante)
+            'bebidas'        => ['bebidas', 'bar'],
+            'bar'            => ['bar', 'bebidas'],
+            'cafe'           => ['cafe', 'bar', 'bebidas'],
+            'comida'         => ['comida', 'cozinha', 'frango', 'acompanhamentos'],
+            'cozinha'        => ['cozinha', 'comida', 'frango', 'acompanhamentos'],
+            'frango'         => ['frango', 'cozinha', 'comida', 'acompanhamentos'],
+            'sobremesas'     => ['sobremesas', 'comida', 'cozinha', 'acompanhamentos'],
+            'acompanhamentos'=> ['acompanhamentos', 'comida', 'cozinha'],
+            'servico'        => ['servico', 'comida', 'cozinha', 'acompanhamentos'],
+            'contas'         => ['contas', 'pos', 'caixa'],
+            'pos'            => ['pos', 'contas', 'caixa'],
+            default          => [$secao],
         };
     }
 
@@ -145,6 +207,7 @@ class PrintJobService
                 'quantidade' => $item->quantidade,
                 'nome' => $item->produto?->nome ?? 'Produto',
                 'observacoes' => $item->observacoes,
+                'prioridade' => (bool) $item->prioridade,
                 ]);
 
         $items = $items->values();
@@ -156,7 +219,7 @@ class PrintJobService
             'Hora: '.now()->format('H:i'),
             '------------------------------',
             ...$items->map(fn ($item) => [
-                'texto' => $item['quantidade'].'x '.$item['nome'].($item['observacoes'] ? ' - '.$item['observacoes'] : ''),
+                'texto' => ($item['prioridade'] ?? false ? '*** A TERMINAR *** ' : '').$item['quantidade'].'x '.$item['nome'].($item['observacoes'] ? ' - '.$item['observacoes'] : ''),
                 'alinhamento' => 'centro',
                 'tamanho' => 'grande',
             ])->all(),
@@ -175,6 +238,38 @@ class PrintJobService
         }
 
         return [];
+    }
+
+    public function criarPedidoExtra(\App\Models\Mesa $mesa, string $descricao, string $secao = 'contas'): ?PrintJob
+    {
+        $impressora = $this->impressoraParaSecao($secao);
+
+        if (! $impressora) {
+            return null;
+        }
+
+        $mesaPrincipal = $mesa->mesaPrincipal ?: $mesa;
+        $submesa = $mesa->mesa_principal_id ? $mesa : null;
+        $mesaTexto = 'MESA '.$mesaPrincipal->numero.($submesa ? $this->letraSubmesa($submesa) : '');
+
+        return PrintJob::create([
+            'impressora_id'  => $impressora->id,
+            'printable_type' => \App\Models\Mesa::class,
+            'printable_id'   => $mesa->id,
+            'tipo'           => 'pedido_extra',
+            'payload'        => [
+                'titulo'   => 'ARDC Santana',
+                'subtitulo' => 'PEDIDO',
+                'linhas'   => [
+                    ['texto' => $mesaTexto, 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+                    '------------------------------',
+                    ['texto' => mb_strtoupper($descricao, 'UTF-8'), 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+                    '------------------------------',
+                    'Hora: '.now()->format('H:i'),
+                ],
+                'cortar'   => true,
+            ],
+        ]);
     }
 
     private function linhasConta(Pedido $pedido): array
@@ -205,6 +300,7 @@ class PrintJobService
             'Pagamento: '.($pedido->metodo_pagamento ?: 'dinheiro'),
             '',
             'Este documento nao serve de fatura',
+            ...($pedido->observacoes ? ['------------------------------', 'OBS: '.$pedido->observacoes] : []),
         ];
     }
 

@@ -1,5 +1,6 @@
 <script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
+import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const props = defineProps({ posNome: String, vendasHoje: [Number, String], mesasLivres: Number, mesasOcupadas: Number, mesas: Array, zonas: Array });
@@ -12,8 +13,9 @@ const zonaForm = useForm({ zonas: [] });
 
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';
 const logout = () => router.post(route('pos.logout'));
+const chamandoComissao = ref(false);
 
-const grupos = computed(() => Object.groupBy(props.mesas ?? [], (m) => m.localizacao || 'Sala'));
+const grupos = computed(() => (props.mesas ?? []).reduce((acc, m) => { const k = m.localizacao || 'Sala'; if (!acc[k]) acc[k] = []; acc[k].push(m); return acc; }, {}));
 const pedidosAtivos = (mesa) => [
     ...(mesa.pedidos ?? []),
     ...(mesa.pedidos_grupo ?? []),
@@ -66,20 +68,26 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
         <header class="mb-6 flex items-center justify-between gap-3">
             <div><h1 class="text-xl font-black sm:text-3xl">POS RESTAURANTE</h1><p class="font-bold text-gray-300">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p></div>
             <div class="flex gap-2">
+                <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
                 <button class="rounded-lg bg-red-600 px-4 py-2 font-black sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
             </div>
         </header>
         
         <!-- ESTATÍSTICAS -->
-        <section class="mb-6 grid gap-4 md:grid-cols-3">
+        <section class="mb-6 grid gap-4 md:grid-cols-2">
             <div class="rounded-lg bg-emerald-700 p-5"><div class="font-bold">Mesas Livres</div><div class="text-5xl font-black">{{ mesasLivres }}</div></div>
             <div class="rounded-lg bg-red-700 p-5"><div class="font-bold">Mesas Ocupadas</div><div class="text-5xl font-black">{{ mesasOcupadas }}</div></div>
-            <div class="rounded-lg bg-blue-700 p-5"><div class="font-bold">Vendas Hoje</div><div class="text-4xl font-black">{{ euros(vendasHoje) }}</div></div>
         </section>
 
         <!-- MODO LISTA ALTERNATIVO -->
         <div class="mt-6 grid gap-3">
             <Link :href="route('pos.rest.mesas')" class="block rounded-lg bg-emerald-600 p-8 text-center text-3xl font-black">VER MESAS EM LISTA</Link>
         </div>
+
+        <ChamarComissaoModal
+            v-if="chamandoComissao"
+            :operador-nome="posNome"
+            @fechar="chamandoComissao = false"
+        />
     </main>
 </template>

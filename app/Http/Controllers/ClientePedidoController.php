@@ -120,20 +120,21 @@ class ClientePedidoController extends Controller
 
         $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
 
+        $pedidoFresh = $pedido->fresh('mesa.mesaPrincipal', 'user', 'pos');
         $itemsParaImpressao
             ->groupBy('secao')
-            ->each(function ($items, string $secao) use ($pedido, $printJobs) {
-                foreach ($items as $item) {
-                    $printJobs->criarItemPedido(
-                        $pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'),
-                        [
-                            'quantidade' => $item['quantidade'],
-                            'nome' => $item['nome'],
-                            'observacoes' => $item['observacoes'],
-                        ],
-                        $secao
-                    );
-                }
+            ->each(function ($itensDaSecao, string $secao) use ($pedidoFresh, $printJobs) {
+                // Agrupar duplicados (mesmo nome + observacoes) numa só linha
+                $itensCombinados = $itensDaSecao
+                    ->groupBy(fn ($i) => $i['nome'].'||'.($i['observacoes'] ?? ''))
+                    ->map(fn ($grupo) => [
+                        'quantidade'  => $grupo->sum('quantidade'),
+                        'nome'        => $grupo->first()['nome'],
+                        'observacoes' => $grupo->first()['observacoes'],
+                    ])
+                    ->values()
+                    ->all();
+                $printJobs->criarPedido($pedidoFresh, $secao, 'pedido', $itensCombinados);
             });
 
         return to_route('cliente.confirmacao', $token);
@@ -152,6 +153,56 @@ class ClientePedidoController extends Controller
                 'mesa' => $this->nomeMesa($pedido),
             ],
             'items' => $this->itemsEnviados($pedido),
+        ]);
+    }
+
+    public function showChamar(string $token): Response
+    {
+        $pedido = $this->pedidoPorToken($token);
+        $pedido->load('mesa.mesaPrincipal');
+
+        return Inertia::render('Cliente/Chamar', [
+            'token'  => $token,
+            'pedido' => [
+                'disponivel' => $this->pedidoDisponivel($pedido),
+                'mesa'       => $this->nomeMesa($pedido),
+            ],
+        ]);
+    }
+
+    public function chamarFuncionario(string $token, PrintJobService $printJobs): RedirectResponse
+    {
+        $pedido = $this->pedidoPorToken($token);
+        $pedido->load('mesa.mesaPrincipal', 'user', 'pos');
+
+        if ($this->pedidoDisponivel($pedido)) {
+            // Gravar timestamp para notificação em tempo real no dispositivo do funcionário
+            $pedido->update(['chamado_em' => now()]);
+
+            // Imprimir ticket com nome do funcionário responsável
+            $operador = $pedido->operador_nome ?: ($pedido->user?->name ?: $pedido->pos?->nome);
+            $descricao = $operador ? "CHAMAR: $operador" : 'CHAMAR FUNCIONARIO';
+            $printJobs->criarPedidoExtra($pedido->mesa, $descricao);
+        }
+
+        return back()->with('avisoCliente', 'Funcionário chamado! Aguarde um momento.');
+    }
+
+    public function confirmarChamada(string $token): \Illuminate\Http\JsonResponse
+    {
+        $pedido = $this->pedidoPorToken($token);
+        $pedido->update(['chamado_em' => null]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function estado(string $token): \Illuminate\Http\JsonResponse
+    {
+        $pedido = $this->pedidoPorToken($token);
+
+        return response()->json([
+            'chamado_em' => $pedido->chamado_em?->toISOString(),
+            'estado'     => $pedido->estado,
         ]);
     }
 

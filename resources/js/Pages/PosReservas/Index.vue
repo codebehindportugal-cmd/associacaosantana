@@ -1,6 +1,7 @@
 <script setup>
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 
 const props = defineProps({
     posNome: String,
@@ -12,6 +13,7 @@ const props = defineProps({
 
 const agora = ref(new Date());
 const reservaEmEdicao = ref(null);
+const sentarReservaId = ref(null);
 const pesquisa = ref('');
 const filtroEstado = ref('por-sentar');
 const pesquisaProximas = ref('');
@@ -28,8 +30,13 @@ const form = useForm({
 });
 
 const reservasPendentes = computed(() => (props.reservasHoje ?? []).filter((reserva) => reserva.estado !== 'sentada'));
-const reservasChamadas = computed(() => reservasPendentes.value.filter((reserva) => reserva.chamada_em));
-const reservasSentadas = computed(() => (props.reservasHoje ?? []).filter((reserva) => reserva.estado === 'sentada'));
+const pessoasPorSentar = computed(() => reservasPendentes.value.reduce((soma, r) => soma + (Number(r.pessoas) || 0), 0));
+const gruposPorSentar = computed(() => reservasPendentes.value.length);
+const gruposGrandes = computed(() => (props.reservasHoje ?? []).filter((r) => Number(r.pessoas) > 10));
+const totalPessoasGrandes = computed(() => gruposGrandes.value.reduce((soma, r) => soma + (Number(r.pessoas) || 0), 0));
+const totalPessoasHoje = computed(() => (props.reservasHoje ?? []).reduce((soma, r) => soma + (Number(r.pessoas) || 0), 0));
+const reservasSentadas = computed(() => (props.reservasHoje ?? []).filter((r) => r.estado === 'sentada'));
+const pessoasSentadas = computed(() => reservasSentadas.value.reduce((soma, r) => soma + (Number(r.pessoas) || 0), 0));
 
 const normalizar = (valor) => String(valor ?? '')
     .normalize('NFD')
@@ -46,6 +53,8 @@ const reservasPorEstado = computed(() => {
             return lista.filter((reserva) => reserva.estado === 'sentada');
         case 'por-sentar':
             return lista.filter((reserva) => reserva.estado !== 'sentada');
+        case 'grupos-grandes':
+            return lista.filter((r) => Number(r.pessoas) > 10);
         default:
             return lista;
     }
@@ -103,8 +112,15 @@ const horasDisponiveis = Array.from({ length: 24 * 4 }, (_, index) => {
 });
 
 const editForm = useForm({
+    nome: '',
     hora: '',
     pessoas: 1,
+    observacoes: '',
+});
+
+const sentarForm = useForm({
+    mesa_numero: '',
+    mesa_letra: '',
 });
 
 const criarReserva = () => {
@@ -128,8 +144,10 @@ const criarReserva = () => {
 const editar = (reserva) => {
     reservaEmEdicao.value = reserva.id;
     editForm.clearErrors();
+    editForm.nome = reserva.nome;
     editForm.hora = horaReserva(reserva);
     editForm.pessoas = reserva.pessoas;
+    editForm.observacoes = reserva.observacoes || '';
 };
 
 const cancelarEdicao = () => {
@@ -148,8 +166,16 @@ const chamar = (reserva) => {
     router.patch(route('pos.reservas.chamar', reserva.id), {}, { preserveScroll: true });
 };
 
-const sentar = (reserva) => {
-    router.patch(route('pos.reservas.sentar', reserva.id), {}, { preserveScroll: true });
+const abrirSentar = (reserva) => {
+    sentarReservaId.value = reserva.id;
+    sentarForm.reset();
+};
+
+const confirmarSentar = (reserva) => {
+    sentarForm.patch(route('pos.reservas.sentar', reserva.id), {
+        preserveScroll: true,
+        onSuccess: () => { sentarReservaId.value = null; },
+    });
 };
 
 const cancelar = (reserva) => {
@@ -159,6 +185,7 @@ const cancelar = (reserva) => {
 };
 
 const logout = () => router.post(route('pos.logout'));
+const chamandoComissao = ref(false);
 const horaReserva = (reserva) => reserva.hora?.slice(0, 5) ?? '--:--';
 
 const horaData = (data) => {
@@ -198,38 +225,45 @@ onBeforeUnmount(() => {
                     <p class="font-bold text-gray-300">{{ operadorNome || posNome }} - {{ agora.toLocaleTimeString('pt-PT') }}</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button class="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-black text-black" @click="chamandoComissao = true">🎉 COMISSÃO</button>
                     <button class="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-black" @click="logout">LOGOUT</button>
                 </div>
             </header>
 
-            <section class="mb-3 grid shrink-0 gap-2 md:grid-cols-4">
+            <section class="mb-3 grid shrink-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <button
                     type="button"
                     class="rounded-lg bg-blue-700 p-2.5 text-left transition"
                     :class="filtroEstado === 'todas' ? 'ring-2 ring-white' : 'opacity-90 hover:opacity-100'"
                     @click="filtroEstado = 'todas'"
                 >
-                    <div class="text-sm font-bold">Hoje</div>
-                    <div class="text-2xl font-black">{{ reservasHoje.length }}</div>
+                    <div class="text-sm font-bold">Total hoje</div>
+                    <div class="text-2xl font-black">{{ reservasHoje.length }} reservas</div>
+                    <div class="text-sm font-bold text-blue-200">{{ totalPessoasHoje }} pessoas</div>
                 </button>
-                <button
-                    type="button"
-                    class="rounded-lg bg-amber-600 p-2.5 text-left transition"
-                    :class="filtroEstado === 'chamadas' ? 'ring-2 ring-white' : 'opacity-90 hover:opacity-100'"
-                    @click="filtroEstado = 'chamadas'"
-                >
-                    <div class="text-sm font-bold">Chamadas</div>
-                    <div class="text-2xl font-black">{{ reservasChamadas.length }}</div>
-                </button>
-                <button
-                    type="button"
-                    class="rounded-lg bg-emerald-700 p-2.5 text-left transition"
-                    :class="filtroEstado === 'sentadas' ? 'ring-2 ring-white' : 'opacity-90 hover:opacity-100'"
-                    @click="filtroEstado = 'sentadas'"
-                >
-                    <div class="text-sm font-bold">Sentadas</div>
-                    <div class="text-2xl font-black">{{ reservasSentadas.length }}</div>
-                </button>
+                <div class="rounded-lg bg-gray-800 p-2.5">
+                    <div class="mb-1.5 text-sm font-bold">Pessoas hoje</div>
+                    <div class="flex items-end justify-between gap-2">
+                        <button
+                            type="button"
+                            class="flex-1 rounded-lg p-1.5 text-left transition"
+                            :class="filtroEstado === 'sentadas' ? 'bg-emerald-600 ring-2 ring-white' : 'bg-emerald-900/60 hover:bg-emerald-800/60'"
+                            @click="filtroEstado = 'sentadas'"
+                        >
+                            <div class="text-2xl font-black text-emerald-300">{{ pessoasSentadas }}</div>
+                            <div class="text-xs font-bold text-emerald-400">sentadas</div>
+                        </button>
+                        <button
+                            type="button"
+                            class="flex-1 rounded-lg p-1.5 text-left transition"
+                            :class="filtroEstado === 'por-sentar' ? 'bg-gray-600 ring-2 ring-white' : 'bg-gray-900/60 hover:bg-gray-700/60'"
+                            @click="filtroEstado = 'por-sentar'"
+                        >
+                            <div class="text-2xl font-black text-gray-200">{{ pessoasPorSentar }}</div>
+                            <div class="text-xs font-bold text-gray-400">por sentar</div>
+                        </button>
+                    </div>
+                </div>
                 <button
                     type="button"
                     class="rounded-lg bg-gray-800 p-2.5 text-left transition"
@@ -237,7 +271,18 @@ onBeforeUnmount(() => {
                     @click="filtroEstado = 'por-sentar'"
                 >
                     <div class="text-sm font-bold">Por sentar</div>
-                    <div class="text-2xl font-black">{{ reservasPendentes.length }}</div>
+                    <div class="text-2xl font-black">{{ gruposPorSentar }} grupos</div>
+                    <div class="text-sm font-bold text-gray-400">{{ pessoasPorSentar }} pessoas</div>
+                </button>
+                <button
+                    type="button"
+                    class="rounded-lg bg-orange-700/80 p-2.5 text-left transition"
+                    :class="filtroEstado === 'grupos-grandes' ? 'ring-2 ring-white' : 'opacity-90 hover:opacity-100'"
+                    @click="filtroEstado = 'grupos-grandes'"
+                >
+                    <div class="text-sm font-bold">Grupos grandes (+10)</div>
+                    <div class="text-2xl font-black">{{ gruposGrandes.length }} grupos</div>
+                    <div class="text-sm font-bold text-orange-200">{{ totalPessoasGrandes }} pessoas</div>
                 </button>
             </section>
 
@@ -253,7 +298,7 @@ onBeforeUnmount(() => {
                             v-model="pesquisa"
                             type="search"
                             class="w-full rounded-lg border-gray-700 bg-gray-900 p-2.5 font-bold text-white placeholder:text-gray-500"
-                            placeholder="Pesquisar por nome, hora ou nº de pessoas..."
+                            placeholder="Pesquisar por nome, hora ou º de pessoas..."
                         >
                     </div>
 
@@ -261,8 +306,8 @@ onBeforeUnmount(() => {
                         <button
                             v-for="opcao in [
                                 { valor: 'por-sentar', rotulo: 'Por sentar' },
-                                { valor: 'chamadas', rotulo: 'Chamadas' },
                                 { valor: 'sentadas', rotulo: 'Sentadas' },
+                                { valor: 'grupos-grandes', rotulo: 'Grupos +10' },
                                 { valor: 'todas', rotulo: 'Todas' },
                             ]"
                             :key="opcao.valor"
@@ -287,8 +332,9 @@ onBeforeUnmount(() => {
                         >
                             <div>
                                 <div class="text-2xl font-black">{{ horaReserva(reserva) }}</div>
-                                <div class="mt-1 rounded bg-gray-800 px-2 py-0.5 text-center text-xs font-black">
-                                    {{ reserva.pessoas }} PAX
+                                <div class="mt-1 text-center">
+                                    <span class="text-2xl font-black">{{ reserva.pessoas }}</span>
+                                    <span class="block text-xs font-bold text-gray-400">pessoas</span>
                                 </div>
                             </div>
 
@@ -299,21 +345,56 @@ onBeforeUnmount(() => {
                                     <span v-if="reserva.sentada_em" class="rounded bg-emerald-500 px-1.5 py-0.5 text-gray-950">SENTADA {{ horaData(reserva.sentada_em) }}</span>
                                 </div>
                                 <p v-if="reserva.observacoes" class="mt-1.5 rounded bg-gray-800 p-1.5 text-xs font-bold text-gray-200">{{ reserva.observacoes }}</p>
-                                <div v-if="reservaEmEdicao === reserva.id" class="mt-2 grid max-w-md grid-cols-2 gap-2">
-                                    <select v-model="editForm.hora" class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white">
-                                        <option v-for="hora in horasDisponiveis" :key="hora" :value="hora">
-                                            {{ hora }}
-                                        </option>
-                                    </select>
+                                <div v-if="reservaEmEdicao === reserva.id" class="mt-2 space-y-2 max-w-md">
                                     <input
-                                        v-model="editForm.pessoas"
-                                        type="number"
-                                        min="1"
-                                        class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                        v-model="editForm.nome"
+                                        type="text"
+                                        placeholder="Nome"
+                                        class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                    >
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input
+                                            v-model="editForm.hora"
+                                            type="time"
+                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                        >
+                                        <input
+                                            v-model="editForm.pessoas"
+                                            type="number"
+                                            min="1"
+                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                        >
+                                    </div>
+                                    <input
+                                        v-model="editForm.observacoes"
+                                        type="text"
+                                        placeholder="Observações"
+                                        class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-bold text-white"
                                     >
                                 </div>
                                 <div v-if="reservaEmEdicao === reserva.id && Object.keys(editForm.errors).length" class="mt-2 rounded bg-red-700 p-2 text-sm font-bold">
                                     <div v-for="erro in editForm.errors" :key="erro">{{ erro }}</div>
+                                </div>
+
+                                <!-- Formulário de sentar -->
+                                <div v-if="sentarReservaId === reserva.id" class="mt-2 space-y-2">
+                                    <p class="text-xs font-bold uppercase text-emerald-400">Mesa atribuída</p>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <input
+                                            v-model="sentarForm.mesa_numero"
+                                            type="number"
+                                            min="1"
+                                            placeholder="Nº Mesa"
+                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                        >
+                                        <input
+                                            v-model="sentarForm.mesa_letra"
+                                            type="text"
+                                            maxlength="3"
+                                            placeholder="Letra (ex: A)"
+                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                        >
+                                    </div>
                                 </div>
                             </div>
 
@@ -331,6 +412,22 @@ onBeforeUnmount(() => {
                                     @click="cancelarEdicao"
                                 >
                                     FECHAR
+                                </button>
+                            </div>
+
+                            <div v-else-if="sentarReservaId === reserva.id" class="grid min-w-40 gap-1.5 self-start">
+                                <button
+                                    class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-black disabled:opacity-40"
+                                    :disabled="sentarForm.processing"
+                                    @click="confirmarSentar(reserva)"
+                                >
+                                    CONFIRMAR
+                                </button>
+                                <button
+                                    class="rounded-lg bg-gray-700 px-3 py-2 text-sm font-black"
+                                    @click="sentarReservaId = null"
+                                >
+                                    CANCELAR
                                 </button>
                             </div>
 
@@ -352,7 +449,7 @@ onBeforeUnmount(() => {
                                 <button
                                     class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black disabled:opacity-40"
                                     :disabled="reserva.estado === 'sentada'"
-                                    @click="sentar(reserva)"
+                                    @click="abrirSentar(reserva)"
                                 >
                                     SENTADA
                                 </button>
@@ -425,13 +522,19 @@ onBeforeUnmount(() => {
                                     <strong class="truncate text-base">{{ reserva.nome }}</strong>
                                     <span class="font-black text-blue-300">{{ dia(reserva.data) }}</span>
                                 </div>
-                                <div class="mt-1 text-sm font-bold text-gray-300">{{ horaReserva(reserva) }} - {{ reserva.pessoas }} PAX</div>
+                                <div class="mt-1 text-sm font-bold text-gray-300">{{ horaReserva(reserva) }} · {{ reserva.pessoas }} pessoas</div>
                             </div>
                         </div>
                     </section>
                 </aside>
             </div>
         </div>
+
+        <ChamarComissaoModal
+            v-if="chamandoComissao"
+            :operador-nome="operadorNome || posNome"
+            @fechar="chamandoComissao = false"
+        />
     </main>
 </template>
 

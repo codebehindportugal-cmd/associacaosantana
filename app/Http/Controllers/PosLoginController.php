@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Middleware\EnsurePosSession;
 use App\Models\PosSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,12 +42,15 @@ class PosLoginController extends Controller
         }
 
         session([
-            'pos_id' => $terminal->id,
-            'pos_nome' => $terminal->nome,
-            'pos_tipo' => $terminal->tipo,
+            'pos_id'          => $terminal->id,
+            'pos_nome'        => $terminal->nome,
+            'pos_tipo'        => $terminal->tipo,
             'pos_localizacao' => $terminal->localizacao,
-            'pos_operador' => $data['operador_nome'],
+            'pos_operador'    => $data['operador_nome'],
         ]);
+
+        // Cookie persistente de 30 dias — mantém sessão mesmo que o PHP expire
+        cookie()->queue(EnsurePosSession::criarCookie($terminal->id, $data['operador_nome']));
 
         return redirect($this->urlPorTipo($terminal->tipo));
     }
@@ -54,6 +58,9 @@ class PosLoginController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         $request->session()->forget(['pos_id', 'pos_nome', 'pos_tipo', 'pos_localizacao', 'pos_operador']);
+
+        // Apaga o cookie persistente
+        cookie()->queue(EnsurePosSession::apagarCookie());
 
         return redirect()->route('pos.login');
     }

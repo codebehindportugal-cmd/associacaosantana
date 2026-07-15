@@ -14,6 +14,19 @@ const itemVisivel = (perm) => perm ? can(perm) : podeGerir();
 const urgentes = () => page.props.urgentes_count ?? 0;
 const ativo = (nome) => route().current(nome) || route().current(nome.replace('.index', '.*'));
 
+// Chamadas da comissão de festas
+const chamadas = computed(() => page.props.chamadas_comissao ?? []);
+
+const atenderChamada = async (id) => {
+    try {
+        await fetch(route('comissao.atender', id), {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '' },
+        });
+        router.reload({ only: ['chamadas_comissao'], preserveScroll: true });
+    } catch { /* ignora */ }
+};
+
 const grupos = [
     { label: 'Restaurante',       items: [['Sala','sala.index','mesas.ver'],['Mesas','mesas.index','restaurante.ver'],['Pedidos','pedidos.index','pedidos.ver'],['Caixas','caixa.index','caixa.ver'],['Impressoras','impressoras.index',null]] },
     { label: 'Produtos',          items: [['Produtos','produtos.index','produtos.ver'],['Faturas/Stock','faturas-compras.index','produtos.ver']] },
@@ -33,7 +46,7 @@ const bottomLinks = computed(() =>
     .filter(([,,perm]) => itemVisivel(perm))
 );
 
-onMounted(() => { polling = setInterval(() => router.reload({ only: ['urgentes_count'], preserveScroll: true }), 30000); });
+onMounted(() => { polling = setInterval(() => router.reload({ only: ['urgentes_count', 'chamadas_comissao'], preserveScroll: true }), 30000); });
 onBeforeUnmount(() => clearInterval(polling));
 </script>
 
@@ -107,6 +120,30 @@ onBeforeUnmount(() => clearInterval(polling));
 
         <!-- Conteúdo principal -->
         <main class="backoffice-main md:pl-56 xl:pl-64">
+            <!-- Notificações da comissão de festas -->
+            <div v-if="chamadas.length" class="border-b border-amber-400 bg-amber-400">
+                <div
+                    v-for="chamada in chamadas"
+                    :key="chamada.id"
+                    class="flex items-center justify-between gap-3 px-4 py-2"
+                >
+                    <div class="flex items-center gap-2 text-sm font-black text-amber-900">
+                        <span class="animate-pulse text-base">🎉</span>
+                        <span>
+                            <strong>{{ chamada.operador_nome }}</strong> chama a comissão
+                            em <strong>{{ chamada.local }}</strong>
+                            <span class="ml-1 font-semibold opacity-70">· {{ chamada.criado_em }}</span>
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        class="shrink-0 rounded-lg bg-amber-700 px-3 py-1 text-xs font-black text-white hover:bg-amber-800 transition"
+                        @click="atenderChamada(chamada.id)"
+                    >
+                        Atender
+                    </button>
+                </div>
+            </div>
             <header class="flex items-center justify-between border-b border-amber-200 bg-white px-4 py-3.5 lg:px-8">
                 <button type="button" class="rounded-md border border-amber-200 px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-amber-50 md:hidden" @click="drawerAberto = true">Menu</button>
                 <div class="hidden text-sm font-medium text-stone-500 md:block">{{ page.props.auth?.user?.name }}</div>

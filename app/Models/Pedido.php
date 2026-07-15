@@ -27,6 +27,7 @@ class Pedido extends Model
         'doacao',
         'metodo_pagamento',
         'observacoes',
+        'chamado_em',
     ];
 
     protected $appends = ['total_calculado'];
@@ -37,6 +38,7 @@ class Pedido extends Model
 
     protected $casts = [
         'pago_antecipado' => 'boolean',
+        'chamado_em'      => 'datetime',
     ];
 
     protected static function booted(): void

@@ -35,6 +35,7 @@ use App\Http\Controllers\SponsorImageController;
 use App\Http\Controllers\SponsorScreenController;
 use App\Http\Controllers\SponsorshipController;
 use App\Http\Controllers\SocioController;
+use App\Http\Controllers\ChamadaComissaoController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -58,15 +59,19 @@ Route::post('/cliente/{token}/chamar', [ClientePedidoController::class, 'chamarF
 Route::get('/cliente/{token}/confirmacao', [ClientePedidoController::class, 'confirmacao'])->name('cliente.confirmacao');
 Route::get('/funcionario/{token}', [FuncionarioPedidoController::class, 'show'])->name('funcionario.mesa');
 Route::post('/funcionario/{token}/items', [FuncionarioPedidoController::class, 'addItems'])->name('funcionario.items');
+Route::get('/funcionario/{token}/estado', [ClientePedidoController::class, 'estado'])->name('funcionario.estado');
+Route::post('/funcionario/{token}/confirmar-chamada', [ClientePedidoController::class, 'confirmarChamada'])->name('funcionario.confirmar-chamada');
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
 Route::post('/pos/login', [PosLoginController::class, 'store'])->name('pos.login.store');
 Route::post('/pos/logout', [PosLoginController::class, 'destroy'])->name('pos.logout');
 
+// Rota partilhada por todos os POS para chamar a comissão de festas
 Route::middleware('pos.auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosBarController::class, 'index'])->name('index');
     Route::post('/prepago', [PosBarController::class, 'storePrepago'])->name('prepago.store');
     Route::get('/pedido/{pedido}/talao', [PosBarController::class, 'talao'])->name('pedido.talao');
+    Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar');
 });
 
 Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(function () {
@@ -199,6 +204,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('users/pos', [UserController::class, 'storePos'])->name('users.pos.store');
     Route::patch('users/pos/{pos}', [UserController::class, 'updatePos'])->name('users.pos.update');
     Route::delete('users/pos/{pos}', [UserController::class, 'destroyPos'])->name('users.pos.destroy');
+
+    // Comissão de Festas — back-office
+    Route::get('comissao/pendentes', [ChamadaComissaoController::class, 'pendentes'])->name('comissao.pendentes');
+    Route::post('comissao/{chamada}/atender', [ChamadaComissaoController::class, 'atender'])->name('comissao.atender');
 });
 
 require __DIR__.'/auth.php';

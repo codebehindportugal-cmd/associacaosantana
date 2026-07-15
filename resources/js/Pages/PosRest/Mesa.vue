@@ -1,9 +1,10 @@
 <script setup>
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
+import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 
-const props = defineProps({ mesa: Object, pedido: Object, produtos: Object });
+const props = defineProps({ mesa: Object, pedido: Object, produtos: Object, mesasLivres: { type: Array, default: () => [] } });
 const page = usePage();
 const categoriaAtual = ref(Object.keys(props.produtos ?? {})[0] || '');
 const separadorAtual = ref('produtos');
@@ -23,10 +24,26 @@ const lugaresAtuais = ref(props.pedido?.mesa?.capacidade ?? props.mesa?.capacida
 const agora = ref(Date.now());
 const novoForm = useForm({ lugares_ocupados: null, submesa_letra: null, mesas_grupo: null });
 const mesasGrupo = ref('');
+const mesasGrupoSet = computed(() => new Set(mesasGrupo.value.split(/\s+/).map(n => n.trim()).filter(Boolean)));
+const toggleMesaGrupo = (numero) => {
+    const nums = mesasGrupo.value.split(/\s+/).map(n => n.trim()).filter(Boolean);
+    const str = String(numero);
+    const idx = nums.indexOf(str);
+    if (idx >= 0) nums.splice(idx, 1);
+    else nums.push(str);
+    mesasGrupo.value = nums.join(' ');
+};
+const capacidadeGrupoSelecionado = computed(() => {
+    const extra = (props.mesasLivres ?? [])
+        .filter(m => mesasGrupoSet.value.has(String(m.numero)))
+        .reduce((sum, m) => sum + Math.min(10, Number(m.capacidade ?? 0)), 0);
+    return capacidadeMesa.value + extra;
+});
 const submesaLetras = ['A', 'B', 'C', 'D'];
 const itemForm = useForm({ items: [] });
 const lugaresForm = useForm({ lugares_ocupados: lugaresAtuais.value });
 const fecharForm = useForm({ metodo_pagamento: 'dinheiro', valor_recebido: 0, troco: 0 });
+const obsForm = useForm({ observacoes: props.pedido?.observacoes ?? '' });
 let avisoTimer;
 let relogioAnulacaoTimer;
 const categorias = computed(() => Object.keys(props.produtos ?? {}));
@@ -40,8 +57,9 @@ const pedidoAutor = computed(() => props.pedido?.operador_nome ?? props.pedido?.
 const erroItem = computed(() => page.props.errors?.item);
 const podeSelfOrder = computed(() => props.pedido?.cliente_token && ['pendente', 'preparacao'].includes(props.pedido?.estado));
 const clienteUrl = computed(() => podeSelfOrder.value ? route('cliente.mesa', props.pedido.cliente_token) : '');
+const chamarUrl = computed(() => podeSelfOrder.value ? route('cliente.chamar.show', props.pedido.cliente_token) : '');
 const precarioUrl = computed(() => route('precario'));
-const capacidadeMesa = computed(() => Number(props.mesa?.capacidade ?? 0));
+const capacidadeMesa = computed(() => Math.min(10, Number(props.mesa?.capacidade ?? 0)));
 const lugaresNumero = computed(() => Number(lugaresOcupados.value || 0));
 const extrairLetraSubmesa = (mesa) => {
     const base = String(mesa?.mesa_principal?.numero ?? props.mesa?.mesa_principal?.numero ?? props.mesa?.numero ?? '');
@@ -62,15 +80,22 @@ const submesaLetrasDisponiveis = computed(() => submesaLetras.filter((letra) => 
 }));
 const precisaSubmesa = computed(() => !props.pedido && lugaresNumero.value > 0 && lugaresNumero.value < capacidadeMesa.value);
 const precisaMesasGrupo = computed(() => !props.pedido && lugaresNumero.value > capacidadeMesa.value);
+// Na página de uma submesa, a letra é sempre obrigatória (é reserva parcial da mesa principal)
+const precisaLetra = computed(() =>
+    props.mesa?.mesa_principal_id
+        ? (!props.pedido && lugaresNumero.value > 0)
+        : (precisaSubmesa.value || precisaMesasGrupo.value)
+);
 const podeAbrirPedido = computed(() => !mesaDividida.value
     && lugaresNumero.value > 0
-    && (!precisaSubmesa.value || letraSubmesaNova.value.trim())
+    && (!precisaLetra.value || letraSubmesaNova.value.trim())
     && (!precisaMesasGrupo.value || mesasGrupo.value.trim()));
 const separadores = computed(() => [
     { key: 'conta', label: 'Conta', count: props.pedido?.items?.length ?? 0 },
     { key: 'produtos', label: 'Produtos', count: null },
     { key: 'envio', label: 'Envio', count: carrinho.value.reduce((soma, item) => soma + Number(item.quantidade), 0) },
-    { key: 'qrs', label: 'QRs', count: podeSelfOrder.value ? 2 : 1 },
+    { key: 'qrs', label: 'QRs', count: podeSelfOrder.value ? 3 : 1 },
+    { key: 'extras', label: 'Extras', count: null },
 ]);
 const limiteAnulacaoMs = 2 * 60 * 1000;
 const itemDentroPrazoAnulacao = (item) => {
@@ -176,6 +201,10 @@ const atualizarLugares = () => {
     lugaresForm.lugares_ocupados = lugaresAtuais.value;
     lugaresForm.patch(route('pos.rest.pedido.lugares', props.pedido.id), { preserveScroll: true });
 };
+const guardarObservacoes = () => {
+    if (!props.pedido) return;
+    obsForm.patch(route('pos.rest.pedido.observacoes', props.pedido.id), { preserveScroll: true });
+};
 const fechar = () => {
     fecharForm.metodo_pagamento = metodo.value;
     fecharForm.valor_recebido = recebido.value || total.value;
@@ -198,12 +227,37 @@ const mostrarQrPrecario = async () => {
     qrDataUrl.value = await QRCode.toDataURL(qrLink.value, { width: 420, margin: 2 });
     qrAberto.value = true;
 };
+const mostrarQrFuncionario = async () => {
+    if (!chamarUrl.value) return;
+    qrTitulo.value = 'Chamar Funcionário';
+    qrSubtitulo.value = `Mesa ${props.mesa.numero}`;
+    qrLink.value = chamarUrl.value;
+    qrDataUrl.value = await QRCode.toDataURL(qrLink.value, { width: 420, margin: 2 });
+    qrAberto.value = true;
+};
 const copiarLinkCliente = async () => {
     const link = qrLink.value || clienteUrl.value;
 
     if (navigator?.clipboard && link) {
         await navigator.clipboard.writeText(link);
     }
+};
+const extraForm = useForm({ descricao: '' });
+const chamandoComissao = ref(false);
+const itensPedidoExtra = [
+    { label: 'Guardanapos', emoji: '🧻' },
+    { label: 'Loiça', emoji: '🍽️' },
+    { label: 'Molho', emoji: '🫙' },
+    { label: 'Tempero', emoji: '🧂' },
+    { label: 'Limpar mesa', emoji: '🧹' },
+];
+const pedidoExtra = (descricao) => {
+    extraForm.descricao = descricao;
+    extraForm.post(route('pos.rest.pedido.extra', props.mesa.id), {
+        preserveScroll: true,
+        onSuccess: () => mostrarAviso('Pedido enviado: ' + descricao),
+        onError: () => mostrarAviso('Nao foi possivel enviar o pedido.'),
+    });
 };
 onMounted(() => {
     relogioAnulacaoTimer = window.setInterval(() => {
@@ -223,20 +277,33 @@ onBeforeUnmount(() => {
             <!-- ABRIR MESA PRIMEIRO NO MOBILE -->
             <section class="min-w-0 rounded-2xl bg-gray-800 p-4 shadow-lg sm:p-5">
                 <h2 class="break-words text-2xl font-black sm:text-3xl">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
-                <p class="mt-2 rounded-lg bg-gray-900 p-3 text-sm font-bold text-gray-300">Antes de escolher produtos, abre o pedido com o numero de pessoas.</p>
+                <p class="mt-2 rounded-lg bg-gray-900 p-3 text-sm font-bold text-gray-300">Antes de escolher produtos, abre o pedido com o número de pessoas.</p>
                 
                 <div v-if="!mesaDividida" class="mt-5 space-y-4">
-                    <label class="block font-black">Numero de pessoas
-                        <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Obrigatorio">
+                    <label class="block font-black">Número de pessoas
+                        <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Obrigatório">
                     </label>
-                    <label v-if="precisaSubmesa" class="block font-black">Letra da submesa
+                    <label v-if="precisaMesasGrupo" class="block font-black">Mesas do grupo
+                        <input v-model="mesasGrupo" type="text" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Ex.: 32 33 34">
+                        <div v-if="mesasLivres.length" class="mt-2 flex flex-wrap gap-2">
+                            <button
+                                v-for="m in mesasLivres"
+                                :key="m.id"
+                                type="button"
+                                class="rounded-lg px-3 py-2 text-sm font-black transition"
+                                :class="mesasGrupoSet.has(String(m.numero)) ? 'bg-amber-500 text-gray-950' : 'bg-gray-700 hover:bg-gray-600'"
+                                @click="toggleMesaGrupo(m.numero)"
+                            >{{ m.numero }} <span class="opacity-60">({{ Math.min(10, Number(m.capacidade)) }}p)</span></button>
+                        </div>
+                        <p v-if="mesasGrupoSet.size > 0 && lugaresNumero > 0" class="mt-2 text-sm font-bold" :class="capacidadeGrupoSelecionado >= lugaresNumero ? 'text-emerald-400' : 'text-red-400'">
+                            Capacidade total: {{ capacidadeGrupoSelecionado }} lugares {{ capacidadeGrupoSelecionado >= lugaresNumero ? '✓' : '— precisa de mais mesas' }}
+                        </p>
+                    </label>
+                    <label v-if="precisaLetra" class="block font-black">{{ precisaMesasGrupo ? 'Letra do grupo' : 'Letra da submesa' }}
                         <select v-model="letraSubmesaNova" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black uppercase text-white">
                             <option value="">Escolher letra</option>
                             <option v-for="letra in submesaLetrasDisponiveis" :key="letra" :value="letra">{{ letra }}</option>
                         </select>
-                    </label>
-                    <label v-if="precisaMesasGrupo" class="block font-black">Mesas do grupo
-                        <input v-model="mesasGrupo" type="text" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Ex.: 32 33 34">
                     </label>
                     <button class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-40" :disabled="!podeAbrirPedido || novoForm.processing" @click="abrirPedido()">
                         {{ novoForm.processing ? 'A ABRIR...' : 'ABRIR PEDIDO' }}
@@ -354,6 +421,18 @@ onBeforeUnmount(() => {
                     <button class="mt-2 w-full rounded bg-gray-700 p-3 font-black" @click="atualizarLugares">ATUALIZAR PESSOAS</button>
                     <div v-if="lugaresForm.errors.lugares_ocupados" class="mt-2 rounded bg-red-700 p-2 text-sm font-bold">{{ lugaresForm.errors.lugares_ocupados }}</div>
                 </div>
+                <div class="mb-4 rounded-lg bg-amber-900/40 border border-amber-600 p-3">
+                    <label class="block font-black text-amber-300">
+                        Observações da mesa
+                        <textarea
+                            v-model="obsForm.observacoes"
+                            rows="2"
+                            placeholder="Ex: Banda não foi paga, Desconto especial, NIF 123..."
+                            class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-3 text-sm font-bold text-white placeholder:text-gray-500"
+                        ></textarea>
+                    </label>
+                    <button class="mt-2 w-full rounded bg-amber-700 p-2 text-sm font-black" @click="guardarObservacoes">GUARDAR OBSERVAÇÃO</button>
+                </div>
                 <div class="space-y-3">
                     <div v-if="erroItem" class="rounded bg-red-700 p-3 text-sm font-black">{{ erroItem }}</div>
                     <div v-for="item in pedido.items" :key="item.id" class="rounded-lg border bg-gray-900 p-3" :class="item.prioridade ? 'animate-pulse border-amber-500' : 'border-gray-700'">
@@ -382,6 +461,11 @@ onBeforeUnmount(() => {
                     <button class="mt-3 w-full rounded-lg bg-cyan-600 p-4 text-lg font-black" @click="mostrarQr">MOSTRAR QR AO CLIENTE</button>
                     <button class="mt-2 w-full rounded-lg bg-gray-900 p-3 text-sm font-black" @click="copiarLinkCliente">COPIAR LINK</button>
                 </article>
+                <article v-if="podeSelfOrder" class="rounded-lg border-2 border-amber-500 bg-gray-800 p-4">
+                    <h2 class="text-xl font-black">CHAMAR FUNCIONÁRIO</h2>
+                    <p class="mt-1 text-sm font-bold text-gray-300">QR para o cliente chamar um funcionário à mesa, sem fazer pedido.</p>
+                    <button class="mt-3 w-full rounded-lg bg-amber-500 p-4 text-lg font-black text-slate-950" @click="mostrarQrFuncionario">MOSTRAR QR CHAMAR</button>
+                </article>
                 <article class="rounded-lg border-2 border-emerald-500 bg-gray-800 p-4">
                     <h2 class="text-xl font-black">PREÇÁRIO DO SITE</h2>
                     <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR para o cliente consultar produtos e preços.</p>
@@ -389,6 +473,39 @@ onBeforeUnmount(() => {
                 </article>
             </section>
         </div>
+            <section v-if="separadorAtual === 'extras'" class="min-w-0 rounded-lg bg-gray-800 p-4">
+                <h2 class="mb-4 text-xl font-black text-gray-200">PEDIDOS EXTRA</h2>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <button
+                        v-for="item in itensPedidoExtra"
+                        :key="item.label"
+                        class="min-h-20 rounded-xl bg-gray-700 p-4 text-center font-black transition hover:bg-gray-600 disabled:opacity-50"
+                        :disabled="extraForm.processing"
+                        @click="pedidoExtra(item.label)"
+                    >
+                        <span class="block text-3xl">{{ item.emoji }}</span>
+                        <span class="mt-2 block text-sm">{{ item.label }}</span>
+                    </button>
+                </div>
+                <p class="mt-4 text-center text-xs font-bold text-gray-500">Imprime na impressora da conta</p>
+
+                <div class="mt-4 border-t border-gray-700 pt-4">
+                    <button
+                        type="button"
+                        class="w-full rounded-xl bg-amber-500 p-4 text-sm font-black text-black transition hover:bg-amber-400"
+                        @click="chamandoComissao = true"
+                    >
+                        🎉 CHAMAR COMISSÃO DE FESTAS
+                    </button>
+                </div>
+            </section>
+
+        <ChamarComissaoModal
+            v-if="chamandoComissao"
+            :operador-nome="pedidoAutor"
+            @fechar="chamandoComissao = false"
+        />
+
         <div v-if="pagamentoAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
             <div class="mx-auto max-w-xl">
                 <h2 class="mb-4 text-center text-4xl font-black text-emerald-400">{{ euros(total) }}</h2>
