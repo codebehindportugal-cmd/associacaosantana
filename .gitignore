@@ -19,7 +19,4 @@ yarn-error.log
 /.claude
 /.agents
 /.continue
-*.log
-*.tmp
-*.bak
-/_old
+/p
