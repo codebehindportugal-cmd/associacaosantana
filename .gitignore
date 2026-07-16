@@ -16,4 +16,10 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
-/
+/.claude
+/.agents
+/.continue
+*.log
+*.tmp
+*.bak
+/_old
