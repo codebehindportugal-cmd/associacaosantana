@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { Link, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, ref } from 'vue';
 
@@ -9,7 +9,7 @@ const valorRecebido = ref('');
 const trocoEntregue = ref('');
 const pontoBar = ref('');
 const form = useForm({ items: [], valor_recebido: 0, troco: 0, ponto_bar: '' });
-const porCategoria = computed(() => Object.groupBy(props.produtos ?? [], (p) => p.categoria?.nome ?? 'Outros'));
+const porCategoria = computed(() => (props.produtos ?? []).reduce((acc, p) => { const k = p.categoria?.nome ?? 'Outros'; if (!acc[k]) acc[k] = []; acc[k].push(p); return acc; }, {}));
 const total = computed(() => carrinho.value.reduce((s, i) => s + Number(i.preco) * i.quantidade, 0));
 const troco = computed(() => Math.max(0, Number(valorRecebido.value || 0) - total.value));
 const trocoRegistado = computed(() => trocoEntregue.value === '' ? troco.value : Number(trocoEntregue.value || 0));

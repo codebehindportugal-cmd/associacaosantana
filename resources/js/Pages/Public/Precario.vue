@@ -25,7 +25,7 @@ const euros = (valor) => `${Number(valor ?? 0).toFixed(2)} EUR`;
                 <header class="mb-6 flex items-center justify-between gap-4">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-[0.2em]" style="color:#C9A84C">ARDC Santana</p>
-                        <h1 class="mt-1 text-3xl font-bold" style="color:#fffdf8">Precario</h1>
+                        <h1 class="mt-1 text-3xl font-bold" style="color:#fffdf8">Preçário</h1>
                     </div>
                     <Link
                         href="/"

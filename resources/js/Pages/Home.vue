@@ -555,7 +555,7 @@ onBeforeUnmount(() => window.clearInterval(heroTimer));
                             title="Localização da ARDC Santana"
                             class="h-[400px] w-full"
                             loading="lazy"
-                            src="https://www.openstreetmap.org/export/embed.html?bbox=-8.965%2C39.363%2C-8.939%2C39.378&layer=mapnik&marker=39.3704%2C-8.9521"
+                            src="https://www.openstreetmap.org/export/embed.html?bbox=-9.075%2C39.448%2C-9.049%2C39.462&layer=mapnik&marker=39.455031%2C-9.062453"
                         />
                     </div>
                 </div>

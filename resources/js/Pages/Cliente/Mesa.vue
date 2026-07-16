@@ -1,5 +1,5 @@
 <script setup>
-import { useForm } from '@inertiajs/vue3';
+import { useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -16,12 +16,15 @@ const observacoes = ref({});
 const carrinho = ref([]);
 const aviso = ref('');
 const form = useForm({ items: [] });
+const chamarForm = useForm({});
 let avisoTimer;
+const page = usePage();
 
 const categorias = computed(() => Object.keys(props.produtos ?? {}));
 const lista = computed(() => props.produtos?.[categoriaAtual.value] ?? []);
 const totalItens = computed(() => carrinho.value.reduce((soma, item) => soma + Number(item.quantidade), 0));
 const totalEnviados = computed(() => (props.itemsEnviados ?? []).reduce((soma, item) => soma + Number(item.quantidade), 0));
+const avisoFlash = computed(() => page.props.flash?.avisoCliente ?? '');
 
 const quantidade = (produto) => Number(quantidades.value[produto.id] ?? 1);
 const alterarQuantidade = (produto, delta) => {
@@ -67,6 +70,15 @@ const alterarQuantidadeCarrinho = (item, delta) => {
     }
 };
 
+const chamarFuncionario = () => {
+    if (chamarForm.processing) return;
+    chamarForm.post(route('cliente.chamar', props.token), {
+        preserveScroll: true,
+        onSuccess: () => mostrarAviso('Funcionário chamado! Aguarde um momento. 🔔'),
+        onError: () => mostrarAviso('Não foi possível chamar. Tente novamente.'),
+    });
+};
+
 const enviarPedido = () => {
     if (!carrinho.value.length || form.processing) return;
 
@@ -90,14 +102,26 @@ const enviarPedido = () => {
                     <div class="text-xs font-black uppercase tracking-wide text-emerald-300">ARDC Santana</div>
                     <h1 class="text-2xl font-black">Mesa {{ pedido.mesa }}</h1>
                 </div>
-                <button type="button" class="rounded-full bg-white/10 px-3 py-2 text-xs font-black" @click="separadorAtual = 'enviados'">Enviados</button>
+                <div class="flex gap-2">
+                    <button
+                        v-if="pedido.disponivel"
+                        type="button"
+                        class="rounded-full px-3 py-2 text-xs font-black disabled:opacity-50"
+                        :class="chamarForm.processing ? 'bg-amber-600' : 'bg-amber-500 text-slate-950'"
+                        :disabled="chamarForm.processing"
+                        @click="chamarFuncionario"
+                    >
+                        🔔 Chamar
+                    </button>
+                    <button type="button" class="rounded-full bg-white/10 px-3 py-2 text-xs font-black" @click="separadorAtual = 'enviados'">Enviados</button>
+                </div>
             </div>
         </header>
 
         <section class="mx-auto max-w-xl px-4 py-5">
             <div v-if="!pedido.disponivel" class="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-5 text-center">
-                <h2 class="text-xl font-black">Pedido indisponivel</h2>
-                <p class="mt-2 text-sm text-amber-100">Este pedido ja foi fechado ou cancelado. Chame um elemento da equipa.</p>
+                <h2 class="text-xl font-black">Pedido indisponível</h2>
+                <p class="mt-2 text-sm text-amber-100">Este pedido já foi fechado ou cancelado. Chame um elemento da equipa.</p>
             </div>
 
             <template v-else>
@@ -140,6 +164,9 @@ const enviarPedido = () => {
                 </div>
                 <div v-if="aviso" class="mb-4 rounded-xl border border-emerald-400/40 bg-emerald-400/15 p-3 text-sm font-black text-emerald-100">
                     {{ aviso }}
+                </div>
+                <div v-if="avisoFlash" class="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/15 p-3 text-sm font-black text-amber-100">
+                    {{ avisoFlash }}
                 </div>
 
                 <div v-if="separadorAtual === 'produtos'" class="mb-4 overflow-x-auto pb-2">

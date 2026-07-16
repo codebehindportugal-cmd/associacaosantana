@@ -27,7 +27,7 @@ class BarController extends Controller
         return Inertia::render('Bar/Index', [
             'pedidos' => Pedido::with('items.produto.categoria')
                 ->whereIn('tipo', ['bar_conta', 'bar_prepago'])
-                ->whereDate('created_at', today())
+                ->whereRaw('DATE(DATE_SUB(created_at, INTERVAL 12 HOUR)) = ?', [now()->subHours(12)->toDateString()])
                 ->when($request->tipo, fn ($query, $tipo) => $query->where('tipo', $tipo))
                 ->when($request->estado, fn ($query, $estado) => $query->where('estado', $estado))
                 ->latest()
@@ -87,10 +87,22 @@ class BarController extends Controller
             ]);
 
             $this->criarItems($pedido, $data['items']);
-            $printJobs->criarTalaoBar(
-                $pedido->fresh('items.produto.categoria', 'user', 'pos'),
-                $this->secaoImpressoraBar($pedido->ponto_bar)
-            );
+
+            $pedidoFull = $pedido->fresh('items.produto.categoria', 'user', 'pos');
+            $secaoImp   = $this->secaoImpressoraBar($pedido->ponto_bar);
+
+            $itensFrango = $pedidoFull->items->filter(fn ($i) => ($i->produto->categoria->secao ?? '') === 'frango');
+            $itensOutros = $pedidoFull->items->filter(fn ($i) => ($i->produto->categoria->secao ?? '') !== 'frango');
+
+            foreach ($itensFrango as $item) {
+                for ($u = 0; $u < $item->quantidade; $u++) {
+                    $printJobs->criarTalaoBarUnitario($pedidoFull, $item->produto->nome, $secaoImp);
+                }
+            }
+
+            if ($itensOutros->isNotEmpty()) {
+                $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+            }
 
             return to_route('bar.talao', $pedido)->with('success', 'Senha emitida.');
         });

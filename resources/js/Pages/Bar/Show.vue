@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -8,7 +8,7 @@ const valorRecebido = ref('');
 const troco = ref('');
 const itemForm = useForm({ pedido_id: props.pedido.id, produto_id: '', quantidade: 1 });
 const fecharForm = useForm({ valor_recebido: '', troco: 0 });
-const porCategoria = computed(() => Object.groupBy(props.produtos ?? [], (p) => p.categoria?.nome ?? 'Outros'));
+const porCategoria = computed(() => (props.produtos ?? []).reduce((acc, p) => { const k = p.categoria?.nome ?? 'Outros'; if (!acc[k]) acc[k] = []; acc[k].push(p); return acc; }, {}));
 const total = computed(() => Number(props.pedido.total_calculado ?? props.pedido.total ?? 0));
 const trocoCalc = computed(() => Math.max(0, Number(valorRecebido.value || total.value) - total.value));
 const euros = (v) => Number(v ?? 0).toFixed(2) + '€';

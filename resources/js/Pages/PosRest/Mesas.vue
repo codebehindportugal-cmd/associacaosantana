@@ -3,11 +3,13 @@ import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 
-const props = defineProps({ mesas: Array });
+const props = defineProps({ mesas: Array, pedidosFechadosHoje: { type: Array, default: () => [] } });
 let refresh = null;
 const qrAberto = ref(false);
 const qrDataUrl = ref('');
-const grupos = computed(() => Object.groupBy(props.mesas ?? [], (m) => m.localizacao || 'Sala'));
+const somenteGrupos = ref(false);
+const mesasFiltradas = computed(() => somenteGrupos.value ? (props.mesas ?? []).filter((m) => Number(m.capacidade ?? 0) >= 10) : (props.mesas ?? []));
+const grupos = computed(() => mesasFiltradas.value.reduce((acc, m) => { const k = m.localizacao || 'Sala'; if (!acc[k]) acc[k] = []; acc[k].push(m); return acc; }, {}));
 const precarioUrl = computed(() => route('precario'));
 const pedidosAtivos = (mesa) => [
     ...(mesa.pedidos ?? []),
@@ -62,14 +64,23 @@ const copiarPrecario = async () => {
         await navigator.clipboard.writeText(precarioUrl.value);
     }
 };
-onMounted(() => { refresh = setInterval(() => router.reload({ only: ['mesas'], preserveScroll: true }), 20000); });
+const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const horaFechada = (ts) => ts ? new Date(ts).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
+const nomeMesaFechada = (p) => {
+    const mp = p.mesa?.mesa_principal ?? p.mesa;
+    return mp ? 'Mesa ' + mp.numero : 'Balcão';
+};
+const pedidosFechadosOrdenados = computed(() => [...(props.pedidosFechadosHoje ?? [])].filter(p => p.mesa_id).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)));
+
+onMounted(() => { refresh = setInterval(() => router.reload({ only: ['mesas', 'pedidosFechadosHoje'], preserveScroll: true }), 20000); });
 onBeforeUnmount(() => clearInterval(refresh));
 </script>
 
 <template>
     <main class="min-h-screen bg-gray-900 p-5 text-white">
         <header class="mb-5 flex items-center gap-4"><Link :href="route('pos.rest.index')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">←</Link><h1 class="text-4xl font-black">MESAS</h1></header>
-        <div class="mb-5 flex justify-end">
+        <div class="mb-5 flex flex-wrap justify-end gap-3">
+            <button type="button" class="rounded-lg px-4 py-3 font-black" :class="somenteGrupos ? 'bg-amber-500 text-gray-950' : 'bg-gray-700'" @click="somenteGrupos = !somenteGrupos">GRUPOS GRANDES</button>
             <button type="button" class="rounded-lg bg-emerald-600 px-4 py-3 font-black" @click="mostrarQrPrecario">QR PREÇÁRIO</button>
         </div>
         <section v-for="(lista, local) in grupos" :key="local" class="mb-7">
@@ -85,6 +96,24 @@ onBeforeUnmount(() => clearInterval(refresh));
                 </Link>
             </div>
         </section>
+        <!-- Mesas fechadas hoje -->
+        <section v-if="pedidosFechadosOrdenados.length" class="mt-8">
+            <h2 class="mb-3 text-xl font-black uppercase text-gray-400">✅ Fechadas Hoje</h2>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+                <Link
+                    v-for="p in pedidosFechadosOrdenados"
+                    :key="p.id"
+                    :href="route('pos.rest.mesa', p.mesa_id)"
+                    class="flex min-h-[100px] flex-col items-center justify-center rounded-lg bg-gray-700 p-3 text-center font-black shadow opacity-80 hover:opacity-100"
+                >
+                    <span class="text-2xl sm:text-3xl">{{ nomeMesaFechada(p) }}</span>
+                    <span class="mt-1 text-sm font-semibold text-emerald-400">{{ euros(p.total) }}</span>
+                    <span class="mt-0.5 text-xs text-gray-400">{{ horaFechada(p.updated_at) }}</span>
+                    <span v-if="p.observacoes" class="mt-1 rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">OBS</span>
+                </Link>
+            </div>
+        </section>
+
         <div v-if="qrAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
             <div class="mx-auto max-w-md rounded-2xl bg-white p-5 text-center text-slate-950">
                 <h2 class="text-2xl font-black">Preçário</h2>

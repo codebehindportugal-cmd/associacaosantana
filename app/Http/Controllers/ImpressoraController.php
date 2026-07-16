@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Impressora;
+use App\Models\PrintJob;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -59,28 +60,35 @@ class ImpressoraController extends Controller
         return back()->with('success', 'Impressora removida com sucesso.');
     }
 
+    public function retentarFalhados(): RedirectResponse
+    {
+        $count = PrintJob::where('estado', 'falhado')->update([
+            'estado' => 'pendente',
+            'tentativas' => 0,
+            'ultimo_erro' => null,
+            'reservado_ate' => null,
+        ]);
+
+        return back()->with('success', "Reentrou $count job(s) na fila de impressão.");
+    }
+
+    public function statusJobs(): \Illuminate\Http\JsonResponse
+    {
+        return response()->json([
+            'pendente' => PrintJob::where('estado', 'pendente')->count(),
+            'processando' => PrintJob::where('estado', 'processando')->count(),
+            'falhado' => PrintJob::where('estado', 'falhado')->count(),
+            'impresso' => PrintJob::where('estado', 'impresso')->whereDate('updated_at', today())->count(),
+        ]);
+    }
+
     public function downloadAgente(): StreamedResponse
     {
-        $dir = base_path('local-printer-agent');
+        $path = base_path('local-printer-agent/setup-pi.sh');
 
-        return response()->streamDownload(function () use ($dir): void {
-            $tmpFile = tempnam(sys_get_temp_dir(), 'ardc_agent_');
-            $zip = new ZipArchive();
-            $zip->open($tmpFile, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-
-            foreach (['agent.mjs', '.env.example', 'README.md'] as $file) {
-                $path = $dir.'/'.$file;
-                if (file_exists($path)) {
-                    $zip->addFile($path, $file);
-                }
-            }
-
-            $zip->addFromString('ardc-print-agent.service', $this->systemdService());
-            $zip->close();
-
-            echo file_get_contents($tmpFile);
-            unlink($tmpFile);
-        }, 'ardc-print-agent.zip', ['Content-Type' => 'application/zip']);
+        return response()->streamDownload(function () use ($path): void {
+            echo file_get_contents($path);
+        }, 'setup-pi.sh', ['Content-Type' => 'text/x-sh']);
     }
 
     private function systemdService(): string

@@ -20,6 +20,7 @@ class Reserva extends Model
         'chamada_em',
         'sentada_em',
         'observacoes',
+        'mesa_atribuida',
     ];
 
     protected $casts = [

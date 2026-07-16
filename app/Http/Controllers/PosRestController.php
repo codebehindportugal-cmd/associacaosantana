@@ -73,7 +73,18 @@ class PosRestController extends Controller
             ->orderBy('numero')
             ->get();
 
-        return Inertia::render('PosRest/Mesas', ['mesas' => $mesas]);
+        $pedidosFechadosHoje = Pedido::where('tipo', 'restaurante')
+            ->where('estado', 'entregue')
+            ->whereDate('updated_at', today())
+            ->with('mesa.mesaPrincipal')
+            ->latest('updated_at')
+            ->limit(30)
+            ->get(['id', 'mesa_id', 'total', 'metodo_pagamento', 'observacoes', 'updated_at']);
+
+        return Inertia::render('PosRest/Mesas', [
+            'mesas' => $mesas,
+            'pedidosFechadosHoje' => $pedidosFechadosHoje,
+        ]);
     }
 
     public function mesa(Mesa $mesa): Response
@@ -107,7 +118,17 @@ class PosRestController extends Controller
             ->get()
             ->groupBy(fn ($produto) => $produto->categoria->nome ?? 'Outros');
 
-        return Inertia::render('PosRest/Mesa', compact('mesa', 'pedido', 'produtos'));
+        $mesasLivres = Mesa::principais()
+            ->ativas()
+            ->where('id', '!=', $mesa->id)
+            ->where('localizacao', $mesa->localizacao)
+            ->where('estado', 'livre')
+            ->whereDoesntHave('pedidos', fn ($q) => $q->whereIn('estado', ['pendente', 'preparacao', 'pronto']))
+            ->whereDoesntHave('submesas.pedidos', fn ($q) => $q->whereIn('estado', ['pendente', 'preparacao', 'pronto']))
+            ->orderBy('numero')
+            ->get(['id', 'numero', 'capacidade', 'localizacao']);
+
+        return Inertia::render('PosRest/Mesa', compact('mesa', 'pedido', 'produtos', 'mesasLivres'));
     }
 
     public function novoPedido(Request $request, Mesa $mesa): RedirectResponse
@@ -123,11 +144,19 @@ class PosRestController extends Controller
         }
 
         $mesa = Mesa::with('submesas')->findOrFail($mesa->id);
-        $lugares = (int) $data['lugares_ocupados'];
+
+        // Se é uma submesa livre, redirecionar para a mesa principal
+        // para suportar fusão de blocos livres contíguos
+        if ($mesa->mesa_principal_id) {
+            $mesa = Mesa::with('submesas')->findOrFail($mesa->mesa_principal_id);
+        }
+
+        $lugares      = (int) $data['lugares_ocupados'];
+        $letraSubmesa = $data['submesa_letra'] ?? null;
         $capacidadeMesa = $this->capacidadeFisicaMesa($mesa);
         $mesasGrupo = collect();
 
-        if (! $mesa->mesa_principal_id && $lugares < $capacidadeMesa && empty($data['submesa_letra'])) {
+        if (! $mesa->mesa_principal_id && $lugares < $capacidadeMesa && empty($letraSubmesa) && ! $this->temPedidosAtivosNasSubmesas($mesa)) {
             return back()->withErrors(['submesa_letra' => 'Indica a letra da submesa para pedidos com menos lugares do que a mesa completa.']);
         }
 
@@ -135,16 +164,36 @@ class PosRestController extends Controller
             return back()->withErrors(['mesas_grupo' => 'Indica as mesas do grupo para pedidos com mais lugares do que a mesa inicial.']);
         }
 
+        if ($lugares > $capacidadeMesa && empty($letraSubmesa)) {
+            return back()->withErrors(['submesa_letra' => 'Indica a letra do grupo (A, B, C ou D).']);
+        }
+
         if ($lugares > $capacidadeMesa) {
             $mesasGrupo = $this->mesasGrupoPorNumeros($mesa, $data['mesas_grupo'], $lugares);
 
+            if ($mesasGrupo->isEmpty()) {
+                // Diagnose: check if table numbers exist
+                $numerosEspecificados = collect(preg_split('/[\s,]+/', $data['mesas_grupo']))
+                    ->map(fn ($n) => (int) trim((string) $n))->filter()->values();
+                $mesasEncontradas = Mesa::principais()->ativas()->whereIn('numero', $numerosEspecificados)->get();
+                if ($mesasEncontradas->count() !== $numerosEspecificados->count()) {
+                    $naoEncontradas = $numerosEspecificados->diff($mesasEncontradas->pluck('numero'))->values();
+                    return back()->withErrors(['mesas_grupo' => 'Mesa(s) não encontrada(s) ou inativa(s): ' . $naoEncontradas->join(', ')]);
+                }
+                $ocupadas = $mesasEncontradas->filter(fn ($m) => (int) $m->id !== (int) $mesa->id && !$this->mesaDisponivelParaGrupo($m))->pluck('numero');
+                if ($ocupadas->isNotEmpty()) {
+                    return back()->withErrors(['mesas_grupo' => 'Mesa(s) ocupada(s) ou com pedido ativo: ' . $ocupadas->join(', ')]);
+                }
+                $capacidadeTotal = $mesasEncontradas->sum(fn ($m) => $this->capacidadeFisicaMesa($m)) + $capacidadeMesa;
+                return back()->withErrors(['mesas_grupo' => "Capacidade insuficiente: {$capacidadeTotal} lugares para {$lugares} pessoas. Adiciona mais mesas ao grupo."]);
+            }
             if ($mesasGrupo->sum('capacidade') < $lugares) {
                 return back()->withErrors(['lugares_ocupados' => 'Nao existem mesas livres suficientes para este grupo.']);
             }
 
             $mesaPedido = $mesa;
         } else {
-            $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null, $data['submesa_letra'] ?? null);
+            $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null, $letraSubmesa);
         }
 
         $pedido = Pedido::create([
@@ -205,6 +254,7 @@ class PosRestController extends Controller
             'quantidade' => (int) $data['quantidade'],
             'nome' => $produto->nome,
             'observacoes' => $observacoes,
+            'prioridade' => (bool) ($data['prioridade'] ?? false),
         ], $secao);
 
         return back()->with('success', 'Pedido validado e enviado para a equipa.');
@@ -240,21 +290,20 @@ class PosRestController extends Controller
                 'quantidade' => $quantidade,
                 'nome' => $produto->nome,
                 'observacoes' => $observacoes,
+                'prioridade' => $prioridade,
                 'secao' => $secao,
             ]);
         }
 
         $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
 
+        // Agrupar itens por secção: um único talão por secção/impressora
+        $pedidoFresh = $pedido->fresh('mesa.mesaPrincipal', 'user', 'pos');
         $itemsParaImpressao
             ->groupBy('secao')
-            ->each(function ($items, string $secao) use ($pedido, $printJobs) {
-                $printJobs->criarPedido(
-                    $pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'),
-                    $secao,
-                    'pedido',
-                    $this->agruparItemsImpressao($items->all())
-                );
+            ->each(function ($itensDaSecao, $secao) use ($pedidoFresh, $printJobs) {
+                $itensCombinados = $this->agruparItemsImpressao($itensDaSecao->all());
+                $printJobs->criarPedido($pedidoFresh, $secao, 'pedido', $itensCombinados);
             });
 
         return back();
@@ -327,6 +376,17 @@ class PosRestController extends Controller
         return to_route('pos.rest.pedido.talao', $pedido);
     }
 
+    public function atualizarObservacoes(Request $request, Pedido $pedido): RedirectResponse
+    {
+        $data = $request->validate([
+            'observacoes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $pedido->update(['observacoes' => $data['observacoes'] ?? null]);
+
+        return back()->with('success', 'Observação guardada.');
+    }
+
     public function atualizarLugares(Request $request, Pedido $pedido): RedirectResponse
     {
         $data = $request->validate([
@@ -342,10 +402,15 @@ class PosRestController extends Controller
         $lugares = min((int) $data['lugares_ocupados'], (int) ($mesa->capacidade ?: $data['lugares_ocupados']));
         $inicio = (int) ($mesa->lugares_inicio ?: 1);
 
-        $mesa->update([
-            'capacidade' => $lugares,
-            'lugares_fim' => $inicio + $lugares - 1,
-        ]);
+        $campos = ['lugares_fim' => $inicio + $lugares - 1];
+
+        // So actualiza a capacidade em submesas; nas mesas principais nao alterar
+        // a capacidade fisica para nao corromper o valor ao libertar a mesa
+        if ($mesa->mesa_principal_id) {
+            $campos['capacidade'] = $lugares;
+        }
+
+        $mesa->update($campos);
 
         return back();
     }
@@ -374,6 +439,18 @@ class PosRestController extends Controller
         }
 
         return back()->with('success', 'Estado do pedido atualizado.');
+    }
+
+    public function pedidoExtra(Request $request, Mesa $mesa, PrintJobService $printJobs): RedirectResponse
+    {
+        $data = $request->validate([
+            'descricao' => ['required', 'string', 'max:100'],
+        ]);
+
+        $mesa->load('mesaPrincipal');
+        $printJobs->criarPedidoExtra($mesa, $data['descricao']);
+
+        return back()->with('success', 'Pedido enviado: '.$data['descricao']);
     }
 
     public function historico(): Response
@@ -457,6 +534,12 @@ class PosRestController extends Controller
         }
 
         if ($this->temPedidosAtivosNasSubmesas($mesa)) {
+            // Tenta fundir blocos livres contíguos para acomodar o novo grupo
+            $blocoLivre = $this->encontrarBlocoLivre($mesa, $lugaresOcupados);
+            if ($blocoLivre) {
+                return $this->dividirBlocoParaPedido($blocoLivre, $lugaresOcupados, $letraSubmesa);
+            }
+
             return $mesa;
         }
 
@@ -475,6 +558,14 @@ class PosRestController extends Controller
         $capacidade = $fim - $inicio + 1;
 
         if ($lugaresOcupados >= $capacidade) {
+            // Se foi fornecida uma letra e é uma submesa, renomear com essa letra
+            if ($letraSubmesa && $mesa->mesa_principal_id) {
+                $letraNormalizada = $this->normalizarLetraSubmesa($letraSubmesa);
+                if ($letraNormalizada && ! $this->letraSubmesaEmUso($mesaPrincipal, $letraNormalizada)) {
+                    $mesa->update(['nome' => 'Mesa '.$mesaPrincipal->numero.$letraNormalizada]);
+                }
+            }
+
             return $mesa;
         }
 
@@ -587,7 +678,55 @@ class PosRestController extends Controller
             return;
         }
 
+        // Fundir submesas livres contíguas numa só (evita fragmentação após fechar grupos)
+        $this->fundirSubMesasLivres($mesaPrincipal);
+
         $mesaPrincipal->update(['estado' => 'ocupada']);
+    }
+
+    private function fundirSubMesasLivres(Mesa $mesaPrincipal): void
+    {
+        $livres = $mesaPrincipal->submesas()
+            ->where('estado', 'livre')
+            ->whereNotNull('lugares_inicio')
+            ->whereDoesntHave('pedidos', fn ($q) => $q->whereIn('estado', ['pendente', 'preparacao', 'pronto']))
+            ->orderBy('lugares_inicio')
+            ->get();
+
+        if ($livres->count() <= 1) {
+            return;
+        }
+
+        $fundir = function (\Illuminate\Support\Collection $bloco) use ($mesaPrincipal): void {
+            if ($bloco->count() <= 1) {
+                return;
+            }
+            $inicio = (int) $bloco->first()->lugares_inicio;
+            $fim    = (int) $bloco->last()->lugares_fim;
+            $bloco->each->delete();
+            $mesaPrincipal->submesas()->create([
+                'numero'         => $this->proximoNumeroSubmesa($mesaPrincipal),
+                'nome'           => 'Mesa '.$mesaPrincipal->numero,
+                'capacidade'     => $fim - $inicio + 1,
+                'lugares_inicio' => $inicio,
+                'lugares_fim'    => $fim,
+                'localizacao'    => $mesaPrincipal->localizacao,
+                'estado'         => 'livre',
+                'ativa'          => true,
+            ]);
+        };
+
+        $blocoAtual = collect([$livres->first()]);
+
+        foreach ($livres->slice(1) as $submesa) {
+            if ((int) $submesa->lugares_inicio === (int) $blocoAtual->last()->lugares_fim + 1) {
+                $blocoAtual->push($submesa);
+            } else {
+                $fundir($blocoAtual);
+                $blocoAtual = collect([$submesa]);
+            }
+        }
+        $fundir($blocoAtual);
     }
 
     private function atualizarMesasGrupo(Pedido $pedido): void
@@ -652,7 +791,11 @@ class PosRestController extends Controller
             $mesa->submesas()->delete();
         }
 
-        $mesa->update(['estado' => 'livre']);
+        $mesa->update([
+            'estado' => 'livre',
+            'lugares_inicio' => null,
+            'lugares_fim' => null,
+        ]);
     }
 
     private function mesasLivresParaGrupo(Mesa $mesaInicial, int $lugares): Collection
@@ -769,6 +912,66 @@ class PosRestController extends Controller
             && ! $this->temPedidosAtivosNaMesa($mesa)
             && ! $this->temPedidosAtivosNasSubmesas($mesa)
             && ! $mesa->pedidosGrupo()->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])->exists();
+    }
+
+    /**
+     * Encontra o primeiro bloco contíguo de submesas livres com capacidade suficiente.
+     * Se o bloco for composto por múltiplas submesas adjacentes, funde-as numa só.
+     */
+    private function encontrarBlocoLivre(Mesa $mesaPrincipal, int $lugaresNecessarios): ?Mesa
+    {
+        $livres = $mesaPrincipal->submesas()
+            ->where('estado', 'livre')
+            ->whereNotNull('lugares_inicio')
+            ->whereDoesntHave('pedidos', fn ($q) => $q->whereIn('estado', ['pendente', 'preparacao', 'pronto']))
+            ->orderBy('lugares_inicio')
+            ->get();
+
+        if ($livres->isEmpty()) {
+            return null;
+        }
+
+        // Agrupar submesas livres em blocos contíguos
+        $blocos      = [];
+        $blocoAtual  = collect([$livres->first()]);
+
+        foreach ($livres->slice(1) as $submesa) {
+            if ((int) $submesa->lugares_inicio === (int) $blocoAtual->last()->lugares_fim + 1) {
+                $blocoAtual->push($submesa);
+            } else {
+                $blocos[]   = $blocoAtual;
+                $blocoAtual = collect([$submesa]);
+            }
+        }
+        $blocos[] = $blocoAtual;
+
+        // Devolver o primeiro bloco com capacidade suficiente (fundir se necessário)
+        foreach ($blocos as $bloco) {
+            $inicio = (int) $bloco->first()->lugares_inicio;
+            $fim    = (int) $bloco->last()->lugares_fim;
+            $cap    = $fim - $inicio + 1;
+
+            if ($cap >= $lugaresNecessarios) {
+                if ($bloco->count() > 1) {
+                    $bloco->each->delete();
+
+                    return $mesaPrincipal->submesas()->create([
+                        'numero'         => $this->proximoNumeroSubmesa($mesaPrincipal),
+                        'nome'           => 'Mesa '.$mesaPrincipal->numero,
+                        'capacidade'     => $cap,
+                        'lugares_inicio' => $inicio,
+                        'lugares_fim'    => $fim,
+                        'localizacao'    => $mesaPrincipal->localizacao,
+                        'estado'         => 'livre',
+                        'ativa'          => true,
+                    ]);
+                }
+
+                return $bloco->first();
+            }
+        }
+
+        return null;
     }
 
     private function capacidadeFisicaMesa(Mesa $mesa): int

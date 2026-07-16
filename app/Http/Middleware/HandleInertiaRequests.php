@@ -39,15 +39,21 @@ class HandleInertiaRequests extends Middleware
             ],
             'urgentes_count'      => fn () => \App\Models\PedidoItem::urgentes()->count(),
             'chamadas_comissao'   => fn () => $request->user()
-                ? \App\Models\ChamadaComissao::pendentes()
-                    ->orderBy('created_at')
-                    ->get()
-                    ->map(fn ($c) => [
-                        'id'            => $c->id,
-                        'operador_nome' => $c->operador_nome,
-                        'local'         => $c->local,
-                        'criado_em'     => $c->created_at->diffForHumans(),
-                    ])
+                ? (function () {
+                    try {
+                        return \App\Models\ChamadaComissao::pendentes()
+                            ->orderBy('created_at')
+                            ->get()
+                            ->map(fn ($c) => [
+                                'id'            => $c->id,
+                                'operador_nome' => $c->operador_nome,
+                                'local'         => $c->local,
+                                'criado_em'     => $c->created_at->diffForHumans(),
+                            ]);
+                    } catch (\Throwable) {
+                        return [];
+                    }
+                })()
                 : [],
             'restaurante' => [
                 'mostrar_estado_items' => (bool) config('restaurante.mostrar_estado_items'),

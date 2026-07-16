@@ -41,6 +41,10 @@ class ProdutoController extends Controller
         $componentes = $data['componentes'] ?? [];
         unset($data['componentes']);
 
+        if ($request->hasFile('imagem')) {
+            $data['imagem'] = $request->file('imagem')->store('produtos', 'public');
+        }
+
         $produto = Produto::create($data);
         $this->syncComponentes($produto, $componentes);
 
@@ -53,6 +57,17 @@ class ProdutoController extends Controller
         $syncComponentes = $request->has('componentes');
         $componentes = $data['componentes'] ?? [];
         unset($data['componentes']);
+
+        if ($request->hasFile('imagem')) {
+            // Apagar imagem antiga
+            if ($produto->imagem) {
+                \Storage::disk('public')->delete($produto->imagem);
+            }
+            $data['imagem'] = $request->file('imagem')->store('produtos', 'public');
+        } else {
+            // Sem nova imagem: nao sobrescrever a imagem existente
+            unset($data['imagem']);
+        }
 
         $produto->update($data);
         if ($syncComponentes) {
@@ -74,6 +89,7 @@ class ProdutoController extends Controller
         $data = $request->validate([
             'categoria_id' => ['required', 'exists:categorias,id'],
             'nome' => ['required', 'string', 'max:255'],
+            'imagem' => ['nullable', 'image', 'max:2048'],
             'preco' => ['required', 'numeric', 'min:0'],
             'custo_compra_unitario' => ['nullable', 'numeric', 'min:0'],
             'unidade_compra' => ['nullable', 'string', 'max:20'],

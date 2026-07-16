@@ -18,17 +18,18 @@ class ReservaController extends Controller
         $this->middleware('permission:reservas.apagar')->only('destroy');
     }
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $hoje = now()->toDateString();
+        $dataFiltro = $request->input('data', $hoje);
 
         return Inertia::render('Reservas/Index', [
             'reservas' => Reserva::query()
-                ->whereIn('estado', ['em_espera', 'confirmada', 'sentada'])
-                ->orderByRaw('CASE WHEN data >= ? THEN 0 ELSE 1 END', [$hoje])
-                ->orderBy('data')
+                ->whereIn('estado', ['em_espera', 'confirmada', 'sentada', 'cancelada'])
+                ->whereDate('data', $dataFiltro)
                 ->orderBy('hora')
-                ->paginate(30),
+                ->get(),
+            'dataFiltro' => $dataFiltro,
         ]);
     }
 
@@ -99,8 +100,8 @@ class ReservaController extends Controller
     {
         return $request->validate([
             'nome' => ['required', 'string', 'max:255'],
-            'data' => ['required', 'date'],
-            'hora' => ['required', 'date_format:H:i'],
+            'data' => ['sometimes', 'required', 'date'],
+            'hora' => ['required', 'date_format:H:i,H:i:s'],
             'pessoas' => ['required', 'integer', 'min:1'],
             'estado' => ['nullable', 'in:em_espera,confirmada,sentada,cancelada'],
             'observacoes' => ['nullable', 'string'],

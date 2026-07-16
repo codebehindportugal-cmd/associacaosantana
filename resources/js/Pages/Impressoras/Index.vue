@@ -82,6 +82,11 @@ const getSectionName = (secao) => {
     if (!secao) return '—'
     return secoes.value[secao] || secao
 }
+
+const retentarForm = useForm({})
+function retentarFalhados() {
+    retentarForm.post(route('impressoras.retentar-falhados'))
+}
 </script>
 
 <template>
@@ -152,26 +157,43 @@ const getSectionName = (secao) => {
             </div>
         </div>
 
-        <!-- Download Agente -->
-        <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div class="flex flex-wrap items-start justify-between gap-4">
+        <!-- Retentar Falhados -->
+        <div class="mt-6 rounded-lg border border-red-200 bg-red-50 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="min-w-0">
-                    <h3 class="font-semibold text-slate-900">Agente local de impressao</h3>
-                    <p class="mt-1 text-sm text-slate-600">
-                        Corre no Raspberry Pi (ou outro PC) dentro da rede das impressoras. Liga a API do servidor e imprime os trabalhos pendentes via ESC/POS (porta TCP 9100).
+                    <h3 class="font-semibold text-red-900">Jobs de impressão falhados</h3>
+                    <p class="mt-1 text-sm text-red-700">
+                        Se o pedido não imprimiu tudo, usa este botão para colocar os jobs falhados de volta na fila.
                     </p>
-                    <ol class="mt-3 space-y-1 text-sm text-slate-600 list-decimal list-inside">
-                        <li>Instala Node.js no Raspberry Pi</li>
-                        <li>Extrai o ZIP para <code class="rounded bg-slate-100 px-1">/opt/ardc-print-agent</code></li>
-                        <li>Copia <code class="rounded bg-slate-100 px-1">.env.example</code> para <code class="rounded bg-slate-100 px-1">.env</code> e define <code class="rounded bg-slate-100 px-1">PRINT_AGENT_TOKEN</code></li>
-                        <li>Copia <code class="rounded bg-slate-100 px-1">ardc-print-agent.service</code> para <code class="rounded bg-slate-100 px-1">/etc/systemd/system/</code> e corre <code class="rounded bg-slate-100 px-1">systemctl enable --now ardc-print-agent</code></li>
-                    </ol>
+                </div>
+                <button
+                    type="button"
+                    :disabled="retentarForm.processing"
+                    class="shrink-0 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60 transition"
+                    @click="retentarFalhados"
+                >
+                    {{ retentarForm.processing ? 'A processar...' : 'Retentar jobs falhados' }}
+                </button>
+            </div>
+        </div>
+
+        <!-- Download Agente -->
+        <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="min-w-0">
+                    <h3 class="font-semibold text-stone-800">Agente de impressão (Raspberry Pi)</h3>
+                    <p class="mt-1 text-sm text-stone-600">
+                        Corre no Raspberry Pi dentro da rede das impressoras. Instala Node.js, configura o agente e ativa o serviço automático.
+                    </p>
+                    <p class="mt-1 text-xs text-stone-500 font-mono">
+                        chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh
+                    </p>
                 </div>
                 <a
                     :href="route('impressoras.download-agente')"
-                    class="shrink-0 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                    class="shrink-0 rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition"
                 >
-                    Download agente (.zip)
+                    ↓ Download setup-pi.sh
                 </a>
             </div>
         </div>
@@ -236,7 +258,7 @@ const getSectionName = (secao) => {
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <input
+                         <input
                             id="ativa"
                             v-model="form.ativa"
                             type="checkbox"

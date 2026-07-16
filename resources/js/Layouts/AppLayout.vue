@@ -153,6 +153,9 @@ onBeforeUnmount(() => clearInterval(polling));
                 <div v-if="page.props.flash?.success" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
                     {{ page.props.flash.success }}
                 </div>
+                <div v-if="page.props.flash?.error" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
+                    {{ page.props.flash.error }}
+                </div>
                 <slot />
             </section>
             <footer class="px-4 pb-24 text-center text-xs text-stone-400 md:pb-6 lg:px-8">

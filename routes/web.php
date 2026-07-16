@@ -36,6 +36,7 @@ use App\Http\Controllers\SponsorScreenController;
 use App\Http\Controllers\SponsorshipController;
 use App\Http\Controllers\SocioController;
 use App\Http\Controllers\ChamadaComissaoController;
+use App\Http\Controllers\ValorExtraController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -185,6 +186,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('faturas-compras', [FaturaCompraController::class, 'store'])->name('faturas-compras.store');
     Route::patch('faturas-compras/{fatura}/pagar', [FaturaCompraController::class, 'pagar'])->name('faturas-compras.pagar');
     Route::post('faturas-compras/{fatura}/devolver', [FaturaCompraController::class, 'devolver'])->name('faturas-compras.devolver');
+    Route::get('valor-extras', [ValorExtraController::class, 'index'])->name('valor-extras.index');
+    Route::post('valor-extras', [ValorExtraController::class, 'store'])->name('valor-extras.store');
+    Route::delete('valor-extras/{valorExtra}', [ValorExtraController::class, 'destroy'])->name('valor-extras.destroy');
     Route::get('contas-festa', [FestaContaController::class, 'index'])->name('contas-festa.index');
     Route::post('contas-festa', [FestaContaController::class, 'store'])->name('contas-festa.store');
     Route::put('contas-festa/{contasFesta}', [FestaContaController::class, 'update'])->name('contas-festa.update');

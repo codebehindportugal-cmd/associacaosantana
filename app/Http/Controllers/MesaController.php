@@ -215,7 +215,11 @@ class MesaController extends Controller
             $mesa->submesas()->delete();
         }
 
-        $mesa->update(['estado' => 'livre']);
+        $mesa->update([
+            'estado' => 'livre',
+            'lugares_inicio' => null,
+            'lugares_fim' => null,
+        ]);
     }
 
     private function mesasParaMapa()

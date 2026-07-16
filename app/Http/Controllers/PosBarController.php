@@ -30,7 +30,7 @@ class PosBarController extends Controller
                 ->get(),
             'senhasHoje' => Pedido::where('ponto_bar', $ponto)
                 ->where('tipo', 'bar_prepago')
-                ->whereDate('created_at', today())
+                ->whereRaw('DATE(DATE_SUB(created_at, INTERVAL 12 HOUR)) = ?', [now()->subHours(12)->toDateString()])
                 ->with('items.produto')
                 ->latest()
                 ->limit(12)
@@ -94,10 +94,23 @@ class PosBarController extends Controller
                 ]);
             }
 
-            $printJobs->criarTalaoBar(
-                $pedido->fresh('items.produto.categoria', 'pos'),
-                $this->secaoImpressora()
-            );
+            $pedidoFull = $pedido->fresh('items.produto.categoria', 'pos');
+            $secaoImp   = $this->secaoImpressora();
+
+            $itensFrango = $pedidoFull->items->filter(fn ($i) => ($i->produto->categoria->secao ?? '') === 'frango');
+            $itensOutros = $pedidoFull->items->filter(fn ($i) => ($i->produto->categoria->secao ?? '') !== 'frango');
+
+            // 1 senha por unidade de frango
+            foreach ($itensFrango as $item) {
+                for ($u = 0; $u < $item->quantidade; $u++) {
+                    $printJobs->criarTalaoBarUnitario($pedidoFull, $item->produto->nome, $secaoImp);
+                }
+            }
+
+            // Talao agrupado para os restantes itens (se existirem)
+            if ($itensOutros->isNotEmpty()) {
+                $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+            }
 
             return to_route('pos.pedido.talao', $pedido);
         });
@@ -132,7 +145,8 @@ class PosBarController extends Controller
 
     private function secaoImpressora(): string
     {
-        return session('pos_tipo') === 'cafe' ? 'cafe' : 'bar';
+        $ponto = session('pos_localizacao') ?: session('pos_nome') ?: '';
+        return preg_match('/caf[eé]/iu', $ponto) ? 'cafe' : 'bar';
     }
 
     private function produtoBarRule()

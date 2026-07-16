@@ -94,7 +94,6 @@ onBeforeUnmount(() => {
                         >
                         <span class="footer-name">{{ atual.empresa }}</span>
                     </div>
-                    <span class="footer-counter">{{ indice + 1 }}&thinsp;/&thinsp;{{ sequencia.length }}</span>
                 </div>
 
                 <div class="footer-progress-track">
@@ -227,14 +226,6 @@ onBeforeUnmount(() => {
     text-overflow: ellipsis;
 }
 
-.footer-counter {
-    font-size: 0.75rem;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: rgba(255, 255, 255, 0.45);
-    flex-shrink: 0;
-}
 
 .footer-progress-track {
     height: 3px;

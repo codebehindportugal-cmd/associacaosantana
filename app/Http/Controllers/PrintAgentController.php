@@ -20,8 +20,13 @@ class PrintAgentController extends Controller
                             ->where('reservado_ate', '<', now());
                     })
                     ->orWhere(function ($subQuery) {
+                        // Jobs falhados so sao recolhidos apos o backoff expirar
                         $subQuery->where('estado', 'falhado')
-                            ->where('tentativas', '<', 3);
+                            ->where('tentativas', '<', 10)
+                            ->where(function ($q) {
+                                $q->whereNull('reservado_ate')
+                                    ->orWhere('reservado_ate', '<', now());
+                            });
                     });
             })
             ->orderBy('id')
@@ -71,10 +76,14 @@ class PrintAgentController extends Controller
             'error' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        // Backoff exponencial: espera mais a cada tentativa (30s, 60s, 120s, ate 10min)
+        $tentativas = $printJob->tentativas;
+        $backoffSegundos = min(600, 30 * (2 ** max(0, $tentativas - 1)));
+
         $printJob->update([
             'estado' => 'falhado',
             'ultimo_erro' => $data['error'] ?? 'Erro desconhecido no agente local.',
-            'reservado_ate' => null,
+            'reservado_ate' => now()->addSeconds($backoffSegundos),
         ]);
 
         return response()->json(['ok' => true]);
