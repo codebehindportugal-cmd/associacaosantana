@@ -67,11 +67,11 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
 <template>
     <ChamadaFuncionarioAlert />
     <main class="min-h-screen bg-gray-900 p-5 text-white">
-        <header class="mb-6 flex items-center justify-between gap-3">
-            <div><h1 class="text-xl font-black sm:text-3xl">POS RESTAURANTE</h1><p class="font-bold text-gray-300">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p></div>
-            <div class="flex gap-2">
-                <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
-                <button class="rounded-lg bg-red-600 px-4 py-2 font-black sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
+        <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0"><h1 class="text-xl font-black sm:text-3xl">POS RESTAURANTE</h1><p class="truncate text-sm font-bold text-gray-300 sm:text-base">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p></div>
+            <div class="flex w-full gap-2 sm:w-auto">
+                <button class="flex-1 rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:flex-none sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
+                <button class="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-black sm:flex-none sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
             </div>
         </header>
         

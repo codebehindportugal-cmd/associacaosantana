@@ -83,9 +83,9 @@ onBeforeUnmount(() => clearInterval(refresh));
 <template>
     <ChamadaFuncionarioAlert />
     <main class="min-h-screen bg-gray-900 p-5 text-white">
-        <header class="mb-5 flex items-center gap-4">
+        <header class="mb-5 flex flex-wrap items-center gap-3">
             <Link :href="route('pos.rest.index')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">←</Link>
-            <h1 class="flex-1 text-4xl font-black">MESAS</h1>
+            <h1 class="min-w-0 flex-1 text-2xl font-black sm:text-4xl">MESAS</h1>
             <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
         </header>
         <ChamarComissaoModal v-if="chamandoComissao" @fechar="chamandoComissao = false" />
