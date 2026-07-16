@@ -20,6 +20,7 @@ use App\Http\Controllers\PedidoItemController;
 use App\Http\Controllers\PagesController;
 use App\Http\Controllers\PosBarController;
 use App\Http\Controllers\PosCotasController;
+use App\Http\Controllers\PosPainelController;
 use App\Http\Controllers\PosLoginController;
 use App\Http\Controllers\PosReservasController;
 use App\Http\Controllers\PosRestController;
@@ -65,14 +66,24 @@ Route::post('/funcionario/{token}/confirmar-chamada', [ClientePedidoController::
 
 Route::get('/pos/login', [PosLoginController::class, 'show'])->name('pos.login');
 Route::post('/pos/login', [PosLoginController::class, 'store'])->name('pos.login.store');
+Route::post('/pos/login/comissao', [PosLoginController::class, 'comissaoStore'])->name('pos.login.comissao');
+Route::post('/pos/login/comissao/sair', [PosLoginController::class, 'comissaoDestroy'])->name('pos.login.comissao.sair');
 Route::post('/pos/logout', [PosLoginController::class, 'destroy'])->name('pos.logout');
 
-// Rota partilhada por todos os POS para chamar a comissão de festas
+// Rotas partilhadas por TODOS os tipos de POS (o prefixo pos-comum não é
+// restringido por tipo no EnsurePosSession, ao contrário de pos/, pos-rest/, etc.)
+Route::middleware('pos.auth')->prefix('pos-comum')->name('pos.comum.')->group(function () {
+    Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar');
+    Route::get('/chamadas-funcionario', [ClientePedidoController::class, 'chamadasPos'])->name('chamadas');
+    Route::post('/chamadas-funcionario/{pedido}/confirmar', [ClientePedidoController::class, 'confirmarChamadaPos'])->name('chamadas.confirmar');
+});
+
 Route::middleware('pos.auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosBarController::class, 'index'])->name('index');
     Route::post('/prepago', [PosBarController::class, 'storePrepago'])->name('prepago.store');
     Route::get('/pedido/{pedido}/talao', [PosBarController::class, 'talao'])->name('pedido.talao');
-    Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar');
+    // Compatibilidade com builds antigos (bar/café)
+    Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar.antigo');
 });
 
 Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(function () {
@@ -212,6 +223,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Comissão de Festas — back-office
     Route::get('comissao/pendentes', [ChamadaComissaoController::class, 'pendentes'])->name('comissao.pendentes');
     Route::post('comissao/{chamada}/atender', [ChamadaComissaoController::class, 'atender'])->name('comissao.atender');
+    Route::get('pos-painel', [PosPainelController::class, 'index'])->name('pos-painel.index');
+    Route::post('pos-painel/pin', [PosPainelController::class, 'atualizarPin'])->name('pos-painel.pin');
 });
 
 require __DIR__.'/auth.php';

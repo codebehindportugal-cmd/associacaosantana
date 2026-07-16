@@ -1,6 +1,7 @@
 <script setup>
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
+import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 
@@ -271,6 +272,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+    <ChamadaFuncionarioAlert />
     <main class="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-gray-900 p-3 text-white sm:p-4">
         <header class="mb-4 flex items-center justify-between"><Link :href="route('pos.rest.mesas')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">← MESAS</Link><h1 class="text-3xl font-black">MESA {{ mesa.numero }}</h1></header>
         <div v-if="!pedido" class="min-w-0 space-y-4">

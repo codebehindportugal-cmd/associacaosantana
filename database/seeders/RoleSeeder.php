@@ -26,6 +26,7 @@ class RoleSeeder extends Seeder
             'reservas.ver', 'reservas.criar', 'reservas.editar', 'reservas.apagar',
             'eventos.ver', 'eventos.gerir',
             'dashboard.ver', 'relatorios.ver',
+            'pos.comissao',
             'users.ver', 'users.criar', 'users.editar', 'users.apagar',
         ];
 
@@ -39,7 +40,7 @@ class RoleSeeder extends Seeder
             'staff_bar' => ['bar.ver', 'bar.vender'],
             'staff_cozinha' => ['pedidos.ver', 'pedidos.editar', 'pedidos.gerir-estado'],
             'tesoureiro'       => ['dashboard.ver', 'socios.ver', 'socios.criar', 'socios.editar', 'cotas.ver', 'cotas.criar', 'cotas.editar', 'cotas.gerar', 'cotas.exportar'],
-            'comissao_festas'  => ['dashboard.ver'],
+            'comissao_festas'  => ['dashboard.ver', 'pos.comissao'],
         ];
 
         foreach ($roles as $name => $rolePermissions) {

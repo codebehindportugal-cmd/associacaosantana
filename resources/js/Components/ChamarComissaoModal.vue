@@ -18,7 +18,7 @@ const chamar = async () => {
     enviando.value = true;
     erro.value = '';
     try {
-        const res = await fetch(route('pos.comissao.chamar'), {
+        const res = await fetch(route('pos.comum.comissao.chamar'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

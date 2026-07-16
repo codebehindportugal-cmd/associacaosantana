@@ -196,6 +196,44 @@ class ClientePedidoController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * Chamadas de cliente pendentes para o POS da sessão atual.
+     * Usado pelo alerta global (banner + som) em qualquer ecrã POS.
+     */
+    public function chamadasPos(): \Illuminate\Http\JsonResponse
+    {
+        $posId = session('pos_id');
+
+        $chamadas = Pedido::query()
+            ->whereNotNull('chamado_em')
+            ->where(fn ($query) => $query->where('pos_id', $posId)->orWhereNull('pos_id'))
+            ->with('mesa.mesaPrincipal')
+            ->orderBy('chamado_em')
+            ->get()
+            ->map(fn (Pedido $pedido) => [
+                'id' => $pedido->id,
+                'mesa' => $this->nomeMesa($pedido),
+                'ha_quanto' => $pedido->chamado_em->diffForHumans(),
+            ]);
+
+        return response()->json(['chamadas' => $chamadas]);
+    }
+
+    /**
+     * Funcionário confirma no POS que atendeu a chamada.
+     */
+    public function confirmarChamadaPos(Pedido $pedido): \Illuminate\Http\JsonResponse
+    {
+        abort_unless(
+            $pedido->pos_id === null || (int) $pedido->pos_id === (int) session('pos_id'),
+            403
+        );
+
+        $pedido->update(['chamado_em' => null]);
+
+        return response()->json(['ok' => true]);
+    }
+
     public function estado(string $token): \Illuminate\Http\JsonResponse
     {
         $pedido = $this->pedidoPorToken($token);

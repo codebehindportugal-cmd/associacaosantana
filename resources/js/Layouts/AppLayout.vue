@@ -58,7 +58,7 @@ const grupos = [
     { label: 'Site',              items: [['Páginas','paginas.index',null],['Patrocinadores','patrocinadores.index',null]] },
     { label: 'Sócios',      items: [['Sócios','socios.index','socios.ver'],['Cotas','cotas.index','cotas.ver']] },
     { label: 'Relatórios',  items: [['Relatórios','relatorios.index','relatorios.ver'],['Contas da Festa','contas-festa.index','relatorios.ver']] },
-    { label: 'Sistema',           items: [['Limpeza','manutencao.limpeza.index',null],['Logs','manutencao.logs.index',null],['Utilizadores','users.index','users.ver']] },
+    { label: 'Sistema',           items: [['Painel POS','pos-painel.index','pos.comissao'],['Limpeza','manutencao.limpeza.index',null],['Logs','manutencao.logs.index',null],['Utilizadores','users.index','users.ver']] },
 ];
 
 const gruposVisiveis = computed(() =>

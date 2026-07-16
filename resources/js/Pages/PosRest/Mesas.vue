@@ -2,6 +2,7 @@
 import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
+import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 
 const props = defineProps({ mesas: Array, pedidosFechadosHoje: { type: Array, default: () => [] } });
 let refresh = null;
@@ -77,6 +78,7 @@ onBeforeUnmount(() => clearInterval(refresh));
 </script>
 
 <template>
+    <ChamadaFuncionarioAlert />
     <main class="min-h-screen bg-gray-900 p-5 text-white">
         <header class="mb-5 flex items-center gap-4"><Link :href="route('pos.rest.index')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">←</Link><h1 class="text-4xl font-black">MESAS</h1></header>
         <div class="mb-5 flex flex-wrap justify-end gap-3">
