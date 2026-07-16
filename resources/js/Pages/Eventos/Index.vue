@@ -28,6 +28,7 @@ const novo = useForm({
     inscricoes_preco: '',
     inscricoes_preco_crianca: '',
     inscricoes_idade_crianca: '',
+    inscricoes_pagamento_online: false,
 });
 
 const cartazNovo = ref(null);
@@ -43,6 +44,7 @@ const guardarNovo = () => {
         inscricoes_preco: data.inscricoes_preco === '' ? null : data.inscricoes_preco,
         inscricoes_preco_crianca: data.inscricoes_preco_crianca === '' ? null : data.inscricoes_preco_crianca,
         inscricoes_idade_crianca: data.inscricoes_idade_crianca === '' ? null : data.inscricoes_idade_crianca,
+        inscricoes_pagamento_online: data.inscricoes_pagamento_online ? 1 : 0,
     })).post(route('eventos.store'), {
         forceFormData: true,
         preserveScroll: true,
@@ -118,6 +120,10 @@ const dataEvento = (evento) => {
                         <input v-model="novo.inscricoes_preco" type="number" min="0" step="0.01" placeholder="Preço por pessoa € (vazio = grátis)" class="rounded-md border-amber-300">
                         <input v-model="novo.inscricoes_preco_crianca" type="number" min="0" step="0.01" placeholder="Preço criança € (vazio = igual adulto)" class="rounded-md border-amber-300">
                         <input v-model="novo.inscricoes_idade_crianca" type="number" min="1" max="17" placeholder="Criança até que idade (ex.: 10)" class="rounded-md border-amber-300">
+                        <label class="flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold">
+                            <input v-model="novo.inscricoes_pagamento_online" type="checkbox" class="rounded border-slate-300">
+                            💳 Pagamento online (Viva)
+                        </label>
                         <textarea v-model="novo.inscricoes_opcoes_texto" rows="2" class="rounded-md border-amber-300 md:col-span-3" placeholder="Opções de escolha (uma por linha), com preço opcional:&#10;Só caminhar = 5&#10;Caminhar e almoçar = 12.50"></textarea>
                     </div>
                 </div>

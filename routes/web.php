@@ -56,6 +56,8 @@ Route::post('/contacto', ContactController::class)->name('contacto.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
 // URL fixa para o QR dos cartazes — nunca muda
 Route::get('/inscricoes', [InscricaoController::class, 'index'])->name('inscricoes.index');
+Route::get('/inscricoes/pagamento/retorno', [InscricaoController::class, 'pagamentoRetorno'])->name('inscricoes.pagamento.retorno');
+Route::get('/inscricoes/pagamento/falha', [InscricaoController::class, 'pagamentoFalha'])->name('inscricoes.pagamento.falha');
 Route::post('/inscricoes/{evento}', [InscricaoController::class, 'store'])->name('inscricoes.store');
 Route::get('/cliente/{token}', [ClientePedidoController::class, 'show'])->name('cliente.mesa');
 Route::post('/cliente/{token}/item', [ClientePedidoController::class, 'addItem'])->name('cliente.item');

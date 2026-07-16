@@ -166,6 +166,7 @@ class EventoController extends Controller
             'inscricoes_preco' => ['nullable', 'numeric', 'min:0'],
             'inscricoes_preco_crianca' => ['nullable', 'numeric', 'min:0'],
             'inscricoes_idade_crianca' => ['nullable', 'integer', 'min:1', 'max:17'],
+            'inscricoes_pagamento_online' => ['boolean'],
         ]);
     }
 
@@ -190,6 +191,8 @@ class EventoController extends Controller
                     'id' => $inscricao->id,
                     'nome' => $inscricao->nome,
                     'telefone' => $inscricao->telefone,
+                    'email' => $inscricao->email,
+                    'pagamento_estado' => $inscricao->pagamento_estado,
                     'num_pessoas' => $inscricao->num_pessoas,
                     'opcao' => $inscricao->opcao,
                     'num_criancas' => $inscricao->num_criancas,
@@ -224,6 +227,7 @@ class EventoController extends Controller
 
         $data['inscricoes_ativas'] ??= false;
         $data['inscricoes_pede_idades'] ??= false;
+        $data['inscricoes_pagamento_online'] ??= false;
         // Cada linha: "Nome da opção" ou "Nome da opção = 12.50"
         $data['inscricoes_opcoes'] = collect(preg_split('/\r\n|\r|\n/', (string) $texto))
             ->map(fn ($linha) => trim($linha))
@@ -266,6 +270,7 @@ class EventoController extends Controller
             'inscricoes_preco' => $evento->inscricoes_preco,
             'inscricoes_preco_crianca' => $evento->inscricoes_preco_crianca,
             'inscricoes_idade_crianca' => $evento->inscricoes_idade_crianca,
+            'inscricoes_pagamento_online' => (bool) $evento->inscricoes_pagamento_online,
             'inscricoes_total' => $evento->inscricoes()->count(),
             'pessoas_inscritas' => $evento->totalPessoasInscritas(),
             'created_at' => optional($evento->created_at)->format('d/m/Y H:i'),

@@ -44,4 +44,11 @@ return [
         'secret_key' => env('RECAPTCHA_SECRET_KEY'),
     ],
 
+    'viva' => [
+        'client_id' => env('VIVA_CLIENT_ID'),
+        'client_secret' => env('VIVA_CLIENT_SECRET'),
+        'source_code' => env('VIVA_SOURCE_CODE'),
+        'env' => env('VIVA_ENV', 'demo'), // demo | live
+    ],
+
 ];

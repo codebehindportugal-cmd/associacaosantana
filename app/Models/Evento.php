@@ -33,6 +33,7 @@ class Evento extends Model
         'inscricoes_preco',
         'inscricoes_preco_crianca',
         'inscricoes_idade_crianca',
+        'inscricoes_pagamento_online',
     ];
 
     protected $casts = [
@@ -48,6 +49,7 @@ class Evento extends Model
         'inscricoes_preco' => 'decimal:2',
         'inscricoes_preco_crianca' => 'decimal:2',
         'inscricoes_idade_crianca' => 'integer',
+        'inscricoes_pagamento_online' => 'boolean',
     ];
 
     public function media(): HasMany

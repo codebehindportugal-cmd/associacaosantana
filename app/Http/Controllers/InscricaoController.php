@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\InscricaoConfirmadaMail;
 use App\Models\Evento;
 use App\Models\EventoInscricao;
+use App\Services\VivaPayments;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * Página pública de inscrições em eventos.
@@ -37,9 +42,13 @@ class InscricaoController extends Controller
         $opcoes = $evento->opcoesInscricao();
         $nomesOpcoes = array_column($opcoes, 'nome');
 
+        $viva = app(VivaPayments::class);
+        $pagamentoOnline = $evento->inscricoes_pagamento_online && $viva->configurado();
+
         $data = $request->validate([
             'nome' => ['required', 'string', 'max:150'],
             'telefone' => ['required', 'string', 'max:30'],
+            'email' => [$pagamentoOnline ? 'required' : 'nullable', 'email', 'max:150'],
             'num_pessoas' => ['required', 'integer', 'min:1', 'max:50'],
             'opcao' => [count($nomesOpcoes) ? 'required' : 'nullable', 'string', count($nomesOpcoes) ? 'in:'.implode(',', $nomesOpcoes) : 'max:150'],
             'num_criancas' => ['nullable', 'integer', 'min:0', 'max:30'],
@@ -67,9 +76,86 @@ class InscricaoController extends Controller
 
         unset($data['recaptcha_token']);
         $data['valor_estimado'] = $this->calcularValor($evento, $data, $opcoes);
-        $evento->inscricoes()->create($data);
+
+        $inscricao = $evento->inscricoes()->create($data);
+
+        // Pagamento online via Viva Smart Checkout
+        if ($pagamentoOnline && $inscricao->valor_estimado > 0) {
+            try {
+                $orderCode = $viva->criarOrdem($inscricao);
+                $inscricao->update([
+                    'pagamento_estado' => 'pendente',
+                    'pagamento_order_code' => $orderCode,
+                ]);
+
+                // Redirect externo (Inertia)
+                return Inertia::location($viva->urlCheckout($orderCode));
+            } catch (\Throwable $e) {
+                Log::error('Viva: falha a criar ordem de pagamento', ['inscricao' => $inscricao->id, 'erro' => $e->getMessage()]);
+                // Inscrição fica válida com pagamento no dia
+                $inscricao->update(['pagamento_estado' => null]);
+            }
+        }
+
+        $this->enviarConfirmacao($inscricao);
 
         return back()->with('success', 'Inscrição registada! Até já 🎉');
+    }
+
+    /**
+     * Retorno do Smart Checkout (URL de sucesso). Verifica a transação na API.
+     */
+    public function pagamentoRetorno(Request $request, VivaPayments $viva): RedirectResponse
+    {
+        $transactionId = $request->query('t');
+        $orderCode = $request->query('s');
+
+        $inscricao = EventoInscricao::where('pagamento_order_code', $orderCode)->first();
+
+        if ($inscricao && $transactionId && $viva->transacaoPaga($transactionId)) {
+            $inscricao->update(['pagamento_estado' => 'pago', 'pago_em' => now()]);
+            $this->enviarConfirmacao($inscricao);
+
+            return redirect()->route('inscricoes.index')->with('success', 'Pagamento confirmado! Inscrição concluída 🎉');
+        }
+
+        Log::warning('Viva: retorno sem confirmação', ['t' => $transactionId, 's' => $orderCode]);
+
+        return redirect()->route('inscricoes.index')->with('success', 'Inscrição registada. O pagamento está a ser processado — receberás confirmação por email.');
+    }
+
+    /**
+     * Retorno do Smart Checkout em caso de falha/cancelamento.
+     */
+    public function pagamentoFalha(Request $request): RedirectResponse
+    {
+        $inscricao = EventoInscricao::where('pagamento_order_code', $request->query('s'))->first();
+        $inscricao?->update(['pagamento_estado' => 'falhado']);
+
+        return redirect()->route('inscricoes.index')->withErrors([
+            'pagamento' => 'O pagamento não foi concluído. A inscrição fica registada — podes pagar no dia do evento ou tentar de novo.',
+        ]);
+    }
+
+    private function enviarConfirmacao(EventoInscricao $inscricao): void
+    {
+        try {
+            if ($inscricao->email) {
+                Mail::to($inscricao->email)->send(new InscricaoConfirmadaMail($inscricao->load('evento')));
+            }
+
+            if ($aviso = config('mail.contact_to')) {
+                Mail::raw(
+                    "Nova inscrição em {$inscricao->evento->titulo}:\n".
+                    "Nome: {$inscricao->nome}\nTelefone: {$inscricao->telefone}\n".
+                    'Pessoas: '.$inscricao->num_pessoas.($inscricao->opcao ? "\nOpção: {$inscricao->opcao}" : '').
+                    ($inscricao->valor_estimado !== null ? "\nValor: {$inscricao->valor_estimado} € (".($inscricao->pagamento_estado === 'pago' ? 'PAGO ONLINE' : 'paga no dia').')' : ''),
+                    fn ($m) => $m->to($aviso)->subject('Nova inscrição: '.$inscricao->evento->titulo)
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Falha ao enviar emails de inscrição', ['inscricao' => $inscricao->id, 'erro' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -116,9 +202,21 @@ class InscricaoController extends Controller
                 'remoteip' => $request->ip(),
             ])->json();
 
-            return (bool) ($resposta['success'] ?? false);
-        } catch (\Throwable) {
+            $ok = (bool) ($resposta['success'] ?? false);
+
+            if (! $ok) {
+                \Log::warning('reCAPTCHA falhou', [
+                    'error_codes' => $resposta['error-codes'] ?? [],
+                    'hostname' => $resposta['hostname'] ?? null,
+                    'token_presente' => $request->filled('recaptcha_token'),
+                ]);
+            }
+
+            return $ok;
+        } catch (\Throwable $e) {
             // Falha de rede na verificação: não bloquear inscrições
+            \Log::warning('reCAPTCHA: erro de rede na verificação', ['erro' => $e->getMessage()]);
+
             return true;
         }
     }
@@ -140,6 +238,7 @@ class InscricaoController extends Controller
             'preco' => $evento->inscricoes_preco !== null ? (float) $evento->inscricoes_preco : null,
             'preco_crianca' => $evento->inscricoes_preco_crianca !== null ? (float) $evento->inscricoes_preco_crianca : null,
             'idade_crianca' => $evento->inscricoes_idade_crianca,
+            'pagamento_online' => $evento->inscricoes_pagamento_online && app(VivaPayments::class)->configurado(),
             'esgotado' => $esgotado,
             'vagas_restantes' => $evento->inscricoes_limite !== null
                 ? max(0, $evento->inscricoes_limite - $evento->totalPessoasInscritas())

@@ -27,8 +27,8 @@ const apagar = (inscricao) => {
 
 const exportarCsv = () => {
     const linhas = [
-        ['Nome', 'Telefone', 'Pessoas', 'Opção', 'Crianças', 'Idades', 'Valor', 'Observações', 'Data'],
-        ...props.inscricoes.map((i) => [i.nome, i.telefone, i.num_pessoas, i.opcao ?? '', i.num_criancas ?? '', i.idades_criancas ?? '', i.valor_estimado ?? '', i.observacoes ?? '', i.criado_em]),
+        ['Nome', 'Telefone', 'Email', 'Pessoas', 'Opção', 'Crianças', 'Idades', 'Valor', 'Pagamento', 'Observações', 'Data'],
+        ...props.inscricoes.map((i) => [i.nome, i.telefone, i.email ?? '', i.num_pessoas, i.opcao ?? '', i.num_criancas ?? '', i.idades_criancas ?? '', i.valor_estimado ?? '', i.pagamento_estado ?? 'no dia', i.observacoes ?? '', i.criado_em]),
     ];
     const csv = linhas.map((l) => l.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(';')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
@@ -100,6 +100,10 @@ const exportarCsv = () => {
                         <tr v-for="inscricao in inscricoes" :key="inscricao.id" class="border-t border-slate-100">
                             <td class="py-3">
                                 <strong>{{ inscricao.nome }}</strong>
+                                <span v-if="inscricao.pagamento_estado === 'pago'" class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">PAGO</span>
+                                <span v-else-if="inscricao.pagamento_estado === 'pendente'" class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">PAG. PENDENTE</span>
+                                <span v-else-if="inscricao.pagamento_estado === 'falhado'" class="ml-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-black text-red-700">PAG. FALHOU</span>
+                                <div v-if="inscricao.email" class="text-xs text-slate-500">{{ inscricao.email }}</div>
                                 <div v-if="inscricao.observacoes" class="text-xs text-slate-500">{{ inscricao.observacoes }}</div>
                             </td>
                             <td><a :href="`tel:${inscricao.telefone}`" class="font-bold text-amber-700">{{ inscricao.telefone }}</a></td>

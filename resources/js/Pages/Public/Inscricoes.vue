@@ -15,6 +15,7 @@ const sucesso = ref('');
 const form = useForm({
     nome: '',
     telefone: '',
+    email: '',
     num_pessoas: 1,
     opcao: '',
     num_criancas: 0,
@@ -133,6 +134,7 @@ const submeter = async (evento) => {
                             <input v-model="form.nome" required class="rounded-md border-stone-300" placeholder="Nome *">
                             <input v-model="form.telefone" required type="tel" class="rounded-md border-stone-300" placeholder="Telefone *">
                         </div>
+                        <input v-model="form.email" :required="evento.pagamento_online" type="email" class="rounded-md border-stone-300" :placeholder="evento.pagamento_online ? 'Email * (recibo e confirmação)' : 'Email (para receberes a confirmação)'">
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="flex items-center gap-2 text-sm font-bold text-stone-600">
                                 Nº de pessoas
@@ -156,7 +158,7 @@ const submeter = async (evento) => {
 
                         <div v-if="totalEstimado(evento) !== null" class="rounded-md bg-amber-50 p-3 text-center font-black text-stone-800">
                             Total estimado: {{ euros(totalEstimado(evento)) }}
-                            <span class="block text-xs font-bold text-stone-500">Pagamento no dia do evento</span>
+                            <span class="block text-xs font-bold text-stone-500">{{ evento.pagamento_online ? 'Pagamento online seguro (Viva)' : 'Pagamento no dia do evento' }}</span>
                         </div>
 
                         <div v-if="Object.keys(form.errors).length" class="rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">
@@ -164,7 +166,7 @@ const submeter = async (evento) => {
                         </div>
 
                         <button class="rounded-xl bg-amber-600 p-3 text-lg font-black text-white hover:bg-amber-700 disabled:opacity-50" :disabled="form.processing">
-                            {{ form.processing ? 'A enviar...' : 'INSCREVER' }}
+                            {{ form.processing ? 'A enviar...' : (evento.pagamento_online && totalEstimado(evento) ? '💳 INSCREVER E PAGAR' : 'INSCREVER') }}
                         </button>
                         <p v-if="recaptchaSiteKey" class="text-center text-xs text-stone-400">Protegido por reCAPTCHA</p>
                     </form>
