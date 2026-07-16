@@ -76,6 +76,9 @@ Route::middleware('pos.auth')->prefix('pos-comum')->name('pos.comum.')->group(fu
     Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar');
     Route::get('/chamadas-funcionario', [ClientePedidoController::class, 'chamadasPos'])->name('chamadas');
     Route::post('/chamadas-funcionario/{pedido}/confirmar', [ClientePedidoController::class, 'confirmarChamadaPos'])->name('chamadas.confirmar');
+    // Só para POS em modo comissão: ver e atender chamadas à comissão
+    Route::get('/chamadas-comissao', [ChamadaComissaoController::class, 'pendentesPos'])->name('comissao.pendentes');
+    Route::post('/chamadas-comissao/{chamada}/atender', [ChamadaComissaoController::class, 'atenderPos'])->name('comissao.atender');
 });
 
 Route::middleware('pos.auth')->prefix('pos')->name('pos.')->group(function () {

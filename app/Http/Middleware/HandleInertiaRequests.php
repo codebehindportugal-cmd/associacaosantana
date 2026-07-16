@@ -32,6 +32,8 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+            'pos_comissao' => (bool) session('pos_comissao', false),
+            'pos_comissao_nome' => session('pos_comissao_nome', ''),
             'auth' => [
                 'user' => $request->user(),
                 'roles' => fn () => $request->user()?->getRoleNames()->values() ?? [],

@@ -13,6 +13,7 @@ class ChamadaComissao extends Model
         'operador_nome',
         'local',
         'atendida_por_id',
+        'atendida_por_nome',
         'atendida_em',
     ];
 

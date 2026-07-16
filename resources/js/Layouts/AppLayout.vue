@@ -1,6 +1,6 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { usePermissions } from '@/Composables/usePermissions';
 
 const page = usePage();
@@ -41,12 +41,44 @@ const ativo = (nome) => route().current(nome) || route().current(nome.replace('.
 // Chamadas da comissão de festas
 const chamadas = computed(() => page.props.chamadas_comissao ?? []);
 
-const atenderChamada = async (id) => {
+// Som quando chegam chamadas novas
+let audioCtx = null;
+let chamadasAnteriores = (page.props.chamadas_comissao ?? []).length;
+const somChamada = () => {
     try {
-        await fetch(route('comissao.atender', id), {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '' },
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        [523, 659, 784].forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime + i * 0.4);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.4 + 0.35);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime + i * 0.4);
+            osc.stop(audioCtx.currentTime + i * 0.4 + 0.4);
         });
+    } catch { /* sem audio */ }
+};
+watch(chamadas, (novas) => {
+    if (novas.length > chamadasAnteriores) somChamada();
+    chamadasAnteriores = novas.length;
+});
+
+const atenderChamada = async (id) => {
+    const nome = window.prompt('Quem vai atender? (opcional)', page.props.auth?.user?.name ?? '') ?? '';
+    try {
+        const res = await fetch(route('comissao.atender', id), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+            body: JSON.stringify({ nome: nome || null }),
+        });
+        if (!res.ok) {
+            alert('Não foi possível marcar como atendida (erro ' + res.status + '). Atualiza a página e tenta de novo.');
+        }
         router.reload({ only: ['chamadas_comissao'], preserveScroll: true });
     } catch { /* ignora */ }
 };

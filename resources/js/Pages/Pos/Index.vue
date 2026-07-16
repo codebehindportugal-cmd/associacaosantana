@@ -3,6 +3,7 @@ import { router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
+import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
 
 const props = defineProps({
     posNome: String,
@@ -99,6 +100,7 @@ onBeforeUnmount(() => {
 
 <template>
     <ChamadaFuncionarioAlert />
+    <ComissaoChamadasAlert />
     <main class="pos-screen flex h-screen overflow-hidden bg-gray-900 p-3 text-white sm:p-4">
         <div class="flex min-h-0 w-full flex-col">
             <header class="pos-header mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">

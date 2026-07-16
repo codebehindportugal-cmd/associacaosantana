@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
+import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
 
 const chamandoComissao = ref(false);
 
@@ -82,6 +83,7 @@ onBeforeUnmount(() => clearInterval(refresh));
 
 <template>
     <ChamadaFuncionarioAlert />
+    <ComissaoChamadasAlert />
     <main class="min-h-screen bg-gray-900 p-5 text-white">
         <header class="mb-5 flex flex-wrap items-center gap-3">
             <Link :href="route('pos.rest.index')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">←</Link>

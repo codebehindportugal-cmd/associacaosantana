@@ -2,6 +2,7 @@
 import { Link, router, useForm } from '@inertiajs/vue3';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
+import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const props = defineProps({ posNome: String, vendasHoje: [Number, String], mesasLivres: Number, mesasOcupadas: Number, mesas: Array, zonas: Array });
@@ -66,6 +67,7 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
 
 <template>
     <ChamadaFuncionarioAlert />
+    <ComissaoChamadasAlert />
     <main class="min-h-screen bg-gray-900 p-5 text-white">
         <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div class="min-w-0"><h1 class="text-xl font-black sm:text-3xl">POS RESTAURANTE</h1><p class="truncate text-sm font-bold text-gray-300 sm:text-base">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p></div>

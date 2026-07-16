@@ -43,15 +43,40 @@ class ChamadaComissaoController extends Controller
     }
 
     /**
-     * Membro da comissão marca a chamada como atendida.
+     * Membro da comissão marca a chamada como atendida
+     * (no back-office ou num POS em modo comissão).
      */
     public function atender(Request $request, ChamadaComissao $chamada): JsonResponse
     {
+        $data = $request->validate([
+            'nome' => ['nullable', 'string', 'max:100'],
+        ]);
+
         $chamada->update([
-            'atendida_por_id' => $request->user()->id,
-            'atendida_em'     => now(),
+            'atendida_por_id'   => $request->user()?->id,
+            'atendida_por_nome' => $data['nome'] ?? $request->user()?->name ?? session('pos_comissao_nome'),
+            'atendida_em'       => now(),
         ]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Chamadas pendentes vistas de um POS em modo comissão.
+     */
+    public function pendentesPos(): JsonResponse
+    {
+        if (! session('pos_comissao')) {
+            return response()->json(['chamadas' => []]);
+        }
+
+        return $this->pendentes();
+    }
+
+    public function atenderPos(Request $request, ChamadaComissao $chamada): JsonResponse
+    {
+        abort_unless((bool) session('pos_comissao'), 403);
+
+        return $this->atender($request, $chamada);
     }
 }
