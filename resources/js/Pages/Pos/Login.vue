@@ -7,6 +7,7 @@ const props = defineProps({
     tipoSelecionado: String,
     comissao: Boolean,
     comissaoNome: String,
+    salaEcraCodigo: String,
 });
 const escolhido = ref(null);
 const form = useForm({ terminal_id: '', operador_nome: props.comissao ? (props.comissaoNome || '') : '', pin: '' });
@@ -43,7 +44,8 @@ const posScreens = [
 const ecras = [
     { href: route('ecra-reservas'),    icon: '📺', label: 'Ecrã Reservas',       desc: 'Ecrã de chamadas'         },
     { href: route('patrocinios.ecra'), icon: '🏆', label: 'Ecrã Patrocinadores', desc: 'Painel de patrocinadores' },
-    { href: route('precario'),         icon: '📃', label: 'Precário',             desc: 'Lista de preços'          },
+    { href: route('precario'),         icon: '📃', label: 'Preçário',             desc: 'Lista de preços'          },
+    { href: route('secao.sala', props.salaEcraCodigo || 'sala'), icon: '🪑', label: 'Ecrã Sala', desc: 'Mapa das mesas' },
 ];
 
 const secoes = [

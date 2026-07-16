@@ -30,6 +30,7 @@ class PosLoginController extends Controller
             'tipoSelecionado' => $tipo,
             'comissao' => $comissao,
             'comissaoNome' => session('pos_comissao_nome', ''),
+            'salaEcraCodigo' => config('app.sala_ecra_codigo'),
         ]);
     }
 
