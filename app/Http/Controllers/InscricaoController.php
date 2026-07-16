@@ -35,7 +35,7 @@ class InscricaoController extends Controller
         ]);
     }
 
-    public function store(Request $request, Evento $evento): RedirectResponse
+    public function store(Request $request, Evento $evento): RedirectResponse|SymfonyResponse
     {
         abort_unless($evento->inscricoes_ativas && $evento->estado === 'publicado', 404);
 

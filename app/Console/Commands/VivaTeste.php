@@ -27,26 +27,40 @@ class VivaTeste extends Command
             return self::FAILURE;
         }
 
-        // 1. Token OAuth
-        $contas = $viva->demo() ? 'https://demo-accounts.vivapayments.com' : 'https://accounts.vivapayments.com';
-        $this->line('[1/2] Obter token em '.$contas.' ...');
+        // 1. Token OAuth — testa o ambiente configurado E o outro, para
+        // identificar a que ambiente pertencem as credenciais
+        $ambientes = [
+            'demo' => 'https://demo-accounts.vivapayments.com',
+            'live' => 'https://accounts.vivapayments.com',
+        ];
+        $atual = $viva->demo() ? 'demo' : 'live';
+        $token = null;
 
-        try {
-            $resposta = Http::asForm()
-                ->withBasicAuth(config('services.viva.client_id'), config('services.viva.client_secret'))
-                ->post($contas.'/connect/token', ['grant_type' => 'client_credentials']);
+        foreach ($ambientes as $nome => $url) {
+            try {
+                $resposta = Http::asForm()
+                    ->withBasicAuth(config('services.viva.client_id'), config('services.viva.client_secret'))
+                    ->post($url.'/connect/token', ['grant_type' => 'client_credentials']);
 
-            if (! $resposta->successful()) {
-                $this->error('FALHOU ('.$resposta->status().'): '.$resposta->body());
-                $this->line('Dica: 401 = credenciais erradas OU de outro ambiente (demo vs live).');
-
-                return self::FAILURE;
+                if ($resposta->successful()) {
+                    $this->info("[token] Credenciais VÁLIDAS no ambiente: {$nome}");
+                    if ($nome === $atual) {
+                        $token = $resposta->json('access_token');
+                    }
+                } else {
+                    $this->line("[token] {$nome}: inválidas (".$resposta->status().')');
+                }
+            } catch (\Throwable $e) {
+                $this->line("[token] {$nome}: erro de rede — ".$e->getMessage());
             }
+        }
 
-            $token = $resposta->json('access_token');
-            $this->info('Token OK');
-        } catch (\Throwable $e) {
-            $this->error('ERRO: '.$e->getMessage());
+        if (! $token) {
+            $this->error('');
+            $this->error('As credenciais NÃO são válidas no ambiente configurado ('.$atual.').');
+            $this->line('Se acima disser válidas em "live": ou mudas VIVA_ENV=live (e usas o source code');
+            $this->line('da conta real), ou crias credenciais na conta demo (demo.vivapayments.com).');
+            $this->line('Se inválidas em ambos: o Client ID/Secret estão errados — copia-os de novo.');
 
             return self::FAILURE;
         }
