@@ -87,8 +87,29 @@ class PosRestController extends Controller
         ]);
     }
 
-    public function mesa(Mesa $mesa): Response
+    public function mesa(Mesa $mesa): RedirectResponse|Response
     {
+        // Se esta mesa não tem pedidos próprios mas é parte de um grupo,
+        // redirecionar para a mesa onde a conta está registada.
+        $temPedidoProprio = $mesa->pedidos()
+            ->whereIn('estado', ['pendente', 'preparacao', 'pronto'])
+            ->exists();
+
+        if (! $temPedidoProprio) {
+            $pedidoGrupo = $mesa->pedidosGrupo()
+                ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
+                ->with('mesa.mesaPrincipal')
+                ->first();
+
+            if ($pedidoGrupo) {
+                // A conta está na mesa principal do pedido — redirecionar para lá
+                $mesaDaConta = $pedidoGrupo->mesa?->mesaPrincipal ?: $pedidoGrupo->mesa;
+                if ($mesaDaConta && $mesaDaConta->id !== $mesa->id) {
+                    return to_route('pos.rest.mesa', $mesaDaConta);
+                }
+            }
+        }
+
         $mesa->load([
             'mesaPrincipal',
             'submesas' => fn ($query) => $query->ativas()

@@ -18,7 +18,10 @@ const submit = () => props.socio ? form.put(route('socios.update', props.socio.i
             <input v-model="form.data_inscricao" type="date" class="rounded-md border-slate-300 bg-white text-stone-900">
             <select v-model="form.estado" class="rounded-md border-slate-300 bg-white text-stone-900"><option>ativo</option><option>inativo</option></select>
             <textarea v-model="form.morada" class="rounded-md border-slate-300 bg-white text-stone-900 md:col-span-2" placeholder="Morada"></textarea>
-            <button class="rounded-md bg-slate-900 px-4 py-2 text-white md:col-span-2">Guardar</button>
+            <div v-if="Object.keys(form.errors).length" class="md:col-span-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div v-for="(erro, campo) in form.errors" :key="campo">{{ erro }}</div>
+            </div>
+            <button class="rounded-md bg-slate-900 px-4 py-2 text-white md:col-span-2" :disabled="form.processing">{{ form.processing ? 'A guardar...' : 'Guardar' }}</button>
         </form>
     </AppLayout>
 </template>

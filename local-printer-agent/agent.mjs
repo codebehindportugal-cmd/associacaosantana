@@ -100,7 +100,11 @@ const escpos = (job) => {
         ]);
     };
 
+    // ESC p 0 t1 t2 — abre gaveta de dinheiro (pin 2, 50ms on, 500ms off)
+    const abrirCaixa = payload.abrir_caixa ? bytes(0x1b, 0x70, 0x00, 0x19, 0xfa) : Buffer.alloc(0);
+
     return Buffer.concat([
+        abrirCaixa,
         bytes(0x1b, 0x40),
         bytes(...(codepageCommands[PRINT_CODEPAGE] ?? codepageCommands.cp860)),
         bytes(0x1b, 0x61, 0x01),

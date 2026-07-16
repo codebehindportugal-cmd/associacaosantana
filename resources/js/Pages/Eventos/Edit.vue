@@ -109,8 +109,11 @@ const apagarMedia = (media) => {
                     <textarea v-model="form.programa_texto" placeholder="Programa: uma linha por item" rows="5" class="rounded-md border-slate-300 md:col-span-4"></textarea>
                 </div>
 
+                <div v-if="Object.keys(form.errors).length" class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                    <div v-for="(erro, campo) in form.errors" :key="campo">{{ erro }}</div>
+                </div>
                 <div class="mt-5 flex flex-wrap gap-2">
-                    <button class="rounded-md bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-60" :disabled="form.processing">Guardar alteracoes</button>
+                    <button class="rounded-md bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-60" :disabled="form.processing">{{ form.processing ? 'A guardar...' : 'Guardar alteracoes' }}</button>
                     <Link :href="route('eventos.index')" class="rounded-md border border-slate-300 px-5 py-3 font-black hover:bg-slate-50">Cancelar</Link>
                 </div>
             </form>

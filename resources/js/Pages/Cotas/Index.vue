@@ -16,7 +16,10 @@ const form = useForm({ socio_id: props.socios?.[0]?.id ?? '', ano: new Date().ge
             <input v-model="form.valor" type="number" step="0.01" class="rounded-md border-slate-300">
             <input v-model="form.data_vencimento" type="date" class="rounded-md border-slate-300">
             <select v-model="form.estado" class="rounded-md border-slate-300"><option>pago</option><option>pendente</option><option>em_atraso</option></select>
-            <button class="rounded-md bg-slate-900 px-4 py-2 text-white">Registar</button>
+            <button class="rounded-md bg-slate-900 px-4 py-2 text-white" :disabled="form.processing">{{ form.processing ? 'A registar...' : 'Registar' }}</button>
+            <div v-if="Object.keys(form.errors).length" class="col-span-full rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div v-for="(erro, campo) in form.errors" :key="campo">{{ erro }}</div>
+            </div>
         </form>
         <div class="overflow-x-auto rounded-lg bg-white shadow-sm"><table class="w-full min-w-[400px] text-left text-sm"><tbody><tr v-for="cota in cotas.data" :key="cota.id" class="border-t"><td class="p-3">{{ cota.socio?.nome }}</td><td>{{ cota.ano }}/{{ cota.mes }}</td><td>{{ cota.valor }}€</td><td>{{ cota.estado }}</td></tr></tbody></table></div>
     </AppLayout>

@@ -127,7 +127,10 @@ const apagarImagem = (imagem) => {
                     Ativo
                 </label>
             </div>
-            <button class="mt-4 rounded-md bg-slate-900 px-5 py-3 font-black text-white disabled:opacity-60" :disabled="novo.processing">Criar patrocinador</button>
+            <div v-if="Object.keys(novo.errors).length" class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div v-for="(erro, campo) in novo.errors" :key="campo">{{ erro }}</div>
+            </div>
+            <button class="mt-4 rounded-md bg-slate-900 px-5 py-3 font-black text-white disabled:opacity-60" :disabled="novo.processing">{{ novo.processing ? 'A criar...' : 'Criar patrocinador' }}</button>
         </form>
 
         <div v-if="!items.length" class="rounded-lg bg-white p-6 text-center font-bold text-slate-500 shadow-sm">
