@@ -35,6 +35,7 @@ class SponsorshipController extends Controller
             'telefone' => ['nullable', 'string', 'max:20'],
             'mensagem' => ['nullable', 'string', 'max:2000'],
             'aceita_contacto' => ['required', 'accepted'],
+            'recaptcha_token' => [new \App\Rules\Recaptcha],
         ], [
             'nome.required' => 'O nome é obrigatório.',
             'empresa.required' => 'O nome da empresa é obrigatório.',
@@ -43,6 +44,7 @@ class SponsorshipController extends Controller
             'aceita_contacto.accepted' => 'Tem de aceitar ser contactado para submeter a proposta.',
         ]);
 
+        unset($validated['recaptcha_token']);
         $pedido = SponsorshipRequest::create($validated);
         $recipient = config('mail.contact_to') ?: config('mail.from.address');
 

@@ -17,7 +17,10 @@ class ContactController extends Controller
             'email' => ['required', 'email', 'max:160'],
             'phone' => ['required', 'string', 'max:40'],
             'message' => ['required', 'string', 'min:8', 'max:3000'],
+            'recaptcha_token' => [new \App\Rules\Recaptcha],
         ]);
+
+        unset($data['recaptcha_token']);
 
         $recipient = config('mail.contact_to') ?: config('mail.from.address');
 

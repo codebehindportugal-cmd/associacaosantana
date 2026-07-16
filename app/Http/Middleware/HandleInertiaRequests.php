@@ -34,6 +34,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'pos_comissao' => (bool) session('pos_comissao', false),
             'pos_comissao_nome' => session('pos_comissao_nome', ''),
+            'recaptcha_site_key' => config('services.recaptcha.site_key'),
             'auth' => [
                 'user' => $request->user(),
                 'roles' => fn () => $request->user()?->getRoleNames()->values() ?? [],

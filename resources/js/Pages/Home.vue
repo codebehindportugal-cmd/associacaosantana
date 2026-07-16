@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { useRecaptcha } from '@/composables/useRecaptcha';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import CookieBanner from '@/Components/CookieBanner.vue';
 import SponsorsSlider from '@/Components/SponsorsSlider.vue';
@@ -22,7 +23,8 @@ const activeHeroSlide = ref(0);
 const lightboxItem = ref(null);
 const openFaq = ref(null);
 const formSent = ref(false);
-const form = useForm({ name: '', email: '', phone: '', message: '' });
+const form = useForm({ name: '', email: '', phone: '', message: '', recaptcha_token: '' });
+const { obterToken } = useRecaptcha();
 const errors = ref({});
 
 const upcoming = computed(() => props.upcomingEvents ?? []);
@@ -133,13 +135,14 @@ const selectHeroSlide = (index) => {
 const nextHeroSlide = () => selectHeroSlide(activeHeroSlide.value + 1);
 const prevHeroSlide = () => selectHeroSlide(activeHeroSlide.value - 1);
 
-const validateForm = () => {
+const validateForm = async () => {
     errors.value = {};
     if (!form.name.trim()) errors.value.name = 'Indica o teu nome.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.value.email = 'Indica um email válido.';
     if (!form.phone.trim()) errors.value.phone = 'Indica um telefone.';
     if (form.message.trim().length < 8) errors.value.message = 'Escreve uma mensagem curta.';
     if (Object.keys(errors.value).length) return;
+    form.recaptcha_token = await obterToken('contacto');
     form.post(route('contacto.store'), {
         preserveScroll: true,
         onSuccess: () => { formSent.value = true; form.reset(); },

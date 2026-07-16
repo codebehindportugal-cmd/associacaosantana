@@ -1,5 +1,6 @@
 <script setup>
 import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { useRecaptcha } from '@/composables/useRecaptcha';
 import { computed } from 'vue';
 import PublicShell from '@/Components/PublicShell.vue';
 import SponsorsSlider from '@/Components/SponsorsSlider.vue';
@@ -18,14 +19,17 @@ const form = useForm({
     telefone: '',
     mensagem: '',
     aceita_contacto: false,
+    recaptcha_token: '',
 });
+const { obterToken } = useRecaptcha();
 
 const benefits = computed(() => (content.value.extra || '')
     .split('\n')
     .map((line) => line.split('|').map((part) => part.trim()))
     .filter((parts) => parts[0] && parts[1]));
 
-const submit = () => {
+const submit = async () => {
+    form.recaptcha_token = await obterToken('patrocinio');
     form.post(route('patrocinios.store'), {
         preserveScroll: true,
         onSuccess: () => form.reset(),

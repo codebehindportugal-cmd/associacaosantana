@@ -54,12 +54,8 @@ class InscricaoController extends Controller
             'num_criancas' => ['nullable', 'integer', 'min:0', 'max:30'],
             'idades_criancas' => ['nullable', 'string', 'max:150'],
             'observacoes' => ['nullable', 'string', 'max:1000'],
-            'recaptcha_token' => [config('services.recaptcha.secret_key') ? 'required' : 'nullable', 'string'],
+            'recaptcha_token' => [new \App\Rules\Recaptcha],
         ]);
-
-        if (! $this->validarRecaptcha($request)) {
-            return back()->withErrors(['recaptcha_token' => 'Validação anti-robô falhou. Tenta novamente.']);
-        }
 
         // Verificar vagas (limite conta pessoas, não inscrições)
         if ($evento->inscricoes_limite !== null) {
@@ -184,41 +180,6 @@ class InscricaoController extends Controller
             : $precoAdulto;
 
         return round($adultos * $precoAdulto + $criancas * $precoCrianca, 2);
-    }
-
-    private function validarRecaptcha(Request $request): bool
-    {
-        $secret = config('services.recaptcha.secret_key');
-
-        // Sem chaves configuradas: captcha desativado
-        if (! $secret) {
-            return true;
-        }
-
-        try {
-            $resposta = Http::asForm()->timeout(10)->post('https://www.google.com/recaptcha/api/siteverify', [
-                'secret' => $secret,
-                'response' => $request->string('recaptcha_token')->toString(),
-                'remoteip' => $request->ip(),
-            ])->json();
-
-            $ok = (bool) ($resposta['success'] ?? false);
-
-            if (! $ok) {
-                \Log::warning('reCAPTCHA falhou', [
-                    'error_codes' => $resposta['error-codes'] ?? [],
-                    'hostname' => $resposta['hostname'] ?? null,
-                    'token_presente' => $request->filled('recaptcha_token'),
-                ]);
-            }
-
-            return $ok;
-        } catch (\Throwable $e) {
-            // Falha de rede na verificação: não bloquear inscrições
-            \Log::warning('reCAPTCHA: erro de rede na verificação', ['erro' => $e->getMessage()]);
-
-            return true;
-        }
     }
 
     private function eventoParaPagina(Evento $evento): array
