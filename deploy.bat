@@ -1,7 +1,8 @@
 @echo off
 :: ============================================
 ::  DEPLOY - ardcsantana.ateneya.com
-::  Requer setup-servidor.bat executado 1 vez
+::  Uso: deploy.bat        (completo)
+::       deploy.bat php    (so codigo PHP, sem build/assets)
 :: ============================================
 setlocal
 cd /d C:\laragon\www\associacaosantana
@@ -18,26 +19,27 @@ if %ERRORLEVEL% NEQ 0 (
     pause
 )
 
+if /i "%~1"=="php" goto :pushcode
+
 echo.
-echo [1/4] Build assets (npm)...
+echo [1/3] Build assets (npm)...
 call npm run build
 if %ERRORLEVEL% NEQ 0 ( echo ERRO no build & pause & exit /b 1 )
 
+:pushcode
 echo.
-echo [2/4] Enviar codigo para o servidor (git push)...
+echo [2/3] Enviar codigo (git push)...
 git push producao main
 if %ERRORLEVEL% NEQ 0 ( echo ERRO no push para o servidor & pause & exit /b 1 )
 
 echo.
-echo [3/4] Enviar assets compilados...
-scp -r -o StrictHostKeyChecking=no public\build %REMOTE%:%WEBROOT%/public/
-if %ERRORLEVEL% NEQ 0 ( echo ERRO no scp & pause & exit /b 1 )
-if exist bootstrap\ssr scp -r -o StrictHostKeyChecking=no bootstrap\ssr %REMOTE%:%WEBROOT%/bootstrap/
-
-echo.
-echo [4/4] Migracoes + cache no servidor...
-ssh -o StrictHostKeyChecking=no %REMOTE% "cd %WEBROOT% && %PHP% artisan migrate --force && %PHP% artisan optimize:clear && echo DEPLOY_OK"
-if %ERRORLEVEL% NEQ 0 ( echo ERRO nas migracoes/cache & pause & exit /b 1 )
+echo [3/3] Assets + migracoes + cache (1 ligacao)...
+if /i "%~1"=="php" (
+    ssh -o StrictHostKeyChecking=no %REMOTE% "cd %WEBROOT% && %PHP% artisan migrate --force && %PHP% artisan optimize:clear && echo DEPLOY_OK"
+) else (
+    tar -czf - public/build bootstrap/ssr | ssh -o StrictHostKeyChecking=no %REMOTE% "cd %WEBROOT% && rm -rf public/build bootstrap/ssr && tar -xzf - && %PHP% artisan migrate --force && %PHP% artisan optimize:clear && echo DEPLOY_OK"
+)
+if %ERRORLEVEL% NEQ 0 ( echo ERRO no passo final & pause & exit /b 1 )
 
 echo.
 echo =============================================

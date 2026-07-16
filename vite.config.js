@@ -5,7 +5,7 @@ import path from 'path';
 
 export default defineConfig({
     build: {
-        emptyOutDir: false,
+        emptyOutDir: true,
     },
     resolve: {
         alias: {
