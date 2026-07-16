@@ -16,11 +16,19 @@ const props = defineProps({
 const filtros = reactive({ ...props.filters });
 const edicaoId = ref(null);
 
+// NOTA: o campo chama-se data_movimento no frontend porque "data"
+// colide com o metodo interno form.data() do Inertia (bug silencioso).
+// O transform() converte para "data" antes de enviar ao servidor.
+const paraServidor = (dados) => {
+    const { data_movimento, ...resto } = dados;
+    return { ...resto, data: data_movimento };
+};
+
 const form = useForm({
     tipo: 'custo',
     categoria: props.categoriasCusto?.[0]?.valor ?? 'outros',
     descricao: '',
-    data: new Date().toISOString().slice(0, 10),
+    data_movimento: new Date().toISOString().slice(0, 10),
     valor: '',
     observacoes: '',
 });
@@ -29,7 +37,7 @@ const editForm = useForm({
     tipo: 'custo',
     categoria: 'outros',
     descricao: '',
-    data: '',
+    data_movimento: '',
     valor: '',
     observacoes: '',
 });
@@ -91,11 +99,11 @@ const ajustarCategoria = (formulario) => {
 };
 
 const criarMovimento = () => {
-    form.post(route('contas-festa.store'), {
+    form.transform(paraServidor).post(route('contas-festa.store'), {
         preserveScroll: true,
         onSuccess: () => {
             form.reset('descricao', 'valor', 'observacoes');
-            form.data = new Date().toISOString().slice(0, 10);
+            form.data_movimento = new Date().toISOString().slice(0, 10);
         },
     });
 };
@@ -106,14 +114,14 @@ const editar = (movimento) => {
     editForm.tipo = movimento.tipo;
     editForm.categoria = movimento.categoria;
     editForm.descricao = movimento.descricao;
-    editForm.data = movimento.data ? String(movimento.data).slice(0, 10) : '';
+    editForm.data_movimento = movimento.data ? String(movimento.data).slice(0, 10) : '';
     editForm.valor = movimento.valor;
     editForm.observacoes = movimento.observacoes || '';
 };
 
 const guardarEdicao = (movimento) => {
     // POST com _method=put: evita bloqueios de PUT no servidor
-    editForm.transform((data) => ({ ...data, _method: 'put' }))
+    editForm.transform((dados) => ({ ...paraServidor(dados), _method: 'put' }))
         .post(route('contas-festa.update', movimento.id), {
             preserveScroll: true,
             onSuccess: () => {
@@ -204,7 +212,7 @@ const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:
                     </option>
                 </select>
                 <input v-model="form.descricao" required class="rounded-md border-slate-300 text-sm" placeholder="Ex.: Banda X, luz, seguro, patrocinador">
-                <input v-model="form.data" type="date" class="rounded-md border-slate-300 text-sm">
+                <input v-model="form.data_movimento" type="date" class="rounded-md border-slate-300 text-sm">
                 <input v-model="form.valor" required type="number" min="0" step="0.01" class="rounded-md border-slate-300 text-sm" placeholder="Valor">
                 <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" :disabled="form.processing">{{ form.processing ? 'A guardar...' : 'Adicionar' }}</button>
             </form>
@@ -237,7 +245,7 @@ const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:
                     <tbody>
                         <tr v-for="movimento in movimentos" :key="movimento.id" class="border-t border-slate-100">
                             <template v-if="edicaoId === movimento.id">
-                                <td class="py-2"><input v-model="editForm.data" type="date" class="w-36 rounded-md border-slate-300 text-sm"></td>
+                                <td class="py-2"><input v-model="editForm.data_movimento" type="date" class="w-36 rounded-md border-slate-300 text-sm"></td>
                                 <td>
                                     <select v-model="editForm.tipo" class="w-28 rounded-md border-slate-300 text-sm" @change="ajustarCategoria(editForm)">
                                         <option value="custo">Custo</option>
