@@ -120,6 +120,9 @@ class FestaContaController extends Controller
             'categoriasReceita' => [
                 ['valor' => 'patrocinios', 'label' => 'Patrocinios'],
                 ['valor' => 'donativos_manuais', 'label' => 'Donativos manuais'],
+                ['valor' => 'bar_manual', 'label' => 'Bar'],
+                ['valor' => 'cafe', 'label' => 'Cafe'],
+                ['valor' => 'quermesse', 'label' => 'Quermesse'],
                 ['valor' => 'outros', 'label' => 'Outros'],
             ],
         ]);
@@ -170,6 +173,9 @@ class FestaContaController extends Controller
             'servicos' => 'Servicos',
             'restaurante' => 'Restaurante',
             'bar' => 'Bar',
+            'bar_manual' => 'Bar (manual)',
+            'cafe' => 'Cafe',
+            'quermesse' => 'Quermesse',
             'patrocinios' => 'Patrocinios',
             'doacoes' => 'Doacoes',
             'donativos_manuais' => 'Donativos manuais',

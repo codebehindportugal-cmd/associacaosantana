@@ -44,6 +44,43 @@ const filtrar = () => router.get(route('contas-festa.index'), filtros, {
     preserveScroll: true,
 });
 
+const iso = (d) => d.toISOString().slice(0, 10);
+
+const aplicarPeriodo = (periodo) => {
+    const hoje = new Date();
+    let inicio = new Date(hoje);
+    let fim = new Date(hoje);
+
+    if (periodo === 'semana') {
+        const diaSemana = (hoje.getDay() + 6) % 7; // segunda = 0
+        inicio.setDate(hoje.getDate() - diaSemana);
+        fim = new Date(inicio);
+        fim.setDate(inicio.getDate() + 6);
+    } else if (periodo === 'mes') {
+        inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+    } else if (periodo === 'trimestre') {
+        const trimestre = Math.floor(hoje.getMonth() / 3);
+        inicio = new Date(hoje.getFullYear(), trimestre * 3, 1);
+        fim = new Date(hoje.getFullYear(), trimestre * 3 + 3, 0);
+    } else if (periodo === 'ano') {
+        inicio = new Date(hoje.getFullYear(), 0, 1);
+        fim = new Date(hoje.getFullYear(), 11, 31);
+    }
+
+    filtros.data_inicio = iso(inicio);
+    filtros.data_fim = iso(fim);
+    filtrar();
+};
+
+const periodos = [
+    { valor: 'hoje', label: 'Hoje' },
+    { valor: 'semana', label: 'Semana' },
+    { valor: 'mes', label: 'Mes' },
+    { valor: 'trimestre', label: 'Trimestre' },
+    { valor: 'ano', label: 'Ano' },
+];
+
 const categoriasParaTipo = (tipo) => tipo === 'receita' ? props.categoriasReceita : props.categoriasCusto;
 
 const ajustarCategoria = (formulario) => {
@@ -65,6 +102,7 @@ const criarMovimento = () => {
 
 const editar = (movimento) => {
     edicaoId.value = movimento.id;
+    editForm.clearErrors();
     editForm.tipo = movimento.tipo;
     editForm.categoria = movimento.categoria;
     editForm.descricao = movimento.descricao;
@@ -74,17 +112,19 @@ const editar = (movimento) => {
 };
 
 const guardarEdicao = (movimento) => {
-    editForm.put(route('contas-festa.update', movimento.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            edicaoId.value = null;
-        },
-    });
+    // POST com _method=put: evita bloqueios de PUT no servidor
+    editForm.transform((data) => ({ ...data, _method: 'put' }))
+        .post(route('contas-festa.update', movimento.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                edicaoId.value = null;
+            },
+        });
 };
 
 const apagar = (movimento) => {
     if (confirm('Apagar "' + movimento.descricao + '"?')) {
-        router.delete(route('contas-festa.destroy', movimento.id), { preserveScroll: true });
+        router.post(route('contas-festa.destroy', movimento.id), { _method: 'delete' }, { preserveScroll: true });
     }
 };
 
@@ -98,11 +138,24 @@ const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:
                 <h1 class="text-2xl font-black">Contas da Festa</h1>
                 <p class="mt-1 text-sm text-slate-500">Custos, aquisicoes, vendas e resultado final.</p>
             </div>
-            <form class="grid gap-2 rounded-lg bg-white p-3 shadow-sm sm:grid-cols-[150px_150px_auto]" @submit.prevent="filtrar">
-                <input v-model="filtros.data_inicio" type="date" class="rounded-md border-slate-300 text-sm">
-                <input v-model="filtros.data_fim" type="date" class="rounded-md border-slate-300 text-sm">
-                <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white">Filtrar</button>
-            </form>
+            <div class="rounded-lg bg-white p-3 shadow-sm">
+                <div class="mb-2 flex flex-wrap gap-2">
+                    <button
+                        v-for="periodo in periodos"
+                        :key="periodo.valor"
+                        type="button"
+                        class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                        @click="aplicarPeriodo(periodo.valor)"
+                    >
+                        {{ periodo.label }}
+                    </button>
+                </div>
+                <form class="grid gap-2 sm:grid-cols-[150px_150px_auto]" @submit.prevent="filtrar">
+                    <input v-model="filtros.data_inicio" type="date" class="rounded-md border-slate-300 text-sm">
+                    <input v-model="filtros.data_fim" type="date" class="rounded-md border-slate-300 text-sm">
+                    <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white">Filtrar</button>
+                </form>
+            </div>
         </div>
 
         <section class="mb-6 grid gap-4 md:grid-cols-3">
@@ -163,6 +216,9 @@ const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:
 
         <section class="rounded-lg bg-white p-5 shadow-sm">
             <h2 class="mb-4 text-lg font-black">Lancamentos manuais</h2>
+            <div v-if="Object.keys(editForm.errors).length" class="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div v-for="(erro, campo) in editForm.errors" :key="campo"><strong>{{ campo }}:</strong> {{ erro }}</div>
+            </div>
             <div v-if="!movimentos.length" class="rounded-md bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
                 Ainda nao ha movimentos manuais.
             </div>
