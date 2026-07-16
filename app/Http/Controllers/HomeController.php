@@ -64,9 +64,7 @@ class HomeController extends Controller
             'location' => $evento->localizacao,
             'poster' => $evento->cartaz ?: '/images/santana-logo.png',
             'facebookPostUrl' => $evento->facebook_post_url,
-            'badge' => $evento->badge ?: ($this->jaPassou([
-                'data_inicio' => optional($evento->data_inicio)->toDateString(),
-            ]) ? 'Evento realizado' : 'Proximo evento'),
+            'badge' => $evento->badge ?: ($this->jaPassou($evento) ? 'Evento realizado' : 'Proximo evento'),
             'description' => $evento->descricao,
             'schedule' => $evento->programa ?: [],
             'stats' => $this->statsEvento($evento),
@@ -103,13 +101,16 @@ class HomeController extends Controller
         ])->filter()->values()->all();
     }
 
-    private function jaPassou(array $evento): bool
+    private function jaPassou(Evento $evento): bool
     {
-        if (empty($evento['data_inicio'])) {
+        // Um evento só "passou" depois do ÚLTIMO dia (data_fim quando existe)
+        $ultimoDia = $evento->data_fim ?? $evento->data_inicio;
+
+        if (! $ultimoDia) {
             return false;
         }
 
-        return Carbon::parse($evento['data_inicio'])->endOfDay()->isPast();
+        return $ultimoDia->copy()->endOfDay()->isPast();
     }
 
 }
