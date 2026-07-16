@@ -7,7 +7,31 @@ const page = usePage();
 const { can, hasRole } = usePermissions();
 const drawerAberto = ref(false);
 let polling = null;
-const year = new Date().getFullYear();
+
+// Ano ativo — persiste em localStorage, sincroniza com URL
+const ROTAS_COM_ANO = ['contas-festa.index', 'relatorios.index'];
+const anoAtual = new Date().getFullYear();
+const anoGuardado = typeof localStorage !== 'undefined' ? parseInt(localStorage.getItem('ano_ativo') || anoAtual) : anoAtual;
+const anoSelecionado = ref(anoGuardado);
+
+const mudarAno = (delta) => {
+    anoSelecionado.value += delta;
+    if (typeof localStorage !== 'undefined') localStorage.setItem('ano_ativo', anoSelecionado.value);
+    if (ROTAS_COM_ANO.some(r => ativo(r))) {
+        router.get(window.location.pathname, {
+            data_inicio: `${anoSelecionado.value}-01-01`,
+            data_fim: `${anoSelecionado.value}-12-31`,
+        }, { preserveScroll: false });
+    }
+};
+
+// Links do sidebar que devem incluir o ano selecionado
+const linkRota = (rota) => {
+    if (ROTAS_COM_ANO.includes(rota)) {
+        return route(rota) + `?data_inicio=${anoSelecionado.value}-01-01&data_fim=${anoSelecionado.value}-12-31`;
+    }
+    return route(rota);
+};
 
 const podeGerir = () => hasRole('admin') || hasRole('gerente');
 const itemVisivel = (perm) => perm ? can(perm) : podeGerir();
@@ -67,7 +91,7 @@ onBeforeUnmount(() => clearInterval(polling));
                 </Link>
                 <div v-for="grupo in gruposVisiveis" :key="grupo.label" class="mb-3">
                     <p class="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-stone-400 xl:text-[11px]">{{ grupo.label }}</p>
-                    <Link v-for="[nome, rota] in grupo.items" :key="rota" :href="route(rota)"
+                    <Link v-for="[nome, rota] in grupo.items" :key="rota" :href="linkRota(rota)"
                         class="flex min-h-9 items-center justify-between rounded-md px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:bg-amber-50 hover:text-stone-900 xl:text-sm"
                         :class="{ 'bg-amber-600 text-white hover:bg-amber-600 hover:text-white': ativo(rota) }">
                         <span>{{ nome }}</span>
@@ -95,7 +119,7 @@ onBeforeUnmount(() => clearInterval(polling));
                 </Link>
                 <div v-for="grupo in gruposVisiveis" :key="grupo.label" class="mb-4">
                     <p class="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-stone-400">{{ grupo.label }}</p>
-                    <Link v-for="[nome, rota] in grupo.items" :key="rota" :href="route(rota)"
+                    <Link v-for="[nome, rota] in grupo.items" :key="rota" :href="linkRota(rota)"
                         class="mb-1 flex min-h-12 items-center justify-between rounded-lg px-3 py-3 font-medium text-stone-700 hover:bg-amber-50 transition"
                         :class="{ 'bg-amber-600 text-white hover:bg-amber-600': ativo(rota) }"
                         @click="drawerAberto = false">
@@ -147,7 +171,15 @@ onBeforeUnmount(() => clearInterval(polling));
             <header class="flex items-center justify-between border-b border-amber-200 bg-white px-4 py-3.5 lg:px-8">
                 <button type="button" class="rounded-md border border-amber-200 px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-amber-50 md:hidden" @click="drawerAberto = true">Menu</button>
                 <div class="hidden text-sm font-medium text-stone-500 md:block">{{ page.props.auth?.user?.name }}</div>
-                <Link :href="route('logout')" method="post" as="button" class="rounded-md border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-stone-700 transition hover:bg-amber-50">Logout</Link>
+                <div class="flex items-center gap-2">
+                    <!-- Seletor de ano -->
+                    <div class="flex items-center rounded-md border border-amber-200 bg-amber-50 text-sm font-bold text-stone-700 overflow-hidden">
+                        <button type="button" class="px-2.5 py-2 hover:bg-amber-100 transition" @click="mudarAno(-1)">‹</button>
+                        <span class="px-2 tabular-nums">{{ anoSelecionado }}</span>
+                        <button type="button" class="px-2.5 py-2 hover:bg-amber-100 transition" :disabled="anoSelecionado >= anoAtual" :class="anoSelecionado >= anoAtual ? 'opacity-30' : ''" @click="mudarAno(1)">›</button>
+                    </div>
+                    <Link :href="route('logout')" method="post" as="button" class="rounded-md border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-stone-700 transition hover:bg-amber-50">Logout</Link>
+                </div>
             </header>
             <section class="p-4 lg:p-8">
                 <div v-if="page.props.flash?.success" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
