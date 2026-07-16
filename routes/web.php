@@ -12,6 +12,7 @@ use App\Http\Controllers\FaturaCompraController;
 use App\Http\Controllers\FestaContaController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ImpressoraController;
+use App\Http\Controllers\InscricaoController;
 use App\Http\Controllers\LegalController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\MesaController;
@@ -53,6 +54,9 @@ Route::get('/politica-de-cookies', [LegalController::class, 'cookies'])->name('l
 Route::get('/precario', PrecarioController::class)->name('precario');
 Route::post('/contacto', ContactController::class)->name('contacto.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
+// URL fixa para o QR dos cartazes — nunca muda
+Route::get('/inscricoes', [InscricaoController::class, 'index'])->name('inscricoes.index');
+Route::post('/inscricoes/{evento}', [InscricaoController::class, 'store'])->name('inscricoes.store');
 Route::get('/cliente/{token}', [ClientePedidoController::class, 'show'])->name('cliente.mesa');
 Route::post('/cliente/{token}/item', [ClientePedidoController::class, 'addItem'])->name('cliente.item');
 Route::post('/cliente/{token}/items', [ClientePedidoController::class, 'addItems'])->name('cliente.items');
@@ -163,6 +167,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('reservas/{reserva}/sentar', [ReservaController::class, 'sentar'])->name('reservas.sentar');
     Route::patch('reservas/{reserva}/chamar', [ReservaController::class, 'chamar'])->name('reservas.chamar');
     Route::resource('reservas', ReservaController::class);
+    Route::get('eventos/{evento}/inscricoes', [EventoController::class, 'inscricoes'])->name('eventos.inscricoes');
+    Route::delete('eventos/inscricoes/{inscricao}', [EventoController::class, 'destroyInscricao'])->name('eventos.inscricoes.destroy');
     Route::resource('eventos', EventoController::class)->except(['create']);
     Route::post('eventos/{evento}/media', [EventoController::class, 'storeMedia'])->name('eventos.media.store');
     Route::post('eventos/{evento}/media-url', [EventoController::class, 'storeMediaUrl'])->name('eventos.media-url.store');

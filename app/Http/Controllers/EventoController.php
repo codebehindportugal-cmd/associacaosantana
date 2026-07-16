@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Evento;
+use App\Models\EventoInscricao;
 use App\Models\EventoMedia;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,7 @@ class EventoController extends Controller
         $data['destaque'] ??= false;
         $data['cartaz'] = $this->guardarFicheiro($request, 'cartaz') ?? null;
         $data['programa'] = $this->programaFromText($request->string('programa_texto')->toString(), $data);
+        $data = $this->aplicarInscricoes($data);
 
         Evento::create($data);
 
@@ -68,6 +70,7 @@ class EventoController extends Controller
         $data['ordem'] ??= 0;
         $data['destaque'] ??= false;
         $data['programa'] = $this->programaFromText($request->string('programa_texto')->toString(), $data);
+        $data = $this->aplicarInscricoes($data);
 
         if ($cartaz = $this->guardarFicheiro($request, 'cartaz')) {
             $this->apagarFicheiroPublico($evento->cartaz);
@@ -156,7 +159,73 @@ class EventoController extends Controller
             'destaque' => ['boolean'],
             'ordem' => ['nullable', 'integer', 'min:0'],
             'programa_texto' => ['nullable', 'string'],
+            'inscricoes_ativas' => ['boolean'],
+            'inscricoes_limite' => ['nullable', 'integer', 'min:1'],
+            'inscricoes_opcoes_texto' => ['nullable', 'string'],
+            'inscricoes_pede_idades' => ['boolean'],
         ]);
+    }
+
+    /**
+     * Gestão das inscrições de um evento no back-office.
+     */
+    public function inscricoes(Evento $evento): Response
+    {
+        return Inertia::render('Eventos/Inscricoes', [
+            'evento' => [
+                'id' => $evento->id,
+                'titulo' => $evento->titulo,
+                'inscricoes_ativas' => (bool) $evento->inscricoes_ativas,
+                'inscricoes_limite' => $evento->inscricoes_limite,
+                'pede_idades' => (bool) $evento->inscricoes_pede_idades,
+                'tem_opcoes' => ! empty($evento->inscricoes_opcoes),
+            ],
+            'inscricoes' => $evento->inscricoes()
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (EventoInscricao $inscricao) => [
+                    'id' => $inscricao->id,
+                    'nome' => $inscricao->nome,
+                    'telefone' => $inscricao->telefone,
+                    'num_pessoas' => $inscricao->num_pessoas,
+                    'opcao' => $inscricao->opcao,
+                    'num_criancas' => $inscricao->num_criancas,
+                    'idades_criancas' => $inscricao->idades_criancas,
+                    'observacoes' => $inscricao->observacoes,
+                    'criado_em' => $inscricao->created_at->format('d/m/Y H:i'),
+                ]),
+            'totais' => [
+                'inscricoes' => $evento->inscricoes()->count(),
+                'pessoas' => $evento->totalPessoasInscritas(),
+            ],
+            'urlPublica' => route('inscricoes.index'),
+        ]);
+    }
+
+    public function destroyInscricao(EventoInscricao $inscricao): RedirectResponse
+    {
+        $inscricao->delete();
+
+        return back()->with('success', 'Inscrição removida.');
+    }
+
+    /**
+     * Converte o texto das opções (uma por linha) em array e normaliza defaults.
+     */
+    private function aplicarInscricoes(array $data): array
+    {
+        $texto = $data['inscricoes_opcoes_texto'] ?? '';
+        unset($data['inscricoes_opcoes_texto']);
+
+        $data['inscricoes_ativas'] ??= false;
+        $data['inscricoes_pede_idades'] ??= false;
+        $data['inscricoes_opcoes'] = collect(preg_split('/\r\n|\r|\n/', (string) $texto))
+            ->map(fn ($linha) => trim($linha))
+            ->filter()
+            ->values()
+            ->all() ?: null;
+
+        return $data;
     }
 
     private function eventoData(Evento $evento): array
@@ -177,6 +246,12 @@ class EventoController extends Controller
             'estado' => $evento->estado,
             'destaque' => $evento->destaque,
             'ordem' => $evento->ordem,
+            'inscricoes_ativas' => (bool) $evento->inscricoes_ativas,
+            'inscricoes_limite' => $evento->inscricoes_limite,
+            'inscricoes_opcoes' => $evento->inscricoes_opcoes ?? [],
+            'inscricoes_pede_idades' => (bool) $evento->inscricoes_pede_idades,
+            'inscricoes_total' => $evento->inscricoes()->count(),
+            'pessoas_inscritas' => $evento->totalPessoasInscritas(),
             'created_at' => optional($evento->created_at)->format('d/m/Y H:i'),
             'updated_at' => optional($evento->updated_at)->format('d/m/Y H:i'),
             'media' => $evento->media->map(fn (EventoMedia $media) => [

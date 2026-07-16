@@ -26,6 +26,10 @@ class Evento extends Model
         'estado',
         'destaque',
         'ordem',
+        'inscricoes_ativas',
+        'inscricoes_limite',
+        'inscricoes_opcoes',
+        'inscricoes_pede_idades',
     ];
 
     protected $casts = [
@@ -34,11 +38,31 @@ class Evento extends Model
         'programa' => 'array',
         'destaque' => 'boolean',
         'ordem' => 'integer',
+        'inscricoes_ativas' => 'boolean',
+        'inscricoes_limite' => 'integer',
+        'inscricoes_opcoes' => 'array',
+        'inscricoes_pede_idades' => 'boolean',
     ];
 
     public function media(): HasMany
     {
         return $this->hasMany(EventoMedia::class)->orderBy('ordem')->orderBy('id');
+    }
+
+    public function inscricoes(): HasMany
+    {
+        return $this->hasMany(EventoInscricao::class);
+    }
+
+    public function totalPessoasInscritas(): int
+    {
+        return (int) $this->inscricoes()->sum('num_pessoas');
+    }
+
+    public function vagasEsgotadas(): bool
+    {
+        return $this->inscricoes_limite !== null
+            && $this->totalPessoasInscritas() >= $this->inscricoes_limite;
     }
 
     public function scopePublicados(Builder $query): Builder

@@ -25,6 +25,10 @@ const form = useForm({
     ordem: props.evento.ordem ?? 0,
     programa_texto: linhasPrograma(props.evento),
     cartaz: null,
+    inscricoes_ativas: Boolean(props.evento.inscricoes_ativas),
+    inscricoes_limite: props.evento.inscricoes_limite ?? '',
+    inscricoes_opcoes_texto: (props.evento.inscricoes_opcoes ?? []).join('\n'),
+    inscricoes_pede_idades: Boolean(props.evento.inscricoes_pede_idades),
 });
 
 const guardar = () => {
@@ -32,6 +36,9 @@ const guardar = () => {
         .transform((data) => ({
             ...data,
             destaque: data.destaque ? 1 : 0,
+            inscricoes_ativas: data.inscricoes_ativas ? 1 : 0,
+            inscricoes_pede_idades: data.inscricoes_pede_idades ? 1 : 0,
+            inscricoes_limite: data.inscricoes_limite === '' ? null : data.inscricoes_limite,
             _method: 'put',
         }))
         .post(route('eventos.update', props.evento.id), {
@@ -107,6 +114,28 @@ const apagarMedia = (media) => {
                     <input v-model.number="form.ordem" type="number" min="0" class="rounded-md border-slate-300">
                     <textarea v-model="form.descricao" placeholder="Descricao" rows="5" class="rounded-md border-slate-300 md:col-span-4"></textarea>
                     <textarea v-model="form.programa_texto" placeholder="Programa: uma linha por item" rows="5" class="rounded-md border-slate-300 md:col-span-4"></textarea>
+
+                    <!-- Inscrições -->
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 md:col-span-4">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="font-black text-stone-800">📝 Inscrições</h3>
+                            <Link :href="route('eventos.inscricoes', evento.id)" class="text-sm font-bold text-amber-700 underline">
+                                Ver inscrições ({{ evento.inscricoes_total ?? 0 }} · {{ evento.pessoas_inscritas ?? 0 }} pessoas)
+                            </Link>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-3">
+                            <label class="flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold">
+                                <input v-model="form.inscricoes_ativas" type="checkbox" class="rounded border-slate-300">
+                                Inscrições abertas
+                            </label>
+                            <input v-model="form.inscricoes_limite" type="number" min="1" placeholder="Limite de pessoas (vazio = sem limite)" class="rounded-md border-amber-300">
+                            <label class="flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold">
+                                <input v-model="form.inscricoes_pede_idades" type="checkbox" class="rounded border-slate-300">
+                                Pedir crianças + idades
+                            </label>
+                            <textarea v-model="form.inscricoes_opcoes_texto" rows="3" class="rounded-md border-amber-300 md:col-span-3" placeholder="Opções de escolha (uma por linha), ex.:&#10;Só caminhar&#10;Caminhar e almoçar"></textarea>
+                        </div>
+                    </div>
                 </div>
 
                 <div v-if="Object.keys(form.errors).length" class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
