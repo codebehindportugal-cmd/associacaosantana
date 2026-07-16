@@ -35,9 +35,10 @@ if %ERRORLEVEL% NEQ 0 ( echo ERRO no push para o servidor & pause & exit /b 1 )
 echo.
 echo [3/3] Assets + migracoes + cache (1 ligacao)...
 if /i "%~1"=="php" (
-    ssh -o StrictHostKeyChecking=no %REMOTE% "cd %WEBROOT% && %PHP% artisan migrate --force && %PHP% artisan db:seed --class=RoleSeeder --force && %PHP% artisan optimize:clear && echo DEPLOY_OK"
+    ssh -o StrictHostKeyChecking=no %REMOTE% "cd %WEBROOT% && [ -L public/storage ] || %PHP% artisan storage:link ; %PHP% artisan migrate --force && %PHP% artisan db:seed --class=RoleSeeder --force && %PHP% artisan optimize:clear && echo DEPLOY_OK"
 ) else (
-    tar -czf - public/build bootstrap/ssr | ssh -o StrictHostKeyChecking=no %REMOTE% "cd %WEBROOT% && rm -rf public/build bootstrap/ssr && tar -xzf - && %PHP% artisan migrate --force && %PHP% artisan db:seed --class=RoleSeeder --force && %PHP% artisan optimize:clear && echo DEPLOY_OK"
+    :: Envia build + ssr (substituidos) e storage/app/public (adicionado, sem apagar uploads do servidor)
+    tar -czf - public/build bootstrap/ssr storage/app/public | ssh -o StrictHostKeyChecking=no %REMOTE% "cd %WEBROOT% && rm -rf public/build bootstrap/ssr && tar -xzf - && ([ -L public/storage ] || %PHP% artisan storage:link) ; %PHP% artisan migrate --force && %PHP% artisan db:seed --class=RoleSeeder --force && %PHP% artisan optimize:clear && echo DEPLOY_OK"
 )
 if %ERRORLEVEL% NEQ 0 ( echo ERRO no passo final & pause & exit /b 1 )
 

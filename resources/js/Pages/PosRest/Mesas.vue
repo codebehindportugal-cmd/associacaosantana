@@ -3,6 +3,9 @@ import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
+import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
+
+const chamandoComissao = ref(false);
 
 const props = defineProps({ mesas: Array, pedidosFechadosHoje: { type: Array, default: () => [] } });
 let refresh = null;
@@ -80,7 +83,12 @@ onBeforeUnmount(() => clearInterval(refresh));
 <template>
     <ChamadaFuncionarioAlert />
     <main class="min-h-screen bg-gray-900 p-5 text-white">
-        <header class="mb-5 flex items-center gap-4"><Link :href="route('pos.rest.index')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">←</Link><h1 class="text-4xl font-black">MESAS</h1></header>
+        <header class="mb-5 flex items-center gap-4">
+            <Link :href="route('pos.rest.index')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">←</Link>
+            <h1 class="flex-1 text-4xl font-black">MESAS</h1>
+            <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
+        </header>
+        <ChamarComissaoModal v-if="chamandoComissao" @fechar="chamandoComissao = false" />
         <div class="mb-5 flex flex-wrap justify-end gap-3">
             <button type="button" class="rounded-lg px-4 py-3 font-black" :class="somenteGrupos ? 'bg-amber-500 text-gray-950' : 'bg-gray-700'" @click="somenteGrupos = !somenteGrupos">GRUPOS GRANDES</button>
             <button type="button" class="rounded-lg bg-emerald-600 px-4 py-3 font-black" @click="mostrarQrPrecario">QR PREÇÁRIO</button>

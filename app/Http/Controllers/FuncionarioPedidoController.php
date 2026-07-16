@@ -132,7 +132,7 @@ class FuncionarioPedidoController extends Controller
             return 'Balcao';
         }
 
-        return $mesaPrincipal->numero.($mesa?->mesaPrincipal ? $this->letraSubmesa($mesa) : '');
+        return 'Mesa '.$mesaPrincipal->numero.($mesa?->mesaPrincipal ? $this->letraSubmesa($mesa) : '');
     }
 
     private function letraSubmesa($submesa): string
