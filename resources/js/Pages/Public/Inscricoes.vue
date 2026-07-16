@@ -16,7 +16,7 @@ const form = useForm({
     nome: '',
     telefone: '',
     email: '',
-    num_pessoas: 1,
+    num_adultos: 1,
     opcao: '',
     num_criancas: 0,
     idades_criancas: '',
@@ -58,13 +58,24 @@ const precoOpcao = (evento) => {
     return opcao?.preco ?? null;
 };
 
+const adultos = () => Math.max(0, Number(form.num_adultos || 0));
+const criancas = (evento) => evento.pede_idades ? Math.max(0, Number(form.num_criancas || 0)) : 0;
+
 const totalEstimado = (evento) => {
     const precoAdulto = precoOpcao(evento) ?? evento.preco;
     if (precoAdulto === null || precoAdulto === undefined) return null;
-    const criancas = Math.min(Number(form.num_criancas || 0), Number(form.num_pessoas || 1));
-    const adultos = Math.max(0, Number(form.num_pessoas || 1) - criancas);
     const precoCrianca = evento.preco_crianca ?? precoAdulto;
-    return adultos * precoAdulto + criancas * precoCrianca;
+    return adultos() * precoAdulto + criancas(evento) * precoCrianca;
+};
+
+const detalheTotal = (evento) => {
+    const precoAdulto = precoOpcao(evento) ?? evento.preco;
+    if (precoAdulto === null || precoAdulto === undefined) return '';
+    const precoCrianca = evento.preco_crianca ?? precoAdulto;
+    const partes = [];
+    if (adultos()) partes.push(`${adultos()} × ${euros(precoAdulto)}`);
+    if (criancas(evento)) partes.push(`${criancas(evento)} criança(s) × ${euros(precoCrianca)}`);
+    return partes.join(' + ');
 };
 
 const infoPrecos = (evento) => {
@@ -79,7 +90,15 @@ const infoPrecos = (evento) => {
 
 const submeter = async (evento) => {
     form.recaptcha_token = await obterToken();
-    form.post(route('inscricoes.store', evento.id), {
+    form.transform((data) => {
+        const { num_adultos, ...resto } = data;
+        const nCriancas = evento.pede_idades ? Number(data.num_criancas || 0) : 0;
+        return {
+            ...resto,
+            num_pessoas: Math.max(1, Number(num_adultos || 0) + nCriancas),
+            num_criancas: nCriancas,
+        };
+    }).post(route('inscricoes.store', evento.id), {
         preserveScroll: true,
         onSuccess: () => {
             sucesso.value = evento.id;
@@ -137,8 +156,8 @@ const submeter = async (evento) => {
                         <input v-model="form.email" :required="evento.pagamento_online" type="email" class="rounded-md border-stone-300" :placeholder="evento.pagamento_online ? 'Email * (recibo e confirmação)' : 'Email (para receberes a confirmação)'">
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="flex items-center gap-2 text-sm font-bold text-stone-600">
-                                Nº de pessoas
-                                <input v-model.number="form.num_pessoas" required type="number" min="1" max="50" class="w-24 rounded-md border-stone-300">
+                                {{ evento.pede_idades ? 'Nº de adultos' : 'Nº de pessoas' }}
+                                <input v-model.number="form.num_adultos" required type="number" min="1" max="50" class="w-24 rounded-md border-stone-300">
                             </label>
                             <select v-if="evento.opcoes?.length" v-model="form.opcao" required class="rounded-md border-stone-300">
                                 <option value="" disabled>Escolhe uma opção *</option>
@@ -158,6 +177,7 @@ const submeter = async (evento) => {
 
                         <div v-if="totalEstimado(evento) !== null" class="rounded-md bg-amber-50 p-3 text-center font-black text-stone-800">
                             Total estimado: {{ euros(totalEstimado(evento)) }}
+                            <span v-if="detalheTotal(evento)" class="block text-xs font-bold text-stone-500">{{ detalheTotal(evento) }}</span>
                             <span class="block text-xs font-bold text-stone-500">{{ evento.pagamento_online ? 'Pagamento online seguro (Viva)' : 'Pagamento no dia do evento' }}</span>
                         </div>
 

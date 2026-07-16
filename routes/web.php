@@ -171,6 +171,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('reservas', ReservaController::class);
     Route::get('eventos/{evento}/inscricoes', [EventoController::class, 'inscricoes'])->name('eventos.inscricoes');
     Route::delete('eventos/inscricoes/{inscricao}', [EventoController::class, 'destroyInscricao'])->name('eventos.inscricoes.destroy');
+    Route::post('eventos/inscricoes/{inscricao}/confirmar', [EventoController::class, 'confirmarInscricao'])->name('eventos.inscricoes.confirmar');
     Route::resource('eventos', EventoController::class)->except(['create']);
     Route::post('eventos/{evento}/media', [EventoController::class, 'storeMedia'])->name('eventos.media.store');
     Route::post('eventos/{evento}/media-url', [EventoController::class, 'storeMediaUrl'])->name('eventos.media-url.store');

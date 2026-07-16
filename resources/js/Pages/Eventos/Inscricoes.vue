@@ -1,7 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router } from '@inertiajs/vue3';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 
 const props = defineProps({
@@ -23,6 +23,22 @@ const apagar = (inscricao) => {
     if (confirm(`Apagar a inscrição de "${inscricao.nome}"?`)) {
         router.delete(route('eventos.inscricoes.destroy', inscricao.id), { preserveScroll: true });
     }
+};
+
+// Check-in de pulseiras
+const filtro = ref('todas'); // todas | por_confirmar | confirmadas
+const pesquisa = ref('');
+
+const inscricoesFiltradas = computed(() => (props.inscricoes ?? []).filter((i) => {
+    if (filtro.value === 'por_confirmar' && i.confirmada) return false;
+    if (filtro.value === 'confirmadas' && !i.confirmada) return false;
+    const termo = pesquisa.value.trim().toLowerCase();
+    if (termo && !`${i.nome} ${i.telefone}`.toLowerCase().includes(termo)) return false;
+    return true;
+}));
+
+const alternarConfirmacao = (inscricao) => {
+    router.post(route('eventos.inscricoes.confirmar', inscricao.id), {}, { preserveScroll: true });
 };
 
 const exportarCsv = () => {
@@ -79,8 +95,26 @@ const exportarCsv = () => {
         </section>
 
         <section class="rounded-lg bg-white p-5 shadow-sm">
-            <div v-if="!inscricoes.length" class="rounded-md bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-                Ainda não há inscrições.
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+                <button
+                    v-for="opcao in [
+                        { valor: 'todas', label: `Todas (${totais.inscricoes})` },
+                        { valor: 'por_confirmar', label: `Por confirmar (${totais.inscricoes - totais.confirmadas})` },
+                        { valor: 'confirmadas', label: `✔ Confirmadas (${totais.confirmadas})` },
+                    ]"
+                    :key="opcao.valor"
+                    type="button"
+                    class="rounded-md px-3 py-1.5 text-sm font-bold"
+                    :class="filtro === opcao.valor ? 'bg-slate-900 text-white' : 'border border-slate-300 hover:bg-slate-50'"
+                    @click="filtro = opcao.valor"
+                >
+                    {{ opcao.label }}
+                </button>
+                <input v-model="pesquisa" class="ml-auto w-56 rounded-md border-slate-300 text-sm" placeholder="🔍 Nome ou telefone">
+                <span class="rounded bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-800">{{ totais.pessoas_confirmadas }}/{{ totais.pessoas }} pulseiras</span>
+            </div>
+            <div v-if="!inscricoesFiltradas.length" class="rounded-md bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
+                {{ inscricoes.length ? 'Nada encontrado com este filtro.' : 'Ainda não há inscrições.' }}
             </div>
             <div v-else class="overflow-x-auto">
                 <table class="w-full min-w-[760px] text-left text-sm">
@@ -97,7 +131,7 @@ const exportarCsv = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="inscricao in inscricoes" :key="inscricao.id" class="border-t border-slate-100">
+                        <tr v-for="inscricao in inscricoesFiltradas" :key="inscricao.id" class="border-t border-slate-100" :class="inscricao.confirmada ? 'bg-emerald-50/50' : ''">
                             <td class="py-3">
                                 <strong>{{ inscricao.nome }}</strong>
                                 <span v-if="inscricao.pagamento_estado === 'pago'" class="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">PAGO</span>
@@ -115,8 +149,17 @@ const exportarCsv = () => {
                             </td>
                             <td class="text-right font-bold">{{ inscricao.valor_estimado !== null ? Number(inscricao.valor_estimado).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }) : '—' }}</td>
                             <td class="text-xs text-slate-500">{{ inscricao.criado_em }}</td>
-                            <td class="text-right">
-                                <button type="button" class="font-bold text-red-700" @click="apagar(inscricao)">Apagar</button>
+                            <td class="text-right whitespace-nowrap">
+                                <button
+                                    type="button"
+                                    class="rounded-md px-3 py-1.5 text-sm font-black"
+                                    :class="inscricao.confirmada ? 'bg-emerald-600 text-white' : 'border border-emerald-600 text-emerald-700 hover:bg-emerald-50'"
+                                    :title="inscricao.confirmada ? 'Confirmada ' + inscricao.confirmada_em : 'Marcar como confirmada (pulseira entregue)'"
+                                    @click="alternarConfirmacao(inscricao)"
+                                >
+                                    {{ inscricao.confirmada ? '✔ Confirmada' : 'Confirmar' }}
+                                </button>
+                                <button type="button" class="ml-3 font-bold text-red-700" @click="apagar(inscricao)">Apagar</button>
                             </td>
                         </tr>
                     </tbody>

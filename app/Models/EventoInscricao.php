@@ -23,12 +23,14 @@ class EventoInscricao extends Model
         'pagamento_estado',
         'pagamento_order_code',
         'pago_em',
+        'confirmada_em',
     ];
 
     protected $casts = [
         'num_pessoas' => 'integer',
         'num_criancas' => 'integer',
         'pago_em' => 'datetime',
+        'confirmada_em' => 'datetime',
     ];
 
     public function evento(): BelongsTo

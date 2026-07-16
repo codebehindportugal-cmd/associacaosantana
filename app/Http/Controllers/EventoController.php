@@ -199,12 +199,16 @@ class EventoController extends Controller
                     'idades_criancas' => $inscricao->idades_criancas,
                     'observacoes' => $inscricao->observacoes,
                     'valor_estimado' => $inscricao->valor_estimado,
+                    'confirmada' => (bool) $inscricao->confirmada_em,
+                    'confirmada_em' => $inscricao->confirmada_em?->format('d/m H:i'),
                     'criado_em' => $inscricao->created_at->format('d/m/Y H:i'),
                 ]),
             'totais' => [
                 'inscricoes' => $evento->inscricoes()->count(),
                 'pessoas' => $evento->totalPessoasInscritas(),
                 'valor' => (float) $evento->inscricoes()->sum('valor_estimado'),
+                'confirmadas' => $evento->inscricoes()->whereNotNull('confirmada_em')->count(),
+                'pessoas_confirmadas' => (int) $evento->inscricoes()->whereNotNull('confirmada_em')->sum('num_pessoas'),
             ],
             'urlPublica' => route('inscricoes.index'),
         ]);
@@ -215,6 +219,18 @@ class EventoController extends Controller
         $inscricao->delete();
 
         return back()->with('success', 'Inscrição removida.');
+    }
+
+    /**
+     * Check-in: alterna o estado "confirmada" (entrega da pulseira).
+     */
+    public function confirmarInscricao(EventoInscricao $inscricao): RedirectResponse
+    {
+        $inscricao->update([
+            'confirmada_em' => $inscricao->confirmada_em ? null : now(),
+        ]);
+
+        return back();
     }
 
     /**
