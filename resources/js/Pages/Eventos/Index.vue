@@ -25,6 +25,9 @@ const novo = useForm({
     inscricoes_limite: '',
     inscricoes_opcoes_texto: '',
     inscricoes_pede_idades: false,
+    inscricoes_preco: '',
+    inscricoes_preco_crianca: '',
+    inscricoes_idade_crianca: '',
 });
 
 const cartazNovo = ref(null);
@@ -37,6 +40,9 @@ const guardarNovo = () => {
         inscricoes_ativas: data.inscricoes_ativas ? 1 : 0,
         inscricoes_pede_idades: data.inscricoes_pede_idades ? 1 : 0,
         inscricoes_limite: data.inscricoes_limite === '' ? null : data.inscricoes_limite,
+        inscricoes_preco: data.inscricoes_preco === '' ? null : data.inscricoes_preco,
+        inscricoes_preco_crianca: data.inscricoes_preco_crianca === '' ? null : data.inscricoes_preco_crianca,
+        inscricoes_idade_crianca: data.inscricoes_idade_crianca === '' ? null : data.inscricoes_idade_crianca,
     })).post(route('eventos.store'), {
         forceFormData: true,
         preserveScroll: true,
@@ -109,7 +115,10 @@ const dataEvento = (evento) => {
                             <input v-model="novo.inscricoes_pede_idades" type="checkbox" class="rounded border-slate-300">
                             Pedir crianças + idades
                         </label>
-                        <textarea v-model="novo.inscricoes_opcoes_texto" rows="2" class="rounded-md border-amber-300 md:col-span-3" placeholder="Opções de escolha (uma por linha), ex.:&#10;Só caminhar&#10;Caminhar e almoçar"></textarea>
+                        <input v-model="novo.inscricoes_preco" type="number" min="0" step="0.01" placeholder="Preço por pessoa € (vazio = grátis)" class="rounded-md border-amber-300">
+                        <input v-model="novo.inscricoes_preco_crianca" type="number" min="0" step="0.01" placeholder="Preço criança € (vazio = igual adulto)" class="rounded-md border-amber-300">
+                        <input v-model="novo.inscricoes_idade_crianca" type="number" min="1" max="17" placeholder="Criança até que idade (ex.: 10)" class="rounded-md border-amber-300">
+                        <textarea v-model="novo.inscricoes_opcoes_texto" rows="2" class="rounded-md border-amber-300 md:col-span-3" placeholder="Opções de escolha (uma por linha), com preço opcional:&#10;Só caminhar = 5&#10;Caminhar e almoçar = 12.50"></textarea>
                     </div>
                 </div>
             </div>

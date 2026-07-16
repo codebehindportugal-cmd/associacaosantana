@@ -30,6 +30,9 @@ class Evento extends Model
         'inscricoes_limite',
         'inscricoes_opcoes',
         'inscricoes_pede_idades',
+        'inscricoes_preco',
+        'inscricoes_preco_crianca',
+        'inscricoes_idade_crianca',
     ];
 
     protected $casts = [
@@ -42,6 +45,9 @@ class Evento extends Model
         'inscricoes_limite' => 'integer',
         'inscricoes_opcoes' => 'array',
         'inscricoes_pede_idades' => 'boolean',
+        'inscricoes_preco' => 'decimal:2',
+        'inscricoes_preco_crianca' => 'decimal:2',
+        'inscricoes_idade_crianca' => 'integer',
     ];
 
     public function media(): HasMany
@@ -63,6 +69,28 @@ class Evento extends Model
     {
         return $this->inscricoes_limite !== null
             && $this->totalPessoasInscritas() >= $this->inscricoes_limite;
+    }
+
+    /**
+     * Opções normalizadas: aceita strings antigas ("Só caminhar")
+     * e objetos novos ({nome, preco}).
+     */
+    public function opcoesInscricao(): array
+    {
+        return collect($this->inscricoes_opcoes ?? [])
+            ->map(function ($opcao) {
+                if (is_array($opcao)) {
+                    return [
+                        'nome' => (string) ($opcao['nome'] ?? ''),
+                        'preco' => isset($opcao['preco']) && $opcao['preco'] !== null ? (float) $opcao['preco'] : null,
+                    ];
+                }
+
+                return ['nome' => (string) $opcao, 'preco' => null];
+            })
+            ->filter(fn ($opcao) => $opcao['nome'] !== '')
+            ->values()
+            ->all();
     }
 
     public function scopePublicados(Builder $query): Builder

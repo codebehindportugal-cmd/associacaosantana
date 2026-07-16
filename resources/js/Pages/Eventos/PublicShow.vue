@@ -72,6 +72,14 @@ const nextSlide = () => selectSlide(activeIndex.value + 1);
                     <p class="mt-3 text-xl font-semibold text-stone-300">{{ evento.subtitulo || evento.localizacao }}</p>
                     <p class="mt-4 max-w-2xl leading-relaxed text-stone-300">{{ evento.descricao }}</p>
 
+                    <a
+                        v-if="evento.inscricoes_ativas"
+                        :href="route('inscricoes.index')"
+                        class="mt-6 inline-block rounded-xl bg-amber-500 px-8 py-4 text-lg font-black text-stone-900 shadow-lg transition hover:bg-amber-400"
+                    >
+                        📝 INSCREVER-ME
+                    </a>
+
                     <div class="mt-8 grid gap-3 sm:grid-cols-3">
                         <div class="rounded-lg border border-white/15 bg-white/10 p-4">
                             <p class="text-xs font-bold uppercase tracking-wide text-stone-400">Data</p>

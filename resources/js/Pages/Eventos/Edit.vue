@@ -27,8 +27,13 @@ const form = useForm({
     cartaz: null,
     inscricoes_ativas: Boolean(props.evento.inscricoes_ativas),
     inscricoes_limite: props.evento.inscricoes_limite ?? '',
-    inscricoes_opcoes_texto: (props.evento.inscricoes_opcoes ?? []).join('\n'),
+    inscricoes_opcoes_texto: (props.evento.inscricoes_opcoes ?? [])
+        .map((o) => (typeof o === 'string' ? o : (o.preco !== null && o.preco !== undefined ? `${o.nome} = ${o.preco}` : o.nome)))
+        .join('\n'),
     inscricoes_pede_idades: Boolean(props.evento.inscricoes_pede_idades),
+    inscricoes_preco: props.evento.inscricoes_preco ?? '',
+    inscricoes_preco_crianca: props.evento.inscricoes_preco_crianca ?? '',
+    inscricoes_idade_crianca: props.evento.inscricoes_idade_crianca ?? '',
 });
 
 const guardar = () => {
@@ -39,6 +44,9 @@ const guardar = () => {
             inscricoes_ativas: data.inscricoes_ativas ? 1 : 0,
             inscricoes_pede_idades: data.inscricoes_pede_idades ? 1 : 0,
             inscricoes_limite: data.inscricoes_limite === '' ? null : data.inscricoes_limite,
+            inscricoes_preco: data.inscricoes_preco === '' ? null : data.inscricoes_preco,
+            inscricoes_preco_crianca: data.inscricoes_preco_crianca === '' ? null : data.inscricoes_preco_crianca,
+            inscricoes_idade_crianca: data.inscricoes_idade_crianca === '' ? null : data.inscricoes_idade_crianca,
             _method: 'put',
         }))
         .post(route('eventos.update', props.evento.id), {
@@ -133,7 +141,10 @@ const apagarMedia = (media) => {
                                 <input v-model="form.inscricoes_pede_idades" type="checkbox" class="rounded border-slate-300">
                                 Pedir crianças + idades
                             </label>
-                            <textarea v-model="form.inscricoes_opcoes_texto" rows="3" class="rounded-md border-amber-300 md:col-span-3" placeholder="Opções de escolha (uma por linha), ex.:&#10;Só caminhar&#10;Caminhar e almoçar"></textarea>
+                            <input v-model="form.inscricoes_preco" type="number" min="0" step="0.01" placeholder="Preço por pessoa € (vazio = grátis)" class="rounded-md border-amber-300">
+                            <input v-model="form.inscricoes_preco_crianca" type="number" min="0" step="0.01" placeholder="Preço criança € (vazio = igual adulto)" class="rounded-md border-amber-300">
+                            <input v-model="form.inscricoes_idade_crianca" type="number" min="1" max="17" placeholder="Criança até que idade (ex.: 10)" class="rounded-md border-amber-300">
+                            <textarea v-model="form.inscricoes_opcoes_texto" rows="3" class="rounded-md border-amber-300 md:col-span-3" placeholder="Opções de escolha (uma por linha), com preço opcional:&#10;Só caminhar = 5&#10;Caminhar e almoçar = 12.50"></textarea>
                         </div>
                     </div>
                 </div>

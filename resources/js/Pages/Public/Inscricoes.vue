@@ -49,6 +49,33 @@ const obterToken = () => new Promise((resolve) => {
     });
 });
 
+const euros = (v) => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+
+const precoOpcao = (evento) => {
+    if (!form.opcao) return null;
+    const opcao = (evento.opcoes ?? []).find((o) => o.nome === form.opcao);
+    return opcao?.preco ?? null;
+};
+
+const totalEstimado = (evento) => {
+    const precoAdulto = precoOpcao(evento) ?? evento.preco;
+    if (precoAdulto === null || precoAdulto === undefined) return null;
+    const criancas = Math.min(Number(form.num_criancas || 0), Number(form.num_pessoas || 1));
+    const adultos = Math.max(0, Number(form.num_pessoas || 1) - criancas);
+    const precoCrianca = evento.preco_crianca ?? precoAdulto;
+    return adultos * precoAdulto + criancas * precoCrianca;
+};
+
+const infoPrecos = (evento) => {
+    const partes = [];
+    if (evento.preco !== null && !evento.opcoes?.some((o) => o.preco !== null)) partes.push(`${euros(evento.preco)} por pessoa`);
+    if (evento.preco_crianca !== null) {
+        const ate = evento.idade_crianca ? ` até aos ${evento.idade_crianca} anos` : '';
+        partes.push(Number(evento.preco_crianca) === 0 ? `crianças${ate} grátis` : `crianças${ate}: ${euros(evento.preco_crianca)}`);
+    }
+    return partes.join(' · ');
+};
+
 const submeter = async (evento) => {
     form.recaptcha_token = await obterToken();
     form.post(route('inscricoes.store', evento.id), {
@@ -83,6 +110,7 @@ const submeter = async (evento) => {
                         <p class="mt-1 text-sm font-bold text-amber-700">
                             {{ evento.data_inicio }}<span v-if="evento.periodo"> · {{ evento.periodo }}</span><span v-if="evento.localizacao"> · {{ evento.localizacao }}</span>
                         </p>
+                        <p v-if="infoPrecos(evento)" class="mt-1 text-sm font-bold text-stone-600">{{ infoPrecos(evento) }}</p>
                         <p v-if="evento.esgotado" class="mt-1 inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-black text-red-700">ESGOTADO</p>
                         <p v-else-if="evento.vagas_restantes !== null" class="mt-1 inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-700">{{ evento.vagas_restantes }} vagas</p>
                     </div>
@@ -112,7 +140,9 @@ const submeter = async (evento) => {
                             </label>
                             <select v-if="evento.opcoes?.length" v-model="form.opcao" required class="rounded-md border-stone-300">
                                 <option value="" disabled>Escolhe uma opção *</option>
-                                <option v-for="opcao in evento.opcoes" :key="opcao" :value="opcao">{{ opcao }}</option>
+                                <option v-for="opcao in evento.opcoes" :key="opcao.nome" :value="opcao.nome">
+                                    {{ opcao.nome }}{{ opcao.preco !== null ? ` — ${euros(opcao.preco)}` : '' }}
+                                </option>
                             </select>
                         </div>
                         <div v-if="evento.pede_idades" class="grid gap-3 sm:grid-cols-2">
@@ -123,6 +153,11 @@ const submeter = async (evento) => {
                             <input v-if="form.num_criancas > 0" v-model="form.idades_criancas" class="rounded-md border-stone-300" placeholder="Idades das crianças (ex.: 4, 7, 11)">
                         </div>
                         <textarea v-model="form.observacoes" rows="2" class="rounded-md border-stone-300" placeholder="Observações (opcional)"></textarea>
+
+                        <div v-if="totalEstimado(evento) !== null" class="rounded-md bg-amber-50 p-3 text-center font-black text-stone-800">
+                            Total estimado: {{ euros(totalEstimado(evento)) }}
+                            <span class="block text-xs font-bold text-stone-500">Pagamento no dia do evento</span>
+                        </div>
 
                         <div v-if="Object.keys(form.errors).length" class="rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">
                             <div v-for="(erro, campo) in form.errors" :key="campo">{{ erro }}</div>

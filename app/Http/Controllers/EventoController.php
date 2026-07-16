@@ -163,6 +163,9 @@ class EventoController extends Controller
             'inscricoes_limite' => ['nullable', 'integer', 'min:1'],
             'inscricoes_opcoes_texto' => ['nullable', 'string'],
             'inscricoes_pede_idades' => ['boolean'],
+            'inscricoes_preco' => ['nullable', 'numeric', 'min:0'],
+            'inscricoes_preco_crianca' => ['nullable', 'numeric', 'min:0'],
+            'inscricoes_idade_crianca' => ['nullable', 'integer', 'min:1', 'max:17'],
         ]);
     }
 
@@ -192,11 +195,13 @@ class EventoController extends Controller
                     'num_criancas' => $inscricao->num_criancas,
                     'idades_criancas' => $inscricao->idades_criancas,
                     'observacoes' => $inscricao->observacoes,
+                    'valor_estimado' => $inscricao->valor_estimado,
                     'criado_em' => $inscricao->created_at->format('d/m/Y H:i'),
                 ]),
             'totais' => [
                 'inscricoes' => $evento->inscricoes()->count(),
                 'pessoas' => $evento->totalPessoasInscritas(),
+                'valor' => (float) $evento->inscricoes()->sum('valor_estimado'),
             ],
             'urlPublica' => route('inscricoes.index'),
         ]);
@@ -219,9 +224,17 @@ class EventoController extends Controller
 
         $data['inscricoes_ativas'] ??= false;
         $data['inscricoes_pede_idades'] ??= false;
+        // Cada linha: "Nome da opção" ou "Nome da opção = 12.50"
         $data['inscricoes_opcoes'] = collect(preg_split('/\r\n|\r|\n/', (string) $texto))
             ->map(fn ($linha) => trim($linha))
             ->filter()
+            ->map(function ($linha) {
+                if (preg_match('/^(.+?)\s*=\s*([\d]+(?:[.,]\d{1,2})?)\s*€?\s*$/u', $linha, $m)) {
+                    return ['nome' => trim($m[1]), 'preco' => (float) str_replace(',', '.', $m[2])];
+                }
+
+                return ['nome' => $linha, 'preco' => null];
+            })
             ->values()
             ->all() ?: null;
 
@@ -248,8 +261,11 @@ class EventoController extends Controller
             'ordem' => $evento->ordem,
             'inscricoes_ativas' => (bool) $evento->inscricoes_ativas,
             'inscricoes_limite' => $evento->inscricoes_limite,
-            'inscricoes_opcoes' => $evento->inscricoes_opcoes ?? [],
+            'inscricoes_opcoes' => $evento->opcoesInscricao(),
             'inscricoes_pede_idades' => (bool) $evento->inscricoes_pede_idades,
+            'inscricoes_preco' => $evento->inscricoes_preco,
+            'inscricoes_preco_crianca' => $evento->inscricoes_preco_crianca,
+            'inscricoes_idade_crianca' => $evento->inscricoes_idade_crianca,
             'inscricoes_total' => $evento->inscricoes()->count(),
             'pessoas_inscritas' => $evento->totalPessoasInscritas(),
             'created_at' => optional($evento->created_at)->format('d/m/Y H:i'),

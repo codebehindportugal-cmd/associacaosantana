@@ -18,6 +18,7 @@ class EventoInscricao extends Model
         'num_criancas',
         'idades_criancas',
         'observacoes',
+        'valor_estimado',
     ];
 
     protected $casts = [

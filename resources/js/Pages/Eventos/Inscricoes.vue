@@ -27,8 +27,8 @@ const apagar = (inscricao) => {
 
 const exportarCsv = () => {
     const linhas = [
-        ['Nome', 'Telefone', 'Pessoas', 'Opção', 'Crianças', 'Idades', 'Observações', 'Data'],
-        ...props.inscricoes.map((i) => [i.nome, i.telefone, i.num_pessoas, i.opcao ?? '', i.num_criancas ?? '', i.idades_criancas ?? '', i.observacoes ?? '', i.criado_em]),
+        ['Nome', 'Telefone', 'Pessoas', 'Opção', 'Crianças', 'Idades', 'Valor', 'Observações', 'Data'],
+        ...props.inscricoes.map((i) => [i.nome, i.telefone, i.num_pessoas, i.opcao ?? '', i.num_criancas ?? '', i.idades_criancas ?? '', i.valor_estimado ?? '', i.observacoes ?? '', i.criado_em]),
     ];
     const csv = linhas.map((l) => l.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(';')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
@@ -64,6 +64,7 @@ const exportarCsv = () => {
             <div class="rounded-lg bg-white p-5 shadow-sm">
                 <div class="text-sm font-bold text-slate-500">Total de pessoas</div>
                 <div class="mt-1 text-3xl font-black text-emerald-700">{{ totais.pessoas }}</div>
+                <div v-if="totais.valor" class="mt-1 text-sm font-bold text-slate-500">≈ {{ Number(totais.valor).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }) }} estimados</div>
             </div>
             <div class="rounded-lg bg-white p-5 shadow-sm">
                 <div class="text-sm font-bold text-slate-500">QR para os cartazes (fixo, nunca muda)</div>
@@ -90,6 +91,7 @@ const exportarCsv = () => {
                             <th class="text-center">Pessoas</th>
                             <th v-if="evento.tem_opcoes">Opção</th>
                             <th v-if="evento.pede_idades">Crianças</th>
+                            <th class="text-right">Valor</th>
                             <th>Data</th>
                             <th></th>
                         </tr>
@@ -107,6 +109,7 @@ const exportarCsv = () => {
                                 <template v-if="inscricao.num_criancas">{{ inscricao.num_criancas }}<span v-if="inscricao.idades_criancas" class="text-xs text-slate-500"> ({{ inscricao.idades_criancas }})</span></template>
                                 <template v-else>—</template>
                             </td>
+                            <td class="text-right font-bold">{{ inscricao.valor_estimado !== null ? Number(inscricao.valor_estimado).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' }) : '—' }}</td>
                             <td class="text-xs text-slate-500">{{ inscricao.criado_em }}</td>
                             <td class="text-right">
                                 <button type="button" class="font-bold text-red-700" @click="apagar(inscricao)">Apagar</button>
