@@ -24,6 +24,7 @@ class PosSession extends Model
 
     protected $casts = [
         'ativo' => 'boolean',
+        'ultimo_login_em' => 'datetime',
     ];
 
     public function setPinAttribute(string $value): void
