@@ -15,8 +15,14 @@ class SponsorshipConfirmation extends Mailable
 
     public function build(): self
     {
-        return $this
+        $mail = $this
             ->subject('Recebemos a sua proposta de patrocínio - ARDC Santana')
             ->view('mail.sponsorship-confirmation');
+
+        if ($replyTo = config('mail.reply_to')) {
+            $mail->replyTo($replyTo);
+        }
+
+        return $mail;
     }
 }

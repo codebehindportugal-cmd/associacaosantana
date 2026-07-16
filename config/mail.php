@@ -117,4 +117,7 @@ return [
 
     'contact_to' => env('CONTACT_MAIL_TO'),
 
+    // Endereço para onde vão as respostas dos emails enviados ao público
+    'reply_to' => env('MAIL_REPLY_TO_ADDRESS'),
+
 ];

@@ -21,13 +21,23 @@ const novo = useForm({
     ordem: 0,
     programa_texto: '',
     cartaz: null,
+    inscricoes_ativas: false,
+    inscricoes_limite: '',
+    inscricoes_opcoes_texto: '',
+    inscricoes_pede_idades: false,
 });
 
 const cartazNovo = ref(null);
 const eventos = computed(() => props.eventos ?? []);
 
 const guardarNovo = () => {
-    novo.post(route('eventos.store'), {
+    novo.transform((data) => ({
+        ...data,
+        destaque: data.destaque ? 1 : 0,
+        inscricoes_ativas: data.inscricoes_ativas ? 1 : 0,
+        inscricoes_pede_idades: data.inscricoes_pede_idades ? 1 : 0,
+        inscricoes_limite: data.inscricoes_limite === '' ? null : data.inscricoes_limite,
+    })).post(route('eventos.store'), {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
@@ -85,6 +95,26 @@ const dataEvento = (evento) => {
                 <input ref="cartazNovo" type="file" accept="image/*" class="rounded-md border border-slate-300 p-2 text-sm" @change="novo.cartaz = $event.target.files[0]">
                 <textarea v-model="novo.descricao" placeholder="Descricao" rows="3" class="rounded-md border-slate-300 md:col-span-2"></textarea>
                 <textarea v-model="novo.programa_texto" placeholder="Programa: uma linha por item" rows="3" class="rounded-md border-slate-300 md:col-span-2"></textarea>
+
+                <!-- Inscrições -->
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 md:col-span-4">
+                    <h3 class="mb-3 font-black text-stone-800">📝 Inscrições</h3>
+                    <div class="grid gap-3 md:grid-cols-3">
+                        <label class="flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold">
+                            <input v-model="novo.inscricoes_ativas" type="checkbox" class="rounded border-slate-300">
+                            Inscrições abertas
+                        </label>
+                        <input v-model="novo.inscricoes_limite" type="number" min="1" placeholder="Limite de pessoas (vazio = sem limite)" class="rounded-md border-amber-300">
+                        <label class="flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold">
+                            <input v-model="novo.inscricoes_pede_idades" type="checkbox" class="rounded border-slate-300">
+                            Pedir crianças + idades
+                        </label>
+                        <textarea v-model="novo.inscricoes_opcoes_texto" rows="2" class="rounded-md border-amber-300 md:col-span-3" placeholder="Opções de escolha (uma por linha), ex.:&#10;Só caminhar&#10;Caminhar e almoçar"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div v-if="Object.keys(novo.errors).length" class="mt-3 rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">
+                <div v-for="(erro, campo) in novo.errors" :key="campo">{{ erro }}</div>
             </div>
             <button class="mt-4 rounded-md bg-slate-900 px-5 py-3 font-black text-white disabled:opacity-60" :disabled="novo.processing">Criar evento</button>
         </form>
@@ -126,6 +156,9 @@ const dataEvento = (evento) => {
                     <div class="mt-auto flex flex-wrap gap-2 pt-5">
                         <Link :href="route('eventos.show', evento.id)" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white">Abrir</Link>
                         <Link :href="route('eventos.edit', evento.id)" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-slate-50">Editar</Link>
+                        <Link :href="route('eventos.inscricoes', evento.id)" class="rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100">
+                            Inscrições<span v-if="evento.inscricoes_ativas"> ({{ evento.pessoas_inscritas ?? 0 }})</span>
+                        </Link>
                         <button type="button" class="rounded-md border border-rose-200 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50" @click="apagar(evento)">Apagar</button>
                     </div>
                 </div>

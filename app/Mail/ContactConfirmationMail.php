@@ -14,8 +14,14 @@ class ContactConfirmationMail extends Mailable
 
     public function build(): self
     {
-        return $this
+        $mail = $this
             ->subject('Recebemos a tua mensagem - ARDC Santana')
             ->view('mail.contact-confirmation');
+
+        if ($replyTo = config('mail.reply_to')) {
+            $mail->replyTo($replyTo);
+        }
+
+        return $mail;
     }
 }
