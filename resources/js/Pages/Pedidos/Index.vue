@@ -1,7 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({ pedidos: Object, filters: Object, mesas: Array, resumo: Object });
 
@@ -11,7 +11,13 @@ const estados = [
     ['entregue', 'Fechados'],
     ['todos', 'Todos'],
 ];
-const pedidosLista = computed(() => props.pedidos?.data ?? []);
+const pesquisa = ref('');
+const pedidosLista = computed(() => {
+    const lista = props.pedidos?.data ?? [];
+    const termo = pesquisa.value.trim().toLowerCase();
+    if (!termo) return lista;
+    return lista.filter((p) => `#${p.id} ${p.mesa?.designacao ?? ''} ${p.mesa?.nome ?? ''} ${p.mesa?.numero ?? ''} ${p.operador_nome ?? ''} ${p.user?.name ?? ''} ${p.numero_senha ?? ''}`.toLowerCase().includes(termo));
+});
 const totalPedido = (pedido) => Number(pedido.total ?? pedido.total_calculado ?? (pedido.items ?? []).reduce((soma, item) => soma + Number(item.preco_unitario) * Number(item.quantidade), 0));
 const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
 const criadoPor = (pedido) => pedido.operador_nome ?? pedido.user?.name ?? pedido.pos?.nome ?? 'Sem utilizador';
@@ -50,6 +56,7 @@ const estadoClass = (estado) => ({
             >
                 {{ label }}
             </Link>
+            <input v-model="pesquisa" class="ml-auto w-full rounded-md border-slate-300 text-sm sm:w-64" placeholder="🔍 Mesa, nº pedido, operador...">
         </div>
 
         <div v-if="pedidosLista.length" class="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">

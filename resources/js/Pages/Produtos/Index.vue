@@ -1,7 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     categorias: Array,
@@ -32,6 +32,25 @@ const criarProduto = () => {
 
 // Imagens pendentes para edição (id -> File)
 const imagensPendentes = ref({});
+
+// Filtros
+const pesquisaProduto = ref('');
+const filtroCategoria = ref('');
+const filtroAtivo = ref('');
+
+const categoriasFiltradas = computed(() => (props.categorias ?? [])
+    .filter((categoria) => !filtroCategoria.value || categoria.id === filtroCategoria.value)
+    .map((categoria) => ({
+        ...categoria,
+        produtosVisiveis: categoria.produtos.filter((produto) => {
+            if (filtroAtivo.value === 'ativos' && !produto.ativo) return false;
+            if (filtroAtivo.value === 'inativos' && produto.ativo) return false;
+            const termo = pesquisaProduto.value.trim().toLowerCase();
+            if (termo && !String(produto.nome).toLowerCase().includes(termo)) return false;
+            return true;
+        }),
+    }))
+    .filter((categoria) => categoria.produtosVisiveis.length > 0));
 
 const atualizarProduto = (produto) => {
     const data = {
@@ -103,8 +122,26 @@ const eliminarProduto = (produto) => {
             </div>
         </form>
 
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+            <select v-model="filtroCategoria" class="rounded-md border-slate-300 text-sm">
+                <option value="">Todas as categorias</option>
+                <option v-for="categoria in categorias" :key="categoria.id" :value="categoria.id">{{ categoria.nome }}</option>
+            </select>
+            <button
+                v-for="opcao in [['', 'Todos'], ['ativos', 'Ativos'], ['inativos', 'Inativos']]"
+                :key="opcao[0]"
+                type="button"
+                class="rounded-md border px-3 py-2 text-sm font-bold"
+                :class="filtroAtivo === opcao[0] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'"
+                @click="filtroAtivo = opcao[0]"
+            >
+                {{ opcao[1] }}
+            </button>
+            <input v-model="pesquisaProduto" class="ml-auto w-full rounded-md border-slate-300 text-sm sm:w-64" placeholder="🔍 Nome do produto...">
+        </div>
+
         <div class="space-y-6">
-            <section v-for="categoria in categorias" :key="categoria.id" class="rounded-lg bg-white shadow-sm">
+            <section v-for="categoria in categoriasFiltradas" :key="categoria.id" class="rounded-lg bg-white shadow-sm">
                 <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                     <div>
                         <h2 class="font-bold">{{ categoria.nome }}</h2>
@@ -114,7 +151,7 @@ const eliminarProduto = (produto) => {
                 </div>
 
                 <div class="divide-y divide-slate-100">
-                    <div v-for="produto in categoria.produtos" :key="produto.id" class="grid gap-3 px-5 py-3 md:grid-cols-[1fr_140px_120px_120px_1fr_auto]">
+                    <div v-for="produto in categoria.produtosVisiveis" :key="produto.id" class="grid gap-3 px-5 py-3 md:grid-cols-[1fr_140px_120px_120px_1fr_auto]">
                         <input v-model="produto.nome" class="rounded-md border-slate-300 text-sm">
                         <!-- Imagem atual + upload -->
                         <label class="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs text-slate-500 hover:border-slate-400 transition overflow-hidden">

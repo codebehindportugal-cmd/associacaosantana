@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Link } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import PublicShell from '@/Components/PublicShell.vue';
 
 const props = defineProps({
@@ -15,37 +15,30 @@ const produtosVisiveis = computed(() => {
     return { [categoriaAtual.value]: props.produtos?.[categoriaAtual.value] ?? [] };
 });
 
-const euros = (valor) => `${Number(valor ?? 0).toFixed(2)} EUR`;
+const euros = (valor) => `${Number(valor ?? 0).toFixed(2)} €`;
 </script>
 
 <template>
+    <Head title="Preçário" />
     <PublicShell>
-        <main class="min-h-screen px-4 py-10" style="background:#0d0a05;color:#fffdf8">
+        <main class="min-h-screen px-4 py-10">
             <section class="mx-auto max-w-2xl">
-                <header class="mb-6 flex items-center justify-between gap-4">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-[0.2em]" style="color:#C9A84C">ARDC Santana</p>
-                        <h1 class="mt-1 text-3xl font-bold" style="color:#fffdf8">Preçário</h1>
-                    </div>
-                    <Link
-                        href="/"
-                        class="rounded-md px-3 py-2 text-sm font-semibold shadow-sm transition"
-                        style="border:1px solid rgba(212,175,55,0.25);background:rgba(212,175,55,0.08);color:#C9A84C"
-                    >
-                        Inicio
-                    </Link>
+                <header class="mb-6">
+                    <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">ARDC Santana</p>
+                    <h1 class="mt-1 text-3xl font-bold text-stone-800">Preçário</h1>
+                    <p class="mt-1 text-sm text-stone-500">Lista de preços do bar e restaurante.</p>
                 </header>
 
-                <div class="sticky top-[84px] z-10 -mx-4 mb-5 overflow-x-auto px-4 py-3 backdrop-blur" style="background:rgba(13,10,5,0.88);border-block:1px solid rgba(212,175,55,0.08)">
+                <div class="sticky top-[84px] z-10 -mx-4 mb-5 overflow-x-auto border-y border-amber-200/60 bg-amber-50/95 px-4 py-3 backdrop-blur">
                     <div class="flex min-w-max gap-2">
                         <button
                             v-for="secao in secoes"
                             :key="secao"
                             type="button"
                             class="rounded-full px-4 py-2 text-sm font-bold transition"
-                            :style="categoriaAtual === secao
-                                ? 'background:#D4AF37;color:#0d0a05;box-shadow:0 12px 30px rgba(212,175,55,0.22)'
-                                : 'border:1px solid rgba(212,175,55,0.2);background:rgba(255,253,248,0.05);color:rgba(255,253,248,0.72)'"
+                            :class="categoriaAtual === secao
+                                ? 'bg-amber-600 text-white shadow-md'
+                                : 'border border-amber-300 bg-white text-stone-600 hover:bg-amber-100'"
                             @click="categoriaAtual = secao"
                         >
                             {{ secao === 'todos' ? 'Todos' : secao }}
@@ -53,32 +46,30 @@ const euros = (valor) => `${Number(valor ?? 0).toFixed(2)} EUR`;
                     </div>
                 </div>
 
-                <div v-if="!categorias.length" class="rounded-xl p-8 text-center font-semibold shadow-sm" style="border:1px solid rgba(212,175,55,0.18);background:rgba(255,253,248,0.05);color:rgba(255,253,248,0.55)">
-                    Ainda nao existem produtos disponiveis.
+                <div v-if="!categorias.length" class="rounded-xl border border-amber-200 bg-white p-8 text-center font-semibold text-stone-500 shadow-sm">
+                    Ainda não existem produtos disponíveis.
                 </div>
 
                 <div v-else class="space-y-4">
                     <section
                         v-for="(items, categoria) in produtosVisiveis"
                         :key="categoria"
-                        class="overflow-hidden rounded-xl shadow-sm"
-                        style="border:1px solid rgba(212,175,55,0.16);background:rgba(255,253,248,0.055);backdrop-filter:blur(12px)"
+                        class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm"
                     >
-                        <div class="px-5 py-3" style="border-bottom:1px solid rgba(212,175,55,0.12);background:rgba(212,175,55,0.06)">
-                            <h2 class="text-lg font-bold" style="color:#fffdf8">{{ categoria }}</h2>
+                        <div class="border-b border-amber-100 bg-amber-50 px-5 py-3">
+                            <h2 class="text-lg font-bold text-stone-800">{{ categoria }}</h2>
                         </div>
                         <div class="px-5">
                             <div
                                 v-for="produto in items"
                                 :key="produto.id"
-                                class="flex items-center justify-between gap-4 py-3.5"
-                                style="border-bottom:1px solid rgba(212,175,55,0.06)"
+                                class="flex items-center justify-between gap-4 border-b border-amber-100/60 py-3.5 last:border-b-0"
                             >
                                 <div class="min-w-0">
-                                    <div class="font-semibold" style="color:#fffdf8">{{ produto.nome }}</div>
-                                    <div class="mt-0.5 text-xs font-medium uppercase tracking-wide" style="color:rgba(255,253,248,0.38)">{{ produto.categoria?.secao || 'produto' }}</div>
+                                    <div class="font-semibold text-stone-800">{{ produto.nome }}</div>
+                                    <div class="mt-0.5 text-xs font-medium uppercase tracking-wide text-stone-400">{{ produto.categoria?.secao || 'produto' }}</div>
                                 </div>
-                                <div class="shrink-0 rounded-full px-3 py-1 text-sm font-bold" style="background:#D4AF37;color:#0d0a05">
+                                <div class="shrink-0 rounded-full bg-amber-600 px-3 py-1 text-sm font-bold text-white">
                                     {{ euros(produto.preco) }}
                                 </div>
                             </div>

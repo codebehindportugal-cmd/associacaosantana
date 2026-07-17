@@ -217,7 +217,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <main class="pos-reservas flex h-screen overflow-hidden bg-gray-900 p-3 text-white sm:p-4">
+    <main class="pos-reservas flex min-h-screen bg-gray-900 p-3 text-white sm:p-4 lg:h-screen lg:overflow-hidden">
         <div class="flex min-h-0 w-full flex-col">
             <header class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
                 <div>

@@ -10,6 +10,20 @@ const props = defineProps({
 
 const hoje = new Date().toISOString().slice(0, 10);
 
+// Filtros da lista de faturas
+const pesquisaFatura = ref('');
+const filtroPago = ref('');
+const faturasFiltradas = computed(() => (props.faturasRecentes ?? []).filter((fatura) => {
+    if (filtroPago.value === 'pagas' && !fatura.pago) return false;
+    if (filtroPago.value === 'por_pagar' && fatura.pago) return false;
+    const termo = pesquisaFatura.value.trim().toLowerCase();
+    if (termo) {
+        const texto = `${fatura.fornecedor ?? ''} ${fatura.numero ?? ''} ${(fatura.items ?? []).map((item) => item.produto?.nome ?? '').join(' ')}`.toLowerCase();
+        if (!texto.includes(termo)) return false;
+    }
+    return true;
+}));
+
 const linhaNova = () => ({
     produto_id: props.produtosOptions?.[0]?.id ?? '',
     quantidade: 1,
@@ -181,12 +195,25 @@ const formatarData = (data) => {
         </section>
 
         <section class="rounded-lg bg-white p-5 shadow-sm">
-            <h2 class="mb-4 text-lg font-bold">Faturas recentes</h2>
-            <div v-if="!faturasRecentes?.length" class="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">
-                Ainda nao ha faturas registadas.
+            <div class="mb-4 flex flex-wrap items-center gap-2">
+                <h2 class="text-lg font-bold">Faturas recentes</h2>
+                <button
+                    v-for="opcao in [['', 'Todas'], ['pagas', 'Pagas'], ['por_pagar', 'Por pagar']]"
+                    :key="opcao[0]"
+                    type="button"
+                    class="rounded-md border px-3 py-1.5 text-sm font-bold"
+                    :class="filtroPago === opcao[0] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'"
+                    @click="filtroPago = opcao[0]"
+                >
+                    {{ opcao[1] }}
+                </button>
+                <input v-model="pesquisaFatura" class="ml-auto w-full rounded-md border-slate-300 text-sm sm:w-64" placeholder="🔍 Fornecedor, nº ou produto...">
+            </div>
+            <div v-if="!faturasFiltradas?.length" class="rounded-md bg-slate-50 p-6 text-center text-sm text-slate-500">
+                {{ faturasRecentes?.length ? 'Nada encontrado com este filtro.' : 'Ainda nao ha faturas registadas.' }}
             </div>
             <div v-else class="grid gap-3 lg:grid-cols-2">
-                <div v-for="fatura in faturasRecentes" :key="fatura.id" class="rounded-md border border-slate-200 text-sm">
+                <div v-for="fatura in faturasFiltradas" :key="fatura.id" class="rounded-md border border-slate-200 text-sm">
                     <!-- Cabecalho do cartao -->
                     <div class="flex flex-wrap items-start justify-between gap-2 p-4">
                         <div class="min-w-0">

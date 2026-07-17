@@ -1,5 +1,6 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3';
+import PublicShell from '@/Components/PublicShell.vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -49,20 +50,8 @@ const nextSlide = () => selectSlide(activeIndex.value + 1);
         <meta head-key="description" name="description" :content="evento.descricao || `Vê fotografias e vídeos do evento ${evento.titulo} da ARDC Santana.`">
     </Head>
 
+    <PublicShell>
     <main class="min-h-screen bg-amber-50 text-stone-800">
-        <!-- Nav -->
-        <header class="sticky top-0 z-40 border-b border-amber-200/80 bg-amber-50/95 backdrop-blur-xl">
-            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3.5 lg:px-8">
-                <Link href="/" class="flex items-center gap-2 text-sm font-bold text-stone-800">
-                    <img src="/images/santana-logo.png" alt="" class="h-8 w-8 rounded-full border border-amber-200 bg-white object-contain p-1">
-                    ARDC Santana
-                </Link>
-                <Link href="/#eventos" class="rounded-md border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 shadow-sm transition hover:bg-amber-50">
-                    ← Eventos
-                </Link>
-            </nav>
-        </header>
-
         <!-- Hero -->
         <section class="relative bg-stone-800 text-white">
             <div class="mx-auto grid max-w-7xl gap-8 px-5 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-16">
@@ -219,4 +208,5 @@ const nextSlide = () => selectSlide(activeIndex.value + 1);
             </div>
         </div>
     </main>
+    </PublicShell>
 </template>

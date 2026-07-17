@@ -13,6 +13,16 @@ const filtrarData = () => {
     router.get(route('reservas.index'), { data: dataEscolhida.value }, { preserveScroll: true });
 };
 
+// Filtros locais (pesquisa + estado)
+const pesquisa = ref('');
+const filtroEstado = ref('');
+const reservasFiltradas = computed(() => (props.reservas ?? []).filter((r) => {
+    if (filtroEstado.value && r.estado !== filtroEstado.value) return false;
+    const termo = pesquisa.value.trim().toLowerCase();
+    if (termo && !`${r.nome} ${r.telefone ?? ''}`.toLowerCase().includes(termo)) return false;
+    return true;
+}));
+
 const form = useForm({
     nome: '',
     data_reserva: hoje,
@@ -123,6 +133,20 @@ const marcarSentada = (reserva) => {
             </div>
         </div>
 
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+            <button
+                v-for="opcao in [['', 'Todas'], ['confirmada', 'Confirmadas'], ['sentada', 'Sentadas'], ['cancelada', 'Canceladas']]"
+                :key="opcao[0]"
+                type="button"
+                class="rounded-md border px-3 py-2 text-sm font-bold"
+                :class="filtroEstado === opcao[0] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'"
+                @click="filtroEstado = opcao[0]"
+            >
+                {{ opcao[1] }}
+            </button>
+            <input v-model="pesquisa" class="ml-auto w-full rounded-md border-slate-300 text-sm sm:w-64" placeholder="🔍 Nome ou telefone...">
+        </div>
+
         <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
                 <div class="text-3xl font-black text-emerald-700">{{ totalPessoasSentadas }}</div>
@@ -168,7 +192,7 @@ const marcarSentada = (reserva) => {
                     </tr>
                 </thead>
                 <tbody>
-                    <template v-for="reserva in reservas" :key="reserva.id">
+                    <template v-for="reserva in reservasFiltradas" :key="reserva.id">
                         <tr class="border-t" :class="editandoId === reserva.id ? 'bg-blue-50' : ''">
                             <td class="p-3 text-lg font-bold">{{ reserva.hora?.slice(0, 5) }}</td>
                             <td class="font-semibold">{{ formatarDia(reserva.data) }}</td>

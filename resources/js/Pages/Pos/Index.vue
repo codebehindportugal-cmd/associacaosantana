@@ -101,7 +101,7 @@ onBeforeUnmount(() => {
 <template>
     <ChamadaFuncionarioAlert />
     <ComissaoChamadasAlert />
-    <main class="pos-screen flex h-screen overflow-hidden bg-gray-900 p-3 text-white sm:p-4">
+    <main class="pos-screen flex min-h-screen bg-gray-900 p-3 text-white sm:p-4 lg:h-screen lg:overflow-hidden">
         <div class="flex min-h-0 w-full flex-col">
             <header class="pos-header mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
                 <div>
@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
                         <div v-if="produtosVisiveis.length === 0" class="flex flex-1 items-center justify-center text-gray-400 font-bold">
                             Sem produtos nesta secção.
                         </div>
-                        <div v-else class="pos-product-grid grid min-h-0 flex-1 auto-rows-min grid-cols-3 gap-2 overflow-y-auto pr-1 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                        <div v-else class="pos-product-grid grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                             <button
                                 v-for="produto in produtosVisiveis"
                                 :key="produto.id"
