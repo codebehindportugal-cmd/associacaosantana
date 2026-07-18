@@ -209,6 +209,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Contas bancárias da associação
     Route::get('contas-bancarias', [ContasBancariaController::class, 'index'])->name('contas-bancarias.index');
     Route::post('contas-bancarias', [ContasBancariaController::class, 'store'])->name('contas-bancarias.store');
+    Route::post('contas-bancarias/saldo', [ContasBancariaController::class, 'atualizarSaldo'])->name('contas-bancarias.saldo');
     Route::patch('contas-bancarias/{contaBancaria}', [ContasBancariaController::class, 'update'])->name('contas-bancarias.update');
     Route::delete('contas-bancarias/{contaBancaria}', [ContasBancariaController::class, 'destroy'])->name('contas-bancarias.destroy');
 

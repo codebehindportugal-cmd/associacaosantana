@@ -7,6 +7,8 @@ const props = defineProps({
     filters:           Object,
     movimentos:        Array,
     resumo:            Object,
+    festaAno:          Number,
+    lucroFesta:        Object,
     categoriasEntrada: Array,
     categoriasSaida:   Array,
 });
@@ -90,6 +92,16 @@ const criarMovimento = () => {
     });
 };
 
+// Pré-preencher com lucro da festa
+const preencherLucroFesta = () => {
+    form.tipo       = 'entrada';
+    form.categoria  = 'lucro_festa';
+    form.descricao  = `Lucro da Festa ${props.festaAno}`;
+    form.valor      = Math.abs(props.lucroFesta?.lucro ?? 0).toFixed(2);
+    form.conta      = 'banco';
+    form.data       = hoje;
+};
+
 // ── Edição ───────────────────────────────────────────────────────────────────
 const edicaoId   = ref(null);
 const editForm   = useForm({
@@ -104,7 +116,7 @@ const editForm   = useForm({
 });
 
 const abrirEdicao = (m) => {
-    edicaoId.value   = m.id;
+    edicaoId.value      = m.id;
     editForm.tipo       = m.tipo;
     editForm.descricao  = m.descricao;
     editForm.valor      = m.valor;
@@ -128,18 +140,81 @@ const apagar = (m) => {
     router.delete(route('contas-bancarias.destroy', m.id), { preserveScroll: true });
 };
 
-// ── Resumo do período ─────────────────────────────────────────────────────────
-const saldoBanco = computed(() => props.resumo?.saldo_banco ?? 0);
-const saldoPrazo = computed(() => props.resumo?.saldo_prazo ?? 0);
-const saldoTotal = computed(() => props.resumo?.saldo_total ?? 0);
-const totalEntradas = computed(() => props.resumo?.total_entradas ?? 0);
-const totalSaidas   = computed(() => props.resumo?.total_saidas   ?? 0);
-const resultado     = computed(() => props.resumo?.resultado ?? 0);
+// ── Modal Saldo Confirmado ────────────────────────────────────────────────────
+const modalSaldo = ref(null); // null | 'banco' | 'prazo'
+const saldoForm = useForm({
+    conta:  'banco',
+    valor:  '',
+    data:   hoje,
+    notas:  '',
+});
+
+const abrirModalSaldo = (conta) => {
+    modalSaldo.value  = conta;
+    saldoForm.conta   = conta;
+    const conf = conta === 'banco'
+        ? props.resumo?.saldo_banco_confirmado
+        : props.resumo?.saldo_prazo_confirmado;
+    saldoForm.valor   = conf?.valor ?? '';
+    saldoForm.data    = conf?.data ?? hoje;
+    saldoForm.notas   = conf?.notas ?? '';
+    saldoForm.clearErrors();
+};
+
+const guardarSaldo = () => {
+    saldoForm.post(route('contas-bancarias.saldo'), {
+        preserveScroll: true,
+        onSuccess: () => { modalSaldo.value = null; },
+    });
+};
+
+// ── Computed ─────────────────────────────────────────────────────────────────
+const saldoBancoConf = computed(() => props.resumo?.saldo_banco_confirmado);
+const saldoPrazoConf = computed(() => props.resumo?.saldo_prazo_confirmado);
+const totalEntradas  = computed(() => props.resumo?.total_entradas ?? 0);
+const totalSaidas    = computed(() => props.resumo?.total_saidas   ?? 0);
+const resultado      = computed(() => props.resumo?.resultado ?? 0);
+const lucroFesta     = computed(() => props.lucroFesta?.lucro ?? 0);
 </script>
 
 <template>
     <AppLayout>
         <Head title="Contas Bancárias" />
+
+        <!-- Modal saldo confirmado -->
+        <div v-if="modalSaldo" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4" @click.self="modalSaldo = null">
+            <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-4 font-black text-stone-800">
+                    Actualizar saldo — {{ modalSaldo === 'banco' ? 'Conta Bancária' : 'Conta a Prazo' }}
+                </h3>
+                <form @submit.prevent="guardarSaldo" class="space-y-3">
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-stone-600">Saldo actual (€) *</label>
+                        <input v-model="saldoForm.valor" type="number" step="0.01" min="0" required autofocus
+                            placeholder="Ex: 3 500.00"
+                            class="w-full rounded-lg border-stone-300 text-stone-800 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
+                        <p v-if="saldoForm.errors.valor" class="mt-0.5 text-xs text-red-600">{{ saldoForm.errors.valor }}</p>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-stone-600">Data do extrato *</label>
+                        <input v-model="saldoForm.data" type="date" required
+                            class="w-full rounded-lg border-stone-300 text-stone-800 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-bold text-stone-600">Notas</label>
+                        <input v-model="saldoForm.notas" type="text" placeholder="Ex: Conferido em julho 2026"
+                            class="w-full rounded-lg border-stone-300 text-stone-800 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
+                    </div>
+                    <div class="flex justify-end gap-2 pt-1">
+                        <button type="button" class="rounded-lg border px-4 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 transition" @click="modalSaldo = null">Cancelar</button>
+                        <button type="submit" :disabled="saldoForm.processing"
+                            class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50 transition">
+                            Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <div class="px-4 py-6 sm:px-6 lg:px-8">
 
@@ -147,17 +222,14 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
             <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <h1 class="text-xl font-black text-stone-800 sm:text-2xl">Contas Bancárias</h1>
                 <div class="flex flex-wrap gap-2 text-xs">
-                    <button
-                        v-for="p in [['mes','Este mês'],['trimestre','Trimestre'],['ano','Este ano'],['tudo','Tudo']]"
-                        :key="p[0]"
-                        type="button"
+                    <button v-for="p in [['mes','Este mês'],['trimestre','Trimestre'],['ano','Este ano'],['tudo','Tudo']]"
+                        :key="p[0]" type="button"
                         class="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-medium text-stone-600 hover:bg-amber-50 transition"
-                        @click="aplicarPeriodo(p[0])"
-                    >{{ p[1] }}</button>
+                        @click="aplicarPeriodo(p[0])">{{ p[1] }}</button>
                 </div>
             </div>
 
-            <!-- Filtros de data + conta + tipo -->
+            <!-- Filtros -->
             <div class="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-amber-200 bg-white p-4 shadow-sm">
                 <div>
                     <label class="mb-1 block text-xs font-bold text-stone-600">Data início</label>
@@ -189,31 +261,96 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                 </div>
             </div>
 
-            <!-- Cards de saldo -->
-            <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <!-- Saldo conta bancária -->
-                <div class="rounded-xl border border-blue-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-stone-500">Saldo Conta Bancária</p>
-                    <p class="mt-1 text-2xl font-black" :class="saldoBanco >= 0 ? 'text-emerald-700' : 'text-red-600'">
-                        {{ euros(saldoBanco) }}
-                    </p>
-                    <p class="mt-1 text-xs text-stone-400">Acumulado de todos os registos</p>
+            <!-- Cards de saldo real (confirmado do extrato) -->
+            <div class="mb-4 grid gap-4 sm:grid-cols-2">
+                <!-- Conta bancária -->
+                <div class="rounded-xl border-2 bg-white p-5 shadow-sm"
+                    :class="saldoBancoConf ? 'border-blue-300' : 'border-dashed border-stone-300'">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="text-xs font-bold uppercase tracking-wide text-stone-500">Conta Bancária</p>
+                            <p v-if="saldoBancoConf" class="mt-1 text-2xl font-black"
+                                :class="saldoBancoConf.valor >= 0 ? 'text-emerald-700' : 'text-red-600'">
+                                {{ euros(saldoBancoConf.valor) }}
+                            </p>
+                            <p v-else class="mt-1 text-lg font-semibold text-stone-400">Não definido</p>
+                            <p v-if="saldoBancoConf" class="mt-0.5 text-xs text-stone-400">
+                                Extrato de {{ saldoBancoConf.data }}
+                                <span v-if="saldoBancoConf.notas"> · {{ saldoBancoConf.notas }}</span>
+                            </p>
+                            <p v-else class="mt-0.5 text-xs text-stone-400">Introduz o saldo do teu extrato bancário</p>
+                        </div>
+                        <button type="button"
+                            class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition"
+                            @click="abrirModalSaldo('banco')">
+                            {{ saldoBancoConf ? 'Actualizar' : 'Definir' }}
+                        </button>
+                    </div>
                 </div>
-                <!-- Saldo conta a prazo -->
-                <div class="rounded-xl border border-purple-200 bg-white p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-stone-500">Saldo Conta a Prazo</p>
-                    <p class="mt-1 text-2xl font-black" :class="saldoPrazo >= 0 ? 'text-emerald-700' : 'text-red-600'">
-                        {{ euros(saldoPrazo) }}
-                    </p>
-                    <p class="mt-1 text-xs text-stone-400">Acumulado de todos os registos</p>
+
+                <!-- Conta a prazo -->
+                <div class="rounded-xl border-2 bg-white p-5 shadow-sm"
+                    :class="saldoPrazoConf ? 'border-purple-300' : 'border-dashed border-stone-300'">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="text-xs font-bold uppercase tracking-wide text-stone-500">Conta a Prazo</p>
+                            <p v-if="saldoPrazoConf" class="mt-1 text-2xl font-black"
+                                :class="saldoPrazoConf.valor >= 0 ? 'text-emerald-700' : 'text-red-600'">
+                                {{ euros(saldoPrazoConf.valor) }}
+                            </p>
+                            <p v-else class="mt-1 text-lg font-semibold text-stone-400">Não definido</p>
+                            <p v-if="saldoPrazoConf" class="mt-0.5 text-xs text-stone-400">
+                                Extrato de {{ saldoPrazoConf.data }}
+                                <span v-if="saldoPrazoConf.notas"> · {{ saldoPrazoConf.notas }}</span>
+                            </p>
+                            <p v-else class="mt-0.5 text-xs text-stone-400">Introduz o saldo do teu extrato</p>
+                        </div>
+                        <button type="button"
+                            class="rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition"
+                            @click="abrirModalSaldo('prazo')">
+                            {{ saldoPrazoConf ? 'Actualizar' : 'Definir' }}
+                        </button>
+                    </div>
                 </div>
-                <!-- Saldo total -->
-                <div class="rounded-xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
-                    <p class="text-xs font-bold uppercase tracking-wide text-amber-700">Saldo Total</p>
-                    <p class="mt-1 text-2xl font-black" :class="saldoTotal >= 0 ? 'text-emerald-700' : 'text-red-600'">
-                        {{ euros(saldoTotal) }}
+            </div>
+
+            <!-- Card de saldo total + lucro festa -->
+            <div class="mb-6 grid gap-4 sm:grid-cols-2">
+                <!-- Saldo total confirmado -->
+                <div v-if="saldoBancoConf || saldoPrazoConf"
+                    class="rounded-xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+                    <p class="text-xs font-bold uppercase tracking-wide text-amber-700">Saldo Total Confirmado</p>
+                    <p class="mt-1 text-2xl font-black"
+                        :class="(saldoBancoConf?.valor ?? 0) + (saldoPrazoConf?.valor ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-600'">
+                        {{ euros((saldoBancoConf?.valor ?? 0) + (saldoPrazoConf?.valor ?? 0)) }}
                     </p>
-                    <p class="mt-1 text-xs text-amber-600">Banco + Prazo</p>
+                    <p class="mt-0.5 text-xs text-amber-600">Banco + Prazo (extratos)</p>
+                </div>
+
+                <!-- Lucro das festas -->
+                <div class="rounded-xl border p-4 shadow-sm"
+                    :class="lucroFesta >= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="text-xs font-bold uppercase tracking-wide"
+                                :class="lucroFesta >= 0 ? 'text-emerald-700' : 'text-red-700'">
+                                {{ lucroFesta >= 0 ? 'Lucro' : 'Prejuízo' }} da Festa {{ festaAno }}
+                            </p>
+                            <p class="mt-1 text-2xl font-black"
+                                :class="lucroFesta >= 0 ? 'text-emerald-800' : 'text-red-800'">
+                                {{ euros(lucroFesta) }}
+                            </p>
+                            <p class="mt-0.5 text-xs"
+                                :class="lucroFesta >= 0 ? 'text-emerald-600' : 'text-red-600'">
+                                Receitas: {{ euros(props.lucroFesta?.total_receitas) }} · Custos: {{ euros(props.lucroFesta?.total_custos) }}
+                            </p>
+                        </div>
+                        <button v-if="lucroFesta > 0" type="button"
+                            class="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition"
+                            @click="preencherLucroFesta">
+                            Registar
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -251,36 +388,32 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                         <div v-for="m in movimentos" :key="m.id">
                             <!-- Linha normal -->
                             <div v-if="edicaoId !== m.id" class="flex flex-wrap items-start gap-3 px-4 py-3 hover:bg-amber-50/50 transition">
-                                <!-- Indicador entrada/saída -->
                                 <div class="mt-0.5 shrink-0">
-                                    <span
-                                        class="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-black"
-                                        :class="m.tipo === 'entrada' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'"
-                                    >
+                                    <span class="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-black"
+                                        :class="m.tipo === 'entrada' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
                                         {{ m.tipo === 'entrada' ? '+' : '−' }}
                                     </span>
                                 </div>
-                                <!-- Info -->
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                                         <span class="truncate font-semibold text-stone-800 text-sm">{{ m.descricao }}</span>
-                                        <span class="shrink-0 font-black text-sm" :class="m.tipo === 'entrada' ? 'text-emerald-700' : 'text-red-600'">
+                                        <span class="shrink-0 font-black text-sm"
+                                            :class="m.tipo === 'entrada' ? 'text-emerald-700' : 'text-red-600'">
                                             {{ m.tipo === 'entrada' ? '+' : '−' }}{{ euros(m.valor) }}
                                         </span>
                                     </div>
                                     <div class="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-stone-400">
                                         <span>{{ String(m.data).slice(0, 10) }}</span>
                                         <span class="rounded bg-stone-100 px-1.5 py-0.5 text-stone-500">
-                                            {{ m.conta === 'banco' ? 'Conta bancária' : 'Conta a prazo' }}
+                                            {{ m.conta === 'banco' ? 'Banco' : 'A prazo' }}
                                         </span>
                                         <span v-if="m.categoria" class="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">
                                             {{ labelCategoria(m.categoria) }}
                                         </span>
-                                        <span v-if="m.referencia" class="text-stone-400">Ref: {{ m.referencia }}</span>
+                                        <span v-if="m.referencia">Ref: {{ m.referencia }}</span>
                                     </div>
                                     <div v-if="m.notas" class="mt-0.5 text-xs italic text-stone-400">{{ m.notas }}</div>
                                 </div>
-                                <!-- Ações -->
                                 <div class="flex shrink-0 gap-1.5">
                                     <button type="button"
                                         class="rounded-lg border border-stone-200 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-amber-50 transition"
@@ -316,7 +449,6 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                                         <label class="mb-0.5 block text-xs font-bold text-stone-600">Descrição</label>
                                         <input v-model="editForm.descricao" type="text"
                                             class="w-full rounded-lg border-stone-300 text-sm text-stone-800 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
-                                        <p v-if="editForm.errors.descricao" class="mt-0.5 text-xs text-red-600">{{ editForm.errors.descricao }}</p>
                                     </div>
                                     <div>
                                         <label class="mb-0.5 block text-xs font-bold text-stone-600">Valor (€)</label>
@@ -338,7 +470,7 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                                     </div>
                                     <div>
                                         <label class="mb-0.5 block text-xs font-bold text-stone-600">Referência</label>
-                                        <input v-model="editForm.referencia" type="text" placeholder="Nº doc, fatura..."
+                                        <input v-model="editForm.referencia" type="text"
                                             class="w-full rounded-lg border-stone-300 text-sm text-stone-800 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
                                     </div>
                                     <div class="sm:col-span-2">
@@ -351,8 +483,7 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                                     <button type="button"
                                         class="rounded-lg border border-stone-200 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-white transition"
                                         @click="edicaoId = null">Cancelar</button>
-                                    <button type="button"
-                                        :disabled="editForm.processing"
+                                    <button type="button" :disabled="editForm.processing"
                                         class="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50 transition"
                                         @click="guardarEdicao(m)">Guardar</button>
                                 </div>
@@ -366,7 +497,6 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                     <div class="sticky top-6 rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
                         <h2 class="mb-4 font-bold text-stone-800">Registar movimento</h2>
                         <form @submit.prevent="criarMovimento" class="space-y-3">
-
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="mb-1 block text-xs font-bold text-stone-600">Tipo</label>
@@ -389,7 +519,7 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                             <div>
                                 <label class="mb-1 block text-xs font-bold text-stone-600">Descrição *</label>
                                 <input v-model="form.descricao" type="text" required
-                                    placeholder="Ex: Pagamento de electricidade"
+                                    placeholder="Ex: Renda do café - Julho"
                                     class="w-full rounded-lg border-stone-300 text-sm text-stone-800 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
                                 <p v-if="form.errors.descricao" class="mt-0.5 text-xs text-red-600">{{ form.errors.descricao }}</p>
                             </div>
@@ -432,12 +562,9 @@ const resultado     = computed(() => props.resumo?.resultado ?? 0);
                                     class="w-full rounded-lg border-stone-300 text-sm text-stone-800 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
                             </div>
 
-                            <button
-                                type="submit"
-                                :disabled="form.processing"
+                            <button type="submit" :disabled="form.processing"
                                 class="w-full rounded-xl py-2.5 text-sm font-bold text-white transition disabled:opacity-50"
-                                :class="form.tipo === 'entrada' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'"
-                            >
+                                :class="form.tipo === 'entrada' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'">
                                 <span v-if="form.processing">A guardar...</span>
                                 <span v-else-if="form.tipo === 'entrada'">+ Registar entrada</span>
                                 <span v-else>− Registar saída</span>
