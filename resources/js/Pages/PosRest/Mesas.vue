@@ -150,6 +150,9 @@ onBeforeUnmount(() => clearInterval(refresh));
                         👤 {{ mesa.reserva_ativa.nome }}
                         <span v-if="mesa.reserva_ativa.mesa_atribuida !== String(mesa.numero)" class="opacity-75">({{ mesa.reserva_ativa.mesa_atribuida }})</span>
                     </span>
+                    <span v-else-if="mesa.nome_reserva" class="mt-1 w-full truncate rounded bg-black/25 px-1.5 py-0.5 text-xs">
+                        👤 {{ mesa.nome_reserva }}
+                    </span>
                     <span v-if="mesa.reserva_ativa && !pedidosAtivos(mesa).length" class="mt-1 w-full animate-pulse rounded bg-orange-500 px-1.5 py-0.5 text-xs font-black text-gray-950">
                         ⚡ REALIZAR PEDIDO
                     </span>

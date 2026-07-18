@@ -18,6 +18,7 @@ class Mesa extends Model
         'lugares_fim',
         'localizacao',
         'estado',
+        'nome_reserva',
         'ativa',
         'mapa_x',
         'mapa_y',

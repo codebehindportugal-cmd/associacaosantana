@@ -216,9 +216,10 @@ class MesaController extends Controller
         }
 
         $mesa->update([
-            'estado' => 'livre',
+            'estado'         => 'livre',
             'lugares_inicio' => null,
-            'lugares_fim' => null,
+            'lugares_fim'    => null,
+            'nome_reserva'   => null,
         ]);
     }
 

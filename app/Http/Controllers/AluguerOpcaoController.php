@@ -38,7 +38,9 @@ class AluguerOpcaoController extends Controller
             'ordem'       => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $opcao->update($data);
+        $opcao->update(array_merge($data, [
+            'preco_extra' => $data['preco_extra'] ?? 0,
+        ]));
 
         return back()->with('success', 'Opção atualizada.');
     }

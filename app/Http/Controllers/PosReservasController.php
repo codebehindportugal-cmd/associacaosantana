@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Mesa;
 use App\Models\Reserva;
 use App\Services\WebPushService;
 use Illuminate\Http\RedirectResponse;
@@ -108,6 +109,13 @@ class PosReservasController extends Controller
             'sentada_em'     => $reserva->sentada_em ?? now(),
             'mesa_atribuida' => $mesaAtribuida,
         ]);
+
+        // Escrever o nome da reserva na mesa para não se perder
+        if (! empty($data['mesa_numero'])) {
+            Mesa::where('numero', (int) $data['mesa_numero'])
+                ->whereNull('mesa_principal_id')
+                ->update(['nome_reserva' => $reserva->nome]);
+        }
 
         // Notificar cliente via push com a mesa atribuída
         if ($mesaAtribuida && $reserva->temPushSubscription()) {

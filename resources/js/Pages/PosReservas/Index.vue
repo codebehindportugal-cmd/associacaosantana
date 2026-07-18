@@ -143,6 +143,25 @@ const sentarForm = useForm({
     mesa_letra: '',
 });
 
+// Atribuição rápida de mesa directamente do painel lateral
+const panelMesaId  = ref(null);
+const panelMesaNum = ref('');
+
+const abrirPanelMesa = (r) => {
+    panelMesaId.value  = r.id;
+    panelMesaNum.value = r.mesa_atribuida ?? '';
+};
+
+const confirmarPanelMesa = (r) => {
+    if (!panelMesaNum.value) return;
+    router.patch(route('pos.reservas.sentar', r.id), {
+        mesa_numero: panelMesaNum.value,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => { panelMesaId.value = null; panelMesaNum.value = ''; },
+    });
+};
+
 const criarReserva = () => {
     form
         .transform((dados) => ({
@@ -421,7 +440,11 @@ onBeforeUnmount(() => {
                                         min="1"
                                         placeholder="Nº Mesa (opcional)"
                                         class="w-full rounded-lg border-gray-700 bg-gray-950 p-2.5 text-lg font-black text-white"
+                                        autofocus
                                     >
+                                    <p v-if="!sentarForm.mesa_numero" class="mt-1.5 rounded bg-orange-900/60 px-2 py-1.5 text-xs font-bold text-orange-300">
+                                        ⚠️ Sem nº de mesa não saberás onde está a pessoa se sair sem pagar
+                                    </p>
                                 </div>
                             </div>
 
@@ -504,13 +527,41 @@ onBeforeUnmount(() => {
                                 v-for="r in reservasSentadas"
                                 :key="r.id"
                                 class="rounded-lg p-2 text-center"
-                                :class="r.mesa_atribuida ? 'bg-emerald-800' : 'bg-gray-800 border border-gray-600'"
+                                :class="r.mesa_atribuida ? 'bg-emerald-800' : 'border-2 border-orange-500 bg-orange-950/60'"
                             >
-                                <div class="text-xl font-black" :class="r.mesa_atribuida ? 'text-emerald-200' : 'text-gray-500'">
-                                    {{ r.mesa_atribuida ? r.mesa_atribuida : '?' }}
+                                <div class="text-xl font-black" :class="r.mesa_atribuida ? 'text-emerald-200' : 'text-orange-400'">
+                                    {{ r.mesa_atribuida || '?' }}
                                 </div>
                                 <div class="truncate text-xs font-bold text-white leading-tight mt-0.5">{{ r.nome }}</div>
-                                <div class="text-[10px] font-bold text-emerald-400 mt-0.5">{{ r.pessoas }} pess · {{ horaReserva(r) }}</div>
+                                <div class="text-[10px] font-bold mt-0.5" :class="r.mesa_atribuida ? 'text-emerald-400' : 'text-orange-400'">
+                                    {{ r.pessoas }} pess · {{ horaReserva(r) }}
+                                </div>
+
+                                <!-- Atribuição rápida de mesa quando não tem nenhuma -->
+                                <template v-if="!r.mesa_atribuida">
+                                    <div v-if="panelMesaId === r.id" class="mt-1.5">
+                                        <input
+                                            v-model="panelMesaNum"
+                                            type="number"
+                                            min="1"
+                                            placeholder="Nº"
+                                            class="w-full rounded bg-gray-900 p-1 text-center text-sm font-black text-white"
+                                            @keyup.enter="confirmarPanelMesa(r)"
+                                            autofocus
+                                        />
+                                        <div class="mt-1 flex gap-1">
+                                            <button class="flex-1 rounded bg-emerald-600 py-0.5 text-xs font-black" @click="confirmarPanelMesa(r)">OK</button>
+                                            <button class="rounded bg-gray-600 px-2 py-0.5 text-xs font-black" @click="panelMesaId = null">✕</button>
+                                        </div>
+                                    </div>
+                                    <button
+                                        v-else
+                                        class="mt-1.5 w-full rounded bg-orange-600 py-1 text-xs font-black text-white hover:bg-orange-500"
+                                        @click="abrirPanelMesa(r)"
+                                    >
+                                        + MESA
+                                    </button>
+                                </template>
                             </div>
                         </div>
                     </section>
