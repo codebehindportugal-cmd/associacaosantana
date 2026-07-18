@@ -224,6 +224,14 @@ class MesaController extends Controller
 
     private function mesasParaMapa()
     {
+        // Reservas de hoje que já estão sentadas com mesa atribuída
+        // Agrupadas pelo número da mesa principal (ex: "5A" → 5)
+        $reservasAtivas = \App\Models\Reserva::whereDate('data', today())
+            ->where('estado', 'sentada')
+            ->whereNotNull('mesa_atribuida')
+            ->get(['id', 'nome', 'pessoas', 'mesa_atribuida'])
+            ->groupBy(fn ($r) => (int) preg_replace('/\D/', '', $r->mesa_atribuida));
+
         return Mesa::principais()
             ->ativas()
             ->with([
@@ -251,7 +259,14 @@ class MesaController extends Controller
             ])
             ->withCount('pedidos')
             ->orderBy('numero')
-            ->get();
+            ->get()
+            ->each(function ($mesa) use ($reservasAtivas) {
+                $res = $reservasAtivas->get($mesa->numero)?->first();
+                $mesa->setAttribute('reserva_ativa', $res
+                    ? ['nome' => $res->nome, 'pessoas' => $res->pessoas, 'mesa_atribuida' => $res->mesa_atribuida]
+                    : null
+                );
+            });
     }
 
     private function zonasParaMapa()

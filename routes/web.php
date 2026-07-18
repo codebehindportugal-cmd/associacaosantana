@@ -38,6 +38,7 @@ use App\Http\Controllers\SponsorScreenController;
 use App\Http\Controllers\SponsorshipController;
 use App\Http\Controllers\SocioController;
 use App\Http\Controllers\ChamadaComissaoController;
+use App\Http\Controllers\ReservaPublicaController;
 use App\Http\Controllers\ValorExtraController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +53,11 @@ Route::get('/politica-de-privacidade', [LegalController::class, 'privacidade'])-
 Route::get('/termos-e-condicoes', [LegalController::class, 'termos'])->name('legal.termos');
 Route::get('/politica-de-cookies', [LegalController::class, 'cookies'])->name('legal.cookies');
 Route::get('/precario', PrecarioController::class)->name('precario');
+
+// Reserva pública — página do cliente para subscrever notificações push
+Route::get('/reserva/{token}', [ReservaPublicaController::class, 'show'])->name('reserva.publica');
+Route::post('/reserva/{token}/subscrever', [ReservaPublicaController::class, 'subscribe'])->name('reserva.subscribe');
+Route::post('/reserva/{token}/dessubscrever', [ReservaPublicaController::class, 'unsubscribe'])->name('reserva.unsubscribe');
 Route::post('/contacto', ContactController::class)->middleware('throttle:8,1')->name('contacto.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
 // URL fixa para o QR dos cartazes — nunca muda

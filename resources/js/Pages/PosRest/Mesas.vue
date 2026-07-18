@@ -105,6 +105,10 @@ onBeforeUnmount(() => clearInterval(refresh));
                     <span v-if="mesa.submesas?.length" class="mt-1 text-xs">{{ mesa.submesas.length }} submesas</span>
                     <span v-if="estadoVisual(mesa) === 'grupo'" class="mt-1 text-xs uppercase">Grupo</span>
                     <span v-if="['grupo', 'ocupada'].includes(estadoVisual(mesa))" class="mt-1 text-sm">{{ total(mesa) }} · {{ minutos(mesa) }}</span>
+                    <span v-if="mesa.reserva_ativa" class="mt-1 w-full truncate rounded bg-black/25 px-1.5 py-0.5 text-xs">
+                        👤 {{ mesa.reserva_ativa.nome }}
+                        <span v-if="mesa.reserva_ativa.mesa_atribuida !== String(mesa.numero)" class="opacity-75">({{ mesa.reserva_ativa.mesa_atribuida }})</span>
+                    </span>
                 </Link>
             </div>
         </section>

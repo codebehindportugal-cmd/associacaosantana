@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Reserva;
+use App\Services\WebPushService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +20,9 @@ class PosReservasController extends Controller
             ->whereIn('estado', ['em_espera', 'confirmada', 'sentada'])
             ->orderBy('hora')
             ->orderBy('id')
-            ->get();
+            ->get()
+            ->each(fn ($r) => $r->setAttribute('tem_push', $r->temPushSubscription()))
+            ->makeHidden('push_subscription');
 
         $totalSentadas  = (int) $reservasHoje->where('estado', 'sentada')->sum('pessoas');
         $totalPorSentar = (int) $reservasHoje->whereIn('estado', ['confirmada', 'em_espera'])->sum('pessoas');
@@ -76,6 +79,11 @@ class PosReservasController extends Controller
     public function chamar(Reserva $reserva): RedirectResponse
     {
         $reserva->update(['chamada_em' => now()]);
+
+        // Enviar notificação push se o cliente subscreveu
+        if ($reserva->temPushSubscription()) {
+            app(WebPushService::class)->enviarChamada($reserva);
+        }
 
         return back();
     }

@@ -60,6 +60,12 @@ class PosRestController extends Controller
             ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
             ->with('items.produto');
 
+        $reservasAtivas = \App\Models\Reserva::whereDate('data', today())
+            ->where('estado', 'sentada')
+            ->whereNotNull('mesa_atribuida')
+            ->get(['id', 'nome', 'pessoas', 'mesa_atribuida'])
+            ->groupBy(fn ($r) => (int) preg_replace('/\D/', '', $r->mesa_atribuida));
+
         $mesas = Mesa::principais()
             ->ativas()
             ->with([
@@ -71,7 +77,14 @@ class PosRestController extends Controller
                 ])->orderBy('numero'),
             ])
             ->orderBy('numero')
-            ->get();
+            ->get()
+            ->each(function ($mesa) use ($reservasAtivas) {
+                $res = $reservasAtivas->get($mesa->numero)?->first();
+                $mesa->setAttribute('reserva_ativa', $res
+                    ? ['nome' => $res->nome, 'pessoas' => $res->pessoas, 'mesa_atribuida' => $res->mesa_atribuida]
+                    : null
+                );
+            });
 
         $pedidosFechadosHoje = Pedido::where('tipo', 'restaurante')
             ->where('estado', 'entregue')

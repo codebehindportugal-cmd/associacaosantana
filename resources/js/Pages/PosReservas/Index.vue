@@ -1,6 +1,7 @@
 <script setup>
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import QRCode from 'qrcode';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 
 const props = defineProps({
@@ -20,6 +21,17 @@ const pesquisaProximas = ref('');
 const filtroProximas = ref('todas');
 let relogio = null;
 let refresh = null;
+
+// QR code da reserva
+const qrReserva = ref(null);   // { nome, url }
+const qrDataUrl = ref('');
+
+const mostrarQrReserva = async (reserva) => {
+    const url = `${window.location.origin}/reserva/${reserva.token}`;
+    qrDataUrl.value = await QRCode.toDataURL(url, { width: 320, margin: 2 });
+    qrReserva.value = { nome: reserva.nome, url };
+};
+const fecharQrReserva = () => { qrReserva.value = null; qrDataUrl.value = ''; };
 
 const form = useForm({
     nome: '',
@@ -339,7 +351,18 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div class="min-w-0">
-                                <div class="truncate text-lg font-black">{{ reserva.nome }}</div>
+                                <div class="flex items-center gap-2">
+                                    <span class="truncate text-lg font-black">{{ reserva.nome }}</span>
+                                    <button
+                                        v-if="reserva.token"
+                                        type="button"
+                                        class="shrink-0 rounded bg-gray-700 px-1.5 py-0.5 text-xs font-bold text-gray-300 hover:bg-gray-600"
+                                        :title="reserva.tem_push ? 'Notificações ativas ✓ — clica para QR' : 'Mostrar QR para notificações'"
+                                        @click.stop="mostrarQrReserva(reserva)"
+                                    >
+                                        {{ reserva.tem_push ? '🔔' : '📲' }}
+                                    </button>
+                                </div>
                                 <div class="mt-1 flex flex-wrap gap-1.5 text-xs font-bold text-gray-300">
                                     <span v-if="reserva.chamada_em" class="rounded bg-amber-500 px-1.5 py-0.5 text-gray-950">CHAMADA {{ horaData(reserva.chamada_em) }}</span>
                                     <span v-if="reserva.sentada_em" class="rounded bg-emerald-500 px-1.5 py-0.5 text-gray-950">SENTADA {{ horaData(reserva.sentada_em) }}</span>
@@ -376,9 +399,11 @@ onBeforeUnmount(() => {
                                     <div v-for="erro in editForm.errors" :key="erro">{{ erro }}</div>
                                 </div>
 
-                                <!-- Formulário de sentar -->
+                                <!-- Formulário de sentar / mudar mesa -->
                                 <div v-if="sentarReservaId === reserva.id" class="mt-2 space-y-2">
-                                    <p class="text-xs font-bold uppercase text-emerald-400">Mesa atribuída</p>
+                                    <p class="text-xs font-bold uppercase text-emerald-400">
+                                        {{ reserva.estado === 'sentada' ? `Mudar mesa (atual: ${reserva.mesa_atribuida || '—'})` : 'Mesa atribuída' }}
+                                    </p>
                                     <div class="grid grid-cols-2 gap-2">
                                         <input
                                             v-model="sentarForm.mesa_numero"
@@ -447,11 +472,10 @@ onBeforeUnmount(() => {
                                     CHAMAR
                                 </button>
                                 <button
-                                    class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black disabled:opacity-40"
-                                    :disabled="reserva.estado === 'sentada'"
+                                    class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black"
                                     @click="abrirSentar(reserva)"
                                 >
-                                    SENTADA
+                                    {{ reserva.estado === 'sentada' ? 'MUDAR MESA' : 'SENTADA' }}
                                 </button>
                                 <button
                                     class="rounded-lg bg-gray-700 px-3 py-1.5 text-sm font-black disabled:opacity-40"
@@ -527,6 +551,18 @@ onBeforeUnmount(() => {
                         </div>
                     </section>
                 </aside>
+            </div>
+        </div>
+
+        <!-- Modal QR de reserva -->
+        <div v-if="qrReserva" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" @click.self="fecharQrReserva">
+            <div class="w-full max-w-xs rounded-2xl bg-white p-5 text-center text-slate-950 shadow-2xl">
+                <h2 class="text-xl font-black">📲 Notificações</h2>
+                <p class="mt-1 text-sm font-bold text-slate-500">{{ qrReserva.nome }}</p>
+                <p class="mt-2 text-xs font-bold text-slate-400">O cliente escaneia com o telemóvel e ativa as notificações</p>
+                <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR da reserva" class="mx-auto my-4 h-56 w-56 rounded-xl border p-2">
+                <a :href="qrReserva.url" target="_blank" class="block truncate text-xs text-blue-600 underline">{{ qrReserva.url }}</a>
+                <button class="mt-4 w-full rounded-xl bg-gray-900 p-3 font-black text-white" @click="fecharQrReserva">FECHAR</button>
             </div>
         </div>
 
