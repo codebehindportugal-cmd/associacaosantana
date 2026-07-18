@@ -109,6 +109,11 @@ class PosReservasController extends Controller
             'mesa_atribuida' => $mesaAtribuida,
         ]);
 
+        // Notificar cliente via push com a mesa atribuída
+        if ($mesaAtribuida && $reserva->temPushSubscription()) {
+            app(WebPushService::class)->enviarSentada($reserva, $mesaAtribuida);
+        }
+
         return back();
     }
 

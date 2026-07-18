@@ -25,13 +25,21 @@ let refresh = null;
 // QR code da reserva
 const qrReserva = ref(null);   // { nome, url }
 const qrDataUrl = ref('');
+let qrTimer = null;
 
 const mostrarQrReserva = async (reserva) => {
     const url = `${window.location.origin}/reserva/${reserva.token}`;
     qrDataUrl.value = await QRCode.toDataURL(url, { width: 320, margin: 2 });
     qrReserva.value = { nome: reserva.nome, url };
+    // Fechar automaticamente após 3 minutos
+    clearTimeout(qrTimer);
+    qrTimer = setTimeout(fecharQrReserva, 3 * 60 * 1000);
 };
-const fecharQrReserva = () => { qrReserva.value = null; qrDataUrl.value = ''; };
+const fecharQrReserva = () => {
+    clearTimeout(qrTimer);
+    qrReserva.value = null;
+    qrDataUrl.value = '';
+};
 
 const form = useForm({
     nome: '',
@@ -225,6 +233,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     clearInterval(relogio);
     clearInterval(refresh);
+    clearTimeout(qrTimer);
 });
 </script>
 
@@ -404,21 +413,26 @@ onBeforeUnmount(() => {
                                     <p class="text-xs font-bold uppercase text-emerald-400">
                                         {{ reserva.estado === 'sentada' ? `Mudar mesa (atual: ${reserva.mesa_atribuida || '—'})` : 'Mesa atribuída' }}
                                     </p>
-                                    <div class="grid grid-cols-2 gap-2">
-                                        <input
-                                            v-model="sentarForm.mesa_numero"
-                                            type="number"
-                                            min="1"
-                                            placeholder="Nº Mesa"
-                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                    <input
+                                        v-model="sentarForm.mesa_numero"
+                                        type="number"
+                                        min="1"
+                                        placeholder="Nº Mesa"
+                                        class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                    >
+                                    <div class="flex gap-1.5">
+                                        <button
+                                            v-for="letra in ['', 'A', 'B', 'C', 'D']"
+                                            :key="letra"
+                                            type="button"
+                                            class="flex-1 rounded-lg py-2 text-sm font-black transition"
+                                            :class="sentarForm.mesa_letra === letra
+                                                ? 'bg-emerald-500 text-gray-950'
+                                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
+                                            @click="sentarForm.mesa_letra = letra"
                                         >
-                                        <input
-                                            v-model="sentarForm.mesa_letra"
-                                            type="text"
-                                            maxlength="3"
-                                            placeholder="Letra (ex: A)"
-                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
-                                        >
+                                            {{ letra === '' ? '—' : letra }}
+                                        </button>
                                     </div>
                                 </div>
                             </div>

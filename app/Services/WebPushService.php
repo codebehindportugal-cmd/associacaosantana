@@ -8,6 +8,57 @@ use Minishlink\WebPush\WebPush;
 
 class WebPushService
 {
+    public function enviarSentada(Reserva $reserva, string $mesa): bool
+    {
+        if (! $reserva->temPushSubscription()) {
+            return false;
+        }
+
+        $vapidPublic  = config('webpush.vapid_public');
+        $vapidPrivate = config('webpush.vapid_private');
+
+        if (! $vapidPublic || ! $vapidPrivate) {
+            return false;
+        }
+
+        try {
+            $auth = [
+                'VAPID' => [
+                    'subject'    => config('app.url'),
+                    'publicKey'  => $vapidPublic,
+                    'privateKey' => $vapidPrivate,
+                ],
+            ];
+
+            $webPush = new WebPush($auth);
+            $subscription = Subscription::create($reserva->push_subscription);
+
+            $payload = json_encode([
+                'title' => 'A sua mesa está pronta! 🪑',
+                'body'  => "Dirija-se à mesa {$mesa}.",
+                'icon'  => '/favicon.ico',
+                'badge' => '/favicon.ico',
+                'tag'   => 'sentada-reserva-' . $reserva->id,
+            ]);
+
+            $webPush->queueNotification($subscription, $payload);
+
+            foreach ($webPush->flush() as $report) {
+                if (! $report->isSuccess()) {
+                    if ($report->isSubscriptionExpired()) {
+                        $reserva->update(['push_subscription' => null]);
+                    }
+                    return false;
+                }
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            \Log::error('[WebPush] enviarSentada: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     public function enviarChamada(Reserva $reserva): bool
     {
         if (! $reserva->temPushSubscription()) {
