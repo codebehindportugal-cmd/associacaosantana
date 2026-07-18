@@ -77,6 +77,11 @@ const nomeMesaFechada = (p) => {
 };
 const pedidosFechadosOrdenados = computed(() => [...(props.pedidosFechadosHoje ?? [])].filter(p => p.mesa_id).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)));
 
+// Mesas com reserva sentada mas sem pedidos — precisam de atenção
+const mesasAguardandoPedido = computed(() =>
+    (props.mesas ?? []).filter((m) => m.reserva_ativa && !pedidosAtivos(m).length)
+);
+
 onMounted(() => { refresh = setInterval(() => router.reload({ only: ['mesas', 'pedidosFechadosHoje'], preserveScroll: true }), 20000); });
 onBeforeUnmount(() => clearInterval(refresh));
 </script>
@@ -91,6 +96,24 @@ onBeforeUnmount(() => clearInterval(refresh));
             <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
         </header>
         <ChamarComissaoModal v-if="chamandoComissao" @fechar="chamandoComissao = false" />
+        <!-- Alerta: mesas com reserva sentada aguardando pedido -->
+        <div v-if="mesasAguardandoPedido.length" class="mb-5 rounded-xl border-2 border-orange-400 bg-orange-950/80 p-4">
+            <p class="mb-2 text-base font-black text-orange-300 uppercase tracking-wide">
+                🔔 {{ mesasAguardandoPedido.length === 1 ? '1 mesa aguarda pedido' : `${mesasAguardandoPedido.length} mesas aguardam pedido` }}
+            </p>
+            <div class="flex flex-wrap gap-2">
+                <Link
+                    v-for="m in mesasAguardandoPedido"
+                    :key="m.id"
+                    :href="route('pos.rest.mesa', m.id)"
+                    class="flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 font-black text-gray-950"
+                >
+                    <span class="text-lg">Mesa {{ m.reserva_ativa.mesa_atribuida || m.numero }}</span>
+                    <span class="text-sm font-bold">· {{ m.reserva_ativa.nome }} · {{ m.reserva_ativa.pessoas }} pess.</span>
+                </Link>
+            </div>
+        </div>
+
         <div class="mb-5 flex flex-wrap justify-end gap-3">
             <button type="button" class="rounded-lg px-4 py-3 font-black" :class="somenteGrupos ? 'bg-amber-500 text-gray-950' : 'bg-gray-700'" @click="somenteGrupos = !somenteGrupos">GRUPOS GRANDES</button>
             <button type="button" class="rounded-lg bg-emerald-600 px-4 py-3 font-black" @click="mostrarQrPrecario">QR PREÇÁRIO</button>
@@ -108,6 +131,9 @@ onBeforeUnmount(() => clearInterval(refresh));
                     <span v-if="mesa.reserva_ativa" class="mt-1 w-full truncate rounded bg-black/25 px-1.5 py-0.5 text-xs">
                         👤 {{ mesa.reserva_ativa.nome }}
                         <span v-if="mesa.reserva_ativa.mesa_atribuida !== String(mesa.numero)" class="opacity-75">({{ mesa.reserva_ativa.mesa_atribuida }})</span>
+                    </span>
+                    <span v-if="mesa.reserva_ativa && !pedidosAtivos(mesa).length" class="mt-1 w-full animate-pulse rounded bg-orange-500 px-1.5 py-0.5 text-xs font-black text-gray-950">
+                        ⚡ REALIZAR PEDIDO
                     </span>
                 </Link>
             </div>
