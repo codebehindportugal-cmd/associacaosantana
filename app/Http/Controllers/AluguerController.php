@@ -67,12 +67,15 @@ class AluguerController extends Controller
             'opcoes.*'         => ['integer', 'exists:aluguer_opcoes,id'],
         ]);
 
+        $opcoes = $data['opcoes'] ?? [];
+        unset($data['opcoes']);
+
         $aluguer = Aluguer::create(array_merge($data, [
             'user_id' => auth()->id(),
         ]));
 
-        if (! empty($data['opcoes'])) {
-            $aluguer->opcoes()->sync($data['opcoes']);
+        if (! empty($opcoes)) {
+            $aluguer->opcoes()->sync($opcoes);
         }
 
         return redirect()->route('alugueres.index')
@@ -99,8 +102,11 @@ class AluguerController extends Controller
             'opcoes.*'         => ['integer', 'exists:aluguer_opcoes,id'],
         ]);
 
+        $opcoes = $data['opcoes'] ?? [];
+        unset($data['opcoes']);
+
         $aluguer->update($data);
-        $aluguer->opcoes()->sync($data['opcoes'] ?? []);
+        $aluguer->opcoes()->sync($opcoes);
 
         return redirect()->route('alugueres.index')
             ->with('success', 'Aluguer atualizado.');

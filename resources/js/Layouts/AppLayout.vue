@@ -9,7 +9,7 @@ const drawerAberto = ref(false);
 let polling = null;
 
 // Ano ativo — persiste em localStorage, sincroniza com URL
-const ROTAS_COM_ANO = ['contas-festa.index', 'relatorios.index'];
+const ROTAS_COM_ANO = ['contas-festa.index', 'relatorios.index', 'contas-bancarias.index'];
 const anoAtual = new Date().getFullYear();
 const anoGuardado = typeof localStorage !== 'undefined' ? parseInt(localStorage.getItem('ano_ativo') || anoAtual) : anoAtual;
 const anoSelecionado = ref(anoGuardado);
@@ -89,7 +89,7 @@ const grupos = [
     { label: 'Eventos & Reservas',items: [['Reservas','reservas.index','reservas.ver'],['Eventos','eventos.index',null],['Alugueres','alugueres.index',null]] },
     { label: 'Site',              items: [['Páginas','paginas.index',null],['Patrocinadores','patrocinadores.index',null]] },
     { label: 'Sócios',      items: [['Sócios','socios.index','socios.ver'],['Cotas','cotas.index','cotas.ver']] },
-    { label: 'Relatórios',  items: [['Relatórios','relatorios.index','relatorios.ver'],['Contas da Festa','contas-festa.index','relatorios.ver']] },
+    { label: 'Relatórios',  items: [['Relatórios','relatorios.index','relatorios.ver'],['Contas da Festa','contas-festa.index','relatorios.ver'],['Contas Bancárias','contas-bancarias.index','relatorios.ver']] },
     { label: 'Sistema',           items: [['Painel POS','pos-painel.index','pos.comissao'],['Limpeza','manutencao.limpeza.index',null],['Logs','manutencao.logs.index',null],['Utilizadores','users.index','users.ver']] },
 ];
 

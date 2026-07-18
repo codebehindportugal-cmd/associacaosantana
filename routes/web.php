@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AluguerController;
+use App\Http\Controllers\ContasBancariaController;
 use App\Http\Controllers\AluguerOpcaoController;
 use App\Http\Controllers\SalaoController;
 use App\Http\Controllers\BarController;
@@ -204,6 +205,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('alugueres/opcoes/{opcao}', [AluguerOpcaoController::class, 'update'])->name('alugueres.opcoes.update');
     Route::delete('alugueres/opcoes/{opcao}', [AluguerOpcaoController::class, 'destroy'])->name('alugueres.opcoes.destroy');
     Route::resource('alugueres', AluguerController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    // Contas bancárias da associação
+    Route::get('contas-bancarias', [ContasBancariaController::class, 'index'])->name('contas-bancarias.index');
+    Route::post('contas-bancarias', [ContasBancariaController::class, 'store'])->name('contas-bancarias.store');
+    Route::patch('contas-bancarias/{contaBancaria}', [ContasBancariaController::class, 'update'])->name('contas-bancarias.update');
+    Route::delete('contas-bancarias/{contaBancaria}', [ContasBancariaController::class, 'destroy'])->name('contas-bancarias.destroy');
 
     Route::get('relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
     Route::get('relatorios/periodo', [RelatorioController::class, 'porPeriodo'])->name('relatorios.periodo');

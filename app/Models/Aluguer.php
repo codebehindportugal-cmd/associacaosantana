@@ -38,7 +38,12 @@ class Aluguer extends Model
 
     public function opcoes()
     {
-        return $this->belongsToMany(AluguerOpcao::class, 'aluguer_aluguer_opcao');
+        return $this->belongsToMany(
+            AluguerOpcao::class,
+            'aluguer_aluguer_opcao',
+            'aluguer_id',
+            'aluguer_opcao_id'
+        );
     }
 
     public function user()
