@@ -13,7 +13,7 @@ const separadorAtual = ref('produtos');
 const pagamentoAberto = ref(false);
 const metodo = ref('dinheiro');
 const recebido = ref('');
-const lugaresOcupados = ref('');
+const lugaresOcupados = ref(props.pedido ? '' : (props.mesa?.reserva_ativa?.pessoas ?? ''));
 const letraSubmesaNova = ref('');
 const carrinho = ref([]);
 const aviso = ref('');
@@ -284,6 +284,9 @@ onBeforeUnmount(() => {
                 <p class="mt-2 rounded-lg bg-gray-900 p-3 text-sm font-bold text-gray-300">Antes de escolher produtos, abre o pedido com o número de pessoas.</p>
                 
                 <div v-if="!mesaDividida" class="mt-5 space-y-4">
+                    <div v-if="mesa.reserva_ativa" class="rounded-lg bg-orange-950/80 border border-orange-500 px-3 py-2 text-sm font-bold text-orange-300">
+                        🪑 Reserva: <span class="text-white">{{ mesa.reserva_ativa.nome }}</span> — {{ mesa.reserva_ativa.pessoas }} pessoas
+                    </div>
                     <label class="block font-black">Número de pessoas
                         <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Obrigatório">
                     </label>
