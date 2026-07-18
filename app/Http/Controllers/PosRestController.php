@@ -264,6 +264,14 @@ class PosRestController extends Controller
             $mesaPedido = $this->mesaParaPedido($mesa, $data['lugares_ocupados'] ?? null, $letraSubmesa);
         }
 
+        // Associar reserva sentada à mesa principal
+        $nomeReserva = \App\Models\Reserva::whereDate('data', today())
+            ->where('estado', 'sentada')
+            ->whereNotNull('mesa_atribuida')
+            ->get(['nome', 'mesa_atribuida'])
+            ->first(fn ($r) => (int) preg_replace('/\D/', '', $r->mesa_atribuida) === (int) $mesa->numero)
+            ?->nome;
+
         $pedido = Pedido::create([
             'tipo' => 'restaurante',
             'estado' => 'pendente',
@@ -271,6 +279,7 @@ class PosRestController extends Controller
             'user_id' => null,
             'pos_id' => session('pos_id'),
             'operador_nome' => session('pos_operador') ?: session('pos_nome'),
+            'nome_reserva' => $nomeReserva,
         ]);
 
         $mesaPedido->update(['estado' => 'ocupada']);

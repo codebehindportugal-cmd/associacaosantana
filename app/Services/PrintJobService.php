@@ -215,6 +215,7 @@ class PrintJobService
         return [
             'Tipo: '.$pedido->tipo,
             ...$this->linhasMesa($mesaPrincipal, $submesa),
+            ...($pedido->nome_reserva ? ['Reserva: '.$pedido->nome_reserva] : []),
             'Operador: '.($operador ?: 'Sem operador'),
             'Hora: '.now()->format('H:i'),
             '------------------------------',
@@ -283,6 +284,7 @@ class PrintJobService
         return [
             'Tipo: '.$pedido->tipo,
             ...$this->linhasMesa($pedido->mesa?->mesaPrincipal ?: $pedido->mesa, $pedido->mesa?->mesaPrincipal ? $pedido->mesa : null),
+            ...($pedido->nome_reserva ? ['Reserva: '.$pedido->nome_reserva] : []),
             'Operador: '.($operador ?: 'Sem operador'),
             'Hora: '.now()->format('H:i'),
             '------------------------------',

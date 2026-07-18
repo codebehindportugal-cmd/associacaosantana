@@ -16,6 +16,7 @@ class Pedido extends Model
         'user_id',
         'pos_id',
         'operador_nome',
+        'nome_reserva',
         'estado',
         'tipo',
         'numero_senha',

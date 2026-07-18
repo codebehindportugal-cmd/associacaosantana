@@ -417,6 +417,9 @@ onBeforeUnmount(() => {
                 <h2 class="break-words text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
                 <div class="my-4 inline-flex rounded bg-blue-600 px-3 py-1 text-sm font-black uppercase">{{ pedido.estado }}</div>
                 <div class="mb-4 rounded-lg bg-gray-900 p-3">
+                    <div v-if="pedido.nome_reserva" class="mb-2 rounded-lg bg-orange-900/60 px-3 py-2 text-base font-black text-orange-300">
+                        🪑 Reserva: {{ pedido.nome_reserva }}
+                    </div>
                     <div class="text-sm font-bold text-gray-400">Pedido feito por</div>
                     <div class="text-xl font-black">{{ pedidoAutor }}</div>
                 </div>

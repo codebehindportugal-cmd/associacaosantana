@@ -16,7 +16,7 @@ const pedidosLista = computed(() => {
     const lista = props.pedidos?.data ?? [];
     const termo = pesquisa.value.trim().toLowerCase();
     if (!termo) return lista;
-    return lista.filter((p) => `#${p.id} ${p.mesa?.designacao ?? ''} ${p.mesa?.nome ?? ''} ${p.mesa?.numero ?? ''} ${p.operador_nome ?? ''} ${p.user?.name ?? ''} ${p.numero_senha ?? ''}`.toLowerCase().includes(termo));
+    return lista.filter((p) => `#${p.id} ${p.mesa?.designacao ?? ''} ${p.mesa?.nome ?? ''} ${p.mesa?.numero ?? ''} ${p.operador_nome ?? ''} ${p.user?.name ?? ''} ${p.numero_senha ?? ''} ${p.nome_reserva ?? ''}`.toLowerCase().includes(termo));
 });
 const totalPedido = (pedido) => Number(pedido.total ?? pedido.total_calculado ?? (pedido.items ?? []).reduce((soma, item) => soma + Number(item.preco_unitario) * Number(item.quantidade), 0));
 const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
@@ -65,6 +65,7 @@ const estadoClass = (estado) => ({
                     <div>
                         <div class="text-2xl font-black">{{ pedido.mesa?.designacao ?? 'Para levar' }}</div>
                         <div class="mt-1 text-sm text-slate-500">Pedido #{{ pedido.id }} · {{ criadoPor(pedido) }}</div>
+                        <div v-if="pedido.nome_reserva" class="mt-1 text-sm font-bold text-orange-600">🪑 {{ pedido.nome_reserva }}</div>
                     </div>
                     <span class="rounded-full px-3 py-1 text-xs font-black uppercase" :class="estadoClass(pedido.estado)">{{ pedido.estado }}</span>
                 </div>
