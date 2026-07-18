@@ -409,31 +409,17 @@ onBeforeUnmount(() => {
                                 </div>
 
                                 <!-- Formulário de sentar / mudar mesa -->
-                                <div v-if="sentarReservaId === reserva.id" class="mt-2 space-y-2">
-                                    <p class="text-xs font-bold uppercase text-emerald-400">
-                                        {{ reserva.estado === 'sentada' ? `Mudar mesa (atual: ${reserva.mesa_atribuida || '—'})` : 'Mesa atribuída' }}
+                                <div v-if="sentarReservaId === reserva.id" class="mt-2">
+                                    <p class="mb-1 text-xs font-bold uppercase text-emerald-400">
+                                        {{ reserva.estado === 'sentada' ? `Mudar mesa (atual: ${reserva.mesa_atribuida || '—'})` : 'Nº da mesa' }}
                                     </p>
                                     <input
                                         v-model="sentarForm.mesa_numero"
                                         type="number"
                                         min="1"
-                                        placeholder="Nº Mesa"
-                                        class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
+                                        placeholder="Nº Mesa (opcional)"
+                                        class="w-full rounded-lg border-gray-700 bg-gray-950 p-2.5 text-lg font-black text-white"
                                     >
-                                    <div class="flex gap-1.5">
-                                        <button
-                                            v-for="letra in ['', 'A', 'B', 'C', 'D']"
-                                            :key="letra"
-                                            type="button"
-                                            class="flex-1 rounded-lg py-2 text-sm font-black transition"
-                                            :class="sentarForm.mesa_letra === letra
-                                                ? 'bg-emerald-500 text-gray-950'
-                                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
-                                            @click="sentarForm.mesa_letra = letra"
-                                        >
-                                            {{ letra === '' ? '—' : letra }}
-                                        </button>
-                                    </div>
                                 </div>
                             </div>
 
