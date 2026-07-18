@@ -125,6 +125,7 @@ Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(func
     Route::patch('/pedido/{pedido}/estado', [PosRestController::class, 'atualizarEstado'])->name('pedido.estado');
     Route::post('/mesa/{mesa}/extra', [PosRestController::class, 'pedidoExtra'])->name('pedido.extra');
     Route::get('/historico', [PosRestController::class, 'historico'])->name('historico');
+    Route::patch('/reserva/{reserva}/associar', [PosRestController::class, 'associarReserva'])->name('reserva.associar');
 });
 
 Route::middleware('pos.auth')->prefix('pos-reservas')->name('pos.reservas.')->group(function () {

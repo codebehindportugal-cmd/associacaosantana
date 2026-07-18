@@ -14,7 +14,6 @@ class Reserva extends Model
         'mesa_id',
         'nome',
         'telefone',
-        'email',
         'data',
         'hora',
         'pessoas',

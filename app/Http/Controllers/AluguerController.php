@@ -116,9 +116,12 @@ class AluguerController extends Controller
             ->with('success', 'Aluguer atualizado.');
     }
 
-    public function destroy(Aluguer $aluguer): RedirectResponse
+    public function destroy($aluguer): RedirectResponse
     {
-        $aluguer->delete();
+        $id    = $aluguer instanceof Aluguer ? $aluguer->getKey() : (int) $aluguer;
+        $model = Aluguer::findOrFail($id);
+        $model->opcoes()->detach();
+        $model->delete();
 
         return redirect()->route('alugueres.index')
             ->with('success', 'Aluguer eliminado.');

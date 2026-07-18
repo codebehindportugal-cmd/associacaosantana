@@ -43,8 +43,6 @@ const fecharQrReserva = () => {
 
 const form = useForm({
     nome: '',
-    telefone: '',
-    email: '',
     data_reserva: props.hoje,
     hora: '20:00',
     pessoas: 2,
@@ -154,7 +152,7 @@ const criarReserva = () => {
         .post(route('pos.reservas.store'), {
             preserveScroll: true,
             onSuccess: () => {
-                form.reset('nome', 'telefone', 'email', 'observacoes');
+                form.reset('nome', 'observacoes');
                 form.data_reserva = props.hoje;
                 form.hora = '20:00';
                 form.pessoas = 2;
@@ -513,11 +511,7 @@ onBeforeUnmount(() => {
                     <section class="shrink-0 rounded-lg bg-gray-800 p-3 sm:p-4">
                         <h2 class="mb-3 text-xl font-black">NOVA RESERVA</h2>
                         <form class="grid gap-2" @submit.prevent="criarReserva">
-                            <input v-model="form.nome" class="rounded-lg border-gray-700 bg-gray-900 p-3 text-lg font-black text-white" placeholder="Nome *">
-                            <div class="grid grid-cols-2 gap-2">
-                                <input v-model="form.telefone" type="tel" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Telefone">
-                                <input v-model="form.email" type="email" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Email (para confirmação)">
-                            </div>
+                            <input v-model="form.nome" class="rounded-lg border-gray-700 bg-gray-900 p-3 text-lg font-black text-white" placeholder="Nome">
                             <div class="grid grid-cols-3 gap-2">
                                 <input v-model="form.data_reserva" type="date" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
                                 <input v-model="form.hora" type="time" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">

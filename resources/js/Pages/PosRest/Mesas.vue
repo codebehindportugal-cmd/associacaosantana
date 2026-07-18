@@ -100,7 +100,7 @@ const associarReserva = (reserva) => {
     const mesaNum = mesaModal.value.numero;
     const mesaId  = mesaModal.value.id;
     router.patch(
-        route('pos.reservas.sentar', reserva.id),
+        route('pos.rest.reserva.associar', reserva.id),
         { mesa_numero: mesaNum },
         {
             preserveScroll: true,

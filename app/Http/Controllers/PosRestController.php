@@ -6,6 +6,7 @@ use App\Models\Mesa;
 use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\Produto;
+use App\Models\Reserva;
 use App\Models\CaixaDiaria;
 use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
@@ -1061,5 +1062,34 @@ class PosRestController extends Controller
         return Rule::exists('produtos', 'id')
             ->where('disponivel', true)
             ->where('disponivel_restaurante', true);
+    }
+
+    /**
+     * Associa uma reserva sentada a uma mesa — chamado a partir do terminal restaurante.
+     * Duplica a lógica de PosReservasController::sentar() sem precisar do tipo 'reservas'.
+     */
+    public function associarReserva(Request $request, Reserva $reserva): RedirectResponse
+    {
+        $data = $request->validate([
+            'mesa_numero' => ['required', 'integer', 'min:1'],
+            'mesa_letra'  => ['nullable', 'string', 'max:5'],
+        ]);
+
+        $mesaAtribuida = (string) $data['mesa_numero'];
+        if (! empty($data['mesa_letra'])) {
+            $mesaAtribuida .= strtoupper(trim($data['mesa_letra']));
+        }
+
+        $reserva->update([
+            'estado'         => 'sentada',
+            'sentada_em'     => $reserva->sentada_em ?? now(),
+            'mesa_atribuida' => $mesaAtribuida,
+        ]);
+
+        Mesa::where('numero', (int) $data['mesa_numero'])
+            ->whereNull('mesa_principal_id')
+            ->update(['nome_reserva' => $reserva->nome]);
+
+        return back();
     }
 }
