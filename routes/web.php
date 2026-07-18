@@ -134,6 +134,7 @@ Route::middleware('pos.auth')->prefix('pos-reservas')->name('pos.reservas.')->gr
     Route::patch('/{reserva}/chamar', [PosReservasController::class, 'chamar'])->name('chamar');
     Route::patch('/{reserva}/sentar', [PosReservasController::class, 'sentar'])->name('sentar');
     Route::patch('/{reserva}/cancelar', [PosReservasController::class, 'cancelar'])->name('cancelar');
+    Route::delete('/{reserva}', [PosReservasController::class, 'destroy'])->name('destroy');
 });
 
 Route::middleware('pos.auth')->prefix('pos-cotas')->name('pos.cotas.')->group(function () {

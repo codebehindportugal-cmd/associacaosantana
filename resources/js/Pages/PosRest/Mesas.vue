@@ -1,5 +1,5 @@
 <script setup>
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3'; // Link still used for fechadas-hoje and back button
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
@@ -82,6 +82,44 @@ const mesasAguardandoPedido = computed(() =>
     (props.mesas ?? []).filter((m) => m.reserva_ativa && !pedidosAtivos(m).length)
 );
 
+// Modal de associação de reserva a mesa
+const mesaModal = ref(null);       // mesa seleccionada para o modal
+const associandoId = ref(null);    // reserva que está a ser associada
+
+const clicarMesa = (mesa) => {
+    if (props.reservasSemMesa?.length) {
+        mesaModal.value = mesa;
+    } else {
+        router.visit(route('pos.rest.mesa', mesa.id));
+    }
+};
+
+const associarReserva = (reserva) => {
+    if (!mesaModal.value) return;
+    associandoId.value = reserva.id;
+    const mesaNum = mesaModal.value.numero;
+    const mesaId  = mesaModal.value.id;
+    router.patch(
+        route('pos.reservas.sentar', reserva.id),
+        { mesa_numero: mesaNum },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                mesaModal.value    = null;
+                associandoId.value = null;
+                router.visit(route('pos.rest.mesa', mesaId));
+            },
+            onError: () => { associandoId.value = null; },
+        }
+    );
+};
+
+const irSemAssociar = () => {
+    const id = mesaModal.value?.id;
+    mesaModal.value = null;
+    if (id) router.visit(route('pos.rest.mesa', id));
+};
+
 onMounted(() => { refresh = setInterval(() => router.reload({ only: ['mesas', 'pedidosFechadosHoje'], preserveScroll: true }), 20000); });
 onBeforeUnmount(() => clearInterval(refresh));
 </script>
@@ -139,7 +177,7 @@ onBeforeUnmount(() => clearInterval(refresh));
         <section v-for="(lista, local) in grupos" :key="local" class="mb-7">
             <h2 class="mb-3 text-xl font-black uppercase text-gray-300">{{ local }}</h2>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-                <Link v-for="mesa in lista" :key="mesa.id" :href="route('pos.rest.mesa', mesa.id)" class="flex min-h-[116px] flex-col items-center justify-center rounded-lg p-3 text-center font-black shadow" :class="cor(mesa)">
+                <div v-for="mesa in lista" :key="mesa.id" class="flex min-h-[116px] cursor-pointer flex-col items-center justify-center rounded-lg p-3 text-center font-black shadow" :class="cor(mesa)" @click="clicarMesa(mesa)">
                     <span class="text-2xl sm:text-3xl">{{ mesa.numero }}</span>
                     <span class="text-xs">Cap. {{ mesa.capacidade }}</span>
                     <span class="mt-1 rounded bg-black/15 px-2 py-0.5 text-xs">{{ textoLugaresLivres(mesa) }}</span>
@@ -156,7 +194,7 @@ onBeforeUnmount(() => clearInterval(refresh));
                     <span v-if="mesa.reserva_ativa && !pedidosAtivos(mesa).length" class="mt-1 w-full animate-pulse rounded bg-orange-500 px-1.5 py-0.5 text-xs font-black text-gray-950">
                         ⚡ REALIZAR PEDIDO
                     </span>
-                </Link>
+                </div>
             </div>
         </section>
         <!-- Mesas fechadas hoje -->
@@ -176,6 +214,41 @@ onBeforeUnmount(() => clearInterval(refresh));
                 </Link>
             </div>
         </section>
+
+        <!-- Modal: associar reserva a mesa -->
+        <div v-if="mesaModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="mesaModal = null">
+            <div class="w-full max-w-sm rounded-2xl bg-gray-800 p-5 shadow-2xl">
+                <h2 class="text-xl font-black text-white">MESA {{ mesaModal.numero }}</h2>
+                <p class="mt-1 text-sm font-bold text-gray-400">Associar uma reserva sem mesa?</p>
+
+                <div class="mt-3 space-y-2 max-h-72 overflow-y-auto">
+                    <button
+                        v-for="r in reservasSemMesa"
+                        :key="r.id"
+                        class="w-full rounded-lg bg-gray-900 p-3 text-left hover:bg-gray-700 disabled:opacity-50"
+                        :disabled="associandoId === r.id"
+                        @click="associarReserva(r)"
+                    >
+                        <div class="font-black text-white">{{ r.nome }}</div>
+                        <div class="mt-0.5 text-xs font-bold text-gray-400">{{ r.pessoas }} pessoas · {{ r.hora?.slice(0, 5) }}</div>
+                        <div v-if="r.observacoes" class="mt-0.5 text-xs text-gray-500">{{ r.observacoes }}</div>
+                    </button>
+                </div>
+
+                <button
+                    class="mt-4 w-full rounded-lg bg-gray-700 p-3 font-black text-white hover:bg-gray-600"
+                    @click="irSemAssociar"
+                >
+                    Ir para a mesa sem associar
+                </button>
+                <button
+                    class="mt-2 w-full rounded-lg bg-transparent p-2 text-sm font-bold text-gray-400 hover:text-white"
+                    @click="mesaModal = null"
+                >
+                    Cancelar
+                </button>
+            </div>
+        </div>
 
         <div v-if="qrAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
             <div class="mx-auto max-w-md rounded-2xl bg-white p-5 text-center text-slate-950">

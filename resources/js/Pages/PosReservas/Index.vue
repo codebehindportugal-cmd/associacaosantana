@@ -43,6 +43,8 @@ const fecharQrReserva = () => {
 
 const form = useForm({
     nome: '',
+    telefone: '',
+    email: '',
     data_reserva: props.hoje,
     hora: '20:00',
     pessoas: 2,
@@ -143,25 +145,6 @@ const sentarForm = useForm({
     mesa_letra: '',
 });
 
-// Atribuição rápida de mesa directamente do painel lateral
-const panelMesaId  = ref(null);
-const panelMesaNum = ref('');
-
-const abrirPanelMesa = (r) => {
-    panelMesaId.value  = r.id;
-    panelMesaNum.value = r.mesa_atribuida ?? '';
-};
-
-const confirmarPanelMesa = (r) => {
-    if (!panelMesaNum.value) return;
-    router.patch(route('pos.reservas.sentar', r.id), {
-        mesa_numero: panelMesaNum.value,
-    }, {
-        preserveScroll: true,
-        onSuccess: () => { panelMesaId.value = null; panelMesaNum.value = ''; },
-    });
-};
-
 const criarReserva = () => {
     form
         .transform((dados) => ({
@@ -171,7 +154,7 @@ const criarReserva = () => {
         .post(route('pos.reservas.store'), {
             preserveScroll: true,
             onSuccess: () => {
-                form.reset('nome', 'observacoes');
+                form.reset('nome', 'telefone', 'email', 'observacoes');
                 form.data_reserva = props.hoje;
                 form.hora = '20:00';
                 form.pessoas = 2;
@@ -220,6 +203,12 @@ const confirmarSentar = (reserva) => {
 const cancelar = (reserva) => {
     if (confirm(`Cancelar a reserva de ${reserva.nome}?`)) {
         router.patch(route('pos.reservas.cancelar', reserva.id), {}, { preserveScroll: true });
+    }
+};
+
+const eliminar = (reserva) => {
+    if (confirm(`Eliminar definitivamente a reserva de ${reserva.nome}?`)) {
+        router.delete(route('pos.reservas.destroy', reserva.id), { preserveScroll: true });
     }
 };
 
@@ -509,73 +498,32 @@ onBeforeUnmount(() => {
                                 >
                                     CANCELAR
                                 </button>
+                                <button
+                                    class="col-span-2 rounded-lg bg-red-900/70 px-3 py-1 text-xs font-black text-red-300 hover:bg-red-800"
+                                    @click="eliminar(reserva)"
+                                >
+                                    🗑 ELIMINAR
+                                </button>
                             </div>
                         </article>
                     </div>
                 </section>
 
                 <aside class="flex min-h-0 flex-col gap-3">
-
-                    <!-- Mesas ocupadas -->
-                    <section v-if="reservasSentadas.length" class="shrink-0 rounded-lg border border-emerald-600 bg-emerald-950/60 p-3">
-                        <div class="mb-2 flex items-center justify-between">
-                            <h2 class="text-base font-black text-emerald-300 uppercase tracking-wide">Mesas ocupadas</h2>
-                            <span class="rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-black text-emerald-100">{{ reservasSentadas.length }}</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                            <div
-                                v-for="r in reservasSentadas"
-                                :key="r.id"
-                                class="rounded-lg p-2 text-center"
-                                :class="r.mesa_atribuida ? 'bg-emerald-800' : 'border-2 border-orange-500 bg-orange-950/60'"
-                            >
-                                <div class="text-xl font-black" :class="r.mesa_atribuida ? 'text-emerald-200' : 'text-orange-400'">
-                                    {{ r.mesa_atribuida || '?' }}
-                                </div>
-                                <div class="truncate text-xs font-bold text-white leading-tight mt-0.5">{{ r.nome }}</div>
-                                <div class="text-[10px] font-bold mt-0.5" :class="r.mesa_atribuida ? 'text-emerald-400' : 'text-orange-400'">
-                                    {{ r.pessoas }} pess · {{ horaReserva(r) }}
-                                </div>
-
-                                <!-- Atribuição rápida de mesa quando não tem nenhuma -->
-                                <template v-if="!r.mesa_atribuida">
-                                    <div v-if="panelMesaId === r.id" class="mt-1.5">
-                                        <input
-                                            v-model="panelMesaNum"
-                                            type="number"
-                                            min="1"
-                                            placeholder="Nº"
-                                            class="w-full rounded bg-gray-900 p-1 text-center text-sm font-black text-white"
-                                            @keyup.enter="confirmarPanelMesa(r)"
-                                            autofocus
-                                        />
-                                        <div class="mt-1 flex gap-1">
-                                            <button class="flex-1 rounded bg-emerald-600 py-0.5 text-xs font-black" @click="confirmarPanelMesa(r)">OK</button>
-                                            <button class="rounded bg-gray-600 px-2 py-0.5 text-xs font-black" @click="panelMesaId = null">✕</button>
-                                        </div>
-                                    </div>
-                                    <button
-                                        v-else
-                                        class="mt-1.5 w-full rounded bg-orange-600 py-1 text-xs font-black text-white hover:bg-orange-500"
-                                        @click="abrirPanelMesa(r)"
-                                    >
-                                        + MESA
-                                    </button>
-                                </template>
-                            </div>
-                        </div>
-                    </section>
-
                     <section class="shrink-0 rounded-lg bg-gray-800 p-3 sm:p-4">
                         <h2 class="mb-3 text-xl font-black">NOVA RESERVA</h2>
                         <form class="grid gap-2" @submit.prevent="criarReserva">
-                            <input v-model="form.nome" class="rounded-lg border-gray-700 bg-gray-900 p-3 text-lg font-black text-white" placeholder="Nome">
+                            <input v-model="form.nome" class="rounded-lg border-gray-700 bg-gray-900 p-3 text-lg font-black text-white" placeholder="Nome *">
+                            <div class="grid grid-cols-2 gap-2">
+                                <input v-model="form.telefone" type="tel" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Telefone">
+                                <input v-model="form.email" type="email" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Email (para confirmação)">
+                            </div>
                             <div class="grid grid-cols-3 gap-2">
                                 <input v-model="form.data_reserva" type="date" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
                                 <input v-model="form.hora" type="time" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
                                 <input v-model="form.pessoas" type="number" min="1" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
                             </div>
-                            <textarea v-model="form.observacoes" rows="2" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Observacoes"></textarea>
+                            <textarea v-model="form.observacoes" rows="2" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Observações"></textarea>
                             <div v-if="Object.keys(form.errors).length" class="rounded bg-red-700 p-2 font-bold">
                                 <div v-for="erro in form.errors" :key="erro">{{ erro }}</div>
                             </div>
