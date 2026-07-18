@@ -283,8 +283,7 @@ const enviarPedido = () => {
                                 <div>
                                     <h3 class="font-black">{{ item.nome }}</h3>
                                     <p class="mt-1 text-xs font-semibold uppercase text-slate-500">
-                                        {{ item.hora || 'Enviado' }}
-                                        <span v-if="item.estado"> · {{ item.estado }}</span>
+                                        <span v-if="item.estado">{{ item.estado }}</span>
                                     </p>
                                     <p v-if="item.observacoes" class="mt-1 text-sm font-semibold text-slate-700">{{ item.observacoes }}</p>
                                 </div>

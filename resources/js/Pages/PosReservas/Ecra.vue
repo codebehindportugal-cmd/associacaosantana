@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { router } from '@inertiajs/vue3'
 
 const props = defineProps({
@@ -9,23 +9,10 @@ const props = defineProps({
     },
 })
 
-const agora = ref(new Date())
-let relogio = null
 let refresh = null
 
 const principal = computed(() => props.chamadas[0] ?? null)
 const emEspera  = computed(() => props.chamadas.slice(1))
-
-const horaReserva = (r) => r.hora?.slice(0, 5) ?? '--:--'
-
-const horaChamada = (r) => {
-    if (!r.chamada_em) return ''
-    return new Date(r.chamada_em).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
-}
-
-const horaAtual = computed(() =>
-    agora.value.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-)
 
 const temEspera = computed(() => emEspera.value.length > 0)
 
@@ -47,12 +34,10 @@ const fontSizeNome = computed(() => {
 })
 
 onMounted(() => {
-    relogio = setInterval(() => (agora.value = new Date()), 1000)
-    refresh  = setInterval(() => router.reload({ preserveScroll: true }), 5000)
+    refresh = setInterval(() => router.reload({ preserveScroll: true }), 5000)
 })
 
 onBeforeUnmount(() => {
-    clearInterval(relogio)
     clearInterval(refresh)
 })
 </script>
@@ -67,7 +52,6 @@ onBeforeUnmount(() => {
                     <h1 class="text-2xl font-black tracking-widest text-amber-400 uppercase">ARDC Santana</h1>
                     <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Sistema de chamadas</p>
                 </div>
-                <p class="text-3xl font-black tabular-nums text-white">{{ horaAtual }}</p>
             </div>
         </header>
 
@@ -100,12 +84,7 @@ onBeforeUnmount(() => {
                     </p>
                     <div class="mt-3 flex items-center justify-center gap-5" :class="principal.estado === 'sentada' ? 'text-emerald-300' : 'text-amber-300'">
                         <span class="text-3xl font-black">{{ principal.pessoas }}</span><span class="text-xl font-black"> pessoas</span>
-                        <span class="text-xl font-black">·</span>
-                        <span class="text-xl font-black">{{ horaReserva(principal) }}</span>
                     </div>
-                    <p class="mt-2 text-sm font-bold" :class="principal.estado === 'sentada' ? 'text-emerald-500/70' : 'text-amber-500/70'">
-                        Chamada às {{ horaChamada(principal) }}
-                    </p>
 
                     <!-- Mesa atribuída -->
                     <div v-if="principal.mesa_atribuida" class="mt-4 rounded-2xl border-2 border-emerald-400 bg-emerald-900/50 px-4 py-3 text-center">
@@ -130,7 +109,7 @@ onBeforeUnmount(() => {
                             :class="r.mesa_atribuida ? 'border-emerald-700 bg-emerald-900/30' : 'border-gray-700 bg-gray-900'"
                         >
                             <p class="truncate text-lg font-black text-white">{{ r.nome }}</p>
-                            <p class="text-sm font-bold text-gray-400"><span class="font-black text-white">{{ r.pessoas }}</span> pess. · {{ horaReserva(r) }}</p>
+                            <p class="text-sm font-bold text-gray-400"><span class="font-black text-white">{{ r.pessoas }}</span> pess.</p>
                             <p v-if="r.mesa_atribuida" class="text-base font-black text-emerald-400">Mesa {{ r.mesa_atribuida }}</p>
                         </div>
                     </div>

@@ -29,7 +29,6 @@ defineProps({
                     <div v-for="item in items" :key="item.id" class="flex items-center justify-between gap-3 rounded-2xl bg-slate-100 p-3">
                         <div>
                             <div class="font-black">{{ item.nome }}</div>
-                            <div class="text-xs font-semibold text-slate-500">{{ item.hora }}</div>
                             <div v-if="item.observacoes" class="mt-1 text-sm font-semibold text-slate-700">{{ item.observacoes }}</div>
                         </div>
                         <div class="rounded-full bg-slate-950 px-3 py-1 text-sm font-black text-white">{{ item.quantidade }}x</div>

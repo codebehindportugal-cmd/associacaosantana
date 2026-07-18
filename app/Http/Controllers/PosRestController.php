@@ -162,13 +162,12 @@ class PosRestController extends Controller
             ->orderBy('numero')
             ->get(['id', 'numero', 'capacidade', 'localizacao']);
 
-        // Anexar reserva_ativa — reserva sentada hoje para esta mesa, sem pedidos activos
+        // Anexar reserva_ativa — mesma lógica de mesas(), filtro em PHP para compatibilidade MySQL 5.7
         $reservaAtiva = \App\Models\Reserva::whereDate('data', today())
             ->where('estado', 'sentada')
             ->whereNotNull('mesa_atribuida')
-            ->whereRaw("CAST(REGEXP_REPLACE(mesa_atribuida, '[^0-9]', '') AS UNSIGNED) = ?", [$mesa->numero])
-            ->select(['id', 'nome', 'pessoas', 'mesa_atribuida'])
-            ->first();
+            ->get(['id', 'nome', 'pessoas', 'mesa_atribuida'])
+            ->first(fn ($r) => (int) preg_replace('/\D/', '', $r->mesa_atribuida) === (int) $mesa->numero);
         $mesa->setAttribute('reserva_ativa', $reservaAtiva
             ? ['nome' => $reservaAtiva->nome, 'pessoas' => $reservaAtiva->pessoas, 'mesa_atribuida' => $reservaAtiva->mesa_atribuida]
             : null

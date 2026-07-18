@@ -11,12 +11,11 @@ self.addEventListener('push', function (event) {
 
     const title = data.title || 'Associação de Santana';
     const options = {
-        body:    data.body  || 'A sua vez chegou!',
-        icon:    data.icon  || '/favicon.ico',
-        badge:   data.badge || '/favicon.ico',
-        tag:     data.tag   || 'reserva',
-        renotify: true,
-        vibrate: [300, 100, 300],
+        body:   data.body  || 'A sua vez chegou!',
+        icon:   data.icon  || '/favicon.ico',
+        badge:  data.badge || '/favicon.ico',
+        tag:    data.tag   || 'reserva',
+        silent: false,
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
