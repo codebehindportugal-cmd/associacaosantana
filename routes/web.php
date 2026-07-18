@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AluguerController;
+use App\Http\Controllers\AluguerOpcaoController;
 use App\Http\Controllers\BarController;
 use App\Http\Controllers\CaixaDiariaController;
 use App\Http\Controllers\ClientePedidoController;
@@ -191,6 +193,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('manutencao/limpeza', [MaintenanceController::class, 'cleanup'])->name('manutencao.limpeza.index');
     Route::delete('manutencao/limpeza', [MaintenanceController::class, 'destroyCleanup'])->name('manutencao.limpeza.destroy');
     Route::get('manutencao/logs', [MaintenanceController::class, 'logs'])->name('manutencao.logs.index');
+    // Alugueres do Salão
+    Route::get('alugueres/opcoes', [AluguerController::class, 'opcoes'])->name('alugueres.opcoes');
+    Route::post('alugueres/opcoes', [AluguerOpcaoController::class, 'store'])->name('alugueres.opcoes.store');
+    Route::patch('alugueres/opcoes/{opcao}', [AluguerOpcaoController::class, 'update'])->name('alugueres.opcoes.update');
+    Route::delete('alugueres/opcoes/{opcao}', [AluguerOpcaoController::class, 'destroy'])->name('alugueres.opcoes.destroy');
+    Route::resource('alugueres', AluguerController::class)->only(['index', 'store', 'update', 'destroy']);
+
     Route::get('relatorios', [RelatorioController::class, 'index'])->name('relatorios.index');
     Route::get('relatorios/periodo', [RelatorioController::class, 'porPeriodo'])->name('relatorios.periodo');
     Route::get('relatorios/exportar', [RelatorioController::class, 'exportarPDF'])->name('relatorios.pdf');

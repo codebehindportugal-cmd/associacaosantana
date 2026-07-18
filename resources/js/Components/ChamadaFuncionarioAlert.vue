@@ -35,6 +35,11 @@ const tocarSom = () => {
 const verificar = async () => {
     try {
         const res = await fetch(route('pos.comum.chamadas'), { headers: { Accept: 'application/json' } });
+        // 302 ou 401 significa sessão POS expirada — redireciona para login
+        if (res.status === 401 || res.redirected) {
+            window.location.href = route('pos.login');
+            return;
+        }
         if (!res.ok) return;
         const data = await res.json();
         const antes = chamadas.value.length;
@@ -47,18 +52,30 @@ const verificar = async () => {
     }
 };
 
+// Lê o XSRF-TOKEN do cookie (atualizado pelo Laravel em cada resposta)
+// mais robusto que o meta tag que fica obsoleto quando a sessão expira
+const xsrfToken = () => {
+    const m = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : (document.querySelector('meta[name="csrf-token"]')?.content ?? '');
+};
+
 const atender = async (chamada) => {
+    // Remove localmente de imediato (optimistic update)
     chamadas.value = chamadas.value.filter((c) => c.id !== chamada.id);
     try {
-        await fetch(route('pos.comum.chamadas.confirmar', chamada.id), {
+        const res = await fetch(route('pos.comum.chamadas.confirmar', chamada.id), {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                'X-XSRF-TOKEN': xsrfToken(),
                 Accept: 'application/json',
             },
         });
+        // Se falhou (ex: sessão expirou), volta a buscar para repor o estado correto
+        if (!res.ok) {
+            await verificar();
+        }
     } catch {
-        // ignora
+        await verificar();
     }
 };
 

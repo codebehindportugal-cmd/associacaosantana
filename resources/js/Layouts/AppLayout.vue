@@ -86,7 +86,7 @@ const atenderChamada = async (id) => {
 const grupos = [
     { label: 'Restaurante',       items: [['Sala','sala.index','mesas.ver'],['Mesas','mesas.index','restaurante.ver'],['Pedidos','pedidos.index','pedidos.ver'],['Caixas','caixa.index','caixa.ver'],['Impressoras','impressoras.index',null]] },
     { label: 'Produtos',          items: [['Produtos','produtos.index','produtos.ver'],['Faturas/Stock','faturas-compras.index','produtos.ver']] },
-    { label: 'Eventos & Reservas',items: [['Reservas','reservas.index','reservas.ver'],['Eventos','eventos.index',null]] },
+    { label: 'Eventos & Reservas',items: [['Reservas','reservas.index','reservas.ver'],['Eventos','eventos.index',null],['Alugueres','alugueres.index',null]] },
     { label: 'Site',              items: [['Páginas','paginas.index',null],['Patrocinadores','patrocinadores.index',null]] },
     { label: 'Sócios',      items: [['Sócios','socios.index','socios.ver'],['Cotas','cotas.index','cotas.ver']] },
     { label: 'Relatórios',  items: [['Relatórios','relatorios.index','relatorios.ver'],['Contas da Festa','contas-festa.index','relatorios.ver']] },
