@@ -11,6 +11,7 @@ const navItems = [
     ['Sobre Nós', route('pages.sobre-nos')],
     ['Eventos', `${route('home')}#eventos`],
     ['Patrocínios', route('patrocinios.index')],
+    ['Reservar Salão', route('salao.pre-reserva')],
     ['Contacto', `${route('home')}#contactos`],
 ];
 </script>

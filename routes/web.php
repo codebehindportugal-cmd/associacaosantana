@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AluguerController;
 use App\Http\Controllers\AluguerOpcaoController;
+use App\Http\Controllers\SalaoController;
 use App\Http\Controllers\BarController;
 use App\Http\Controllers\CaixaDiariaController;
 use App\Http\Controllers\ClientePedidoController;
@@ -61,6 +62,10 @@ Route::get('/reserva/{token}', [ReservaPublicaController::class, 'show'])->name(
 Route::post('/reserva/{token}/subscrever', [ReservaPublicaController::class, 'subscribe'])->name('reserva.subscribe');
 Route::post('/reserva/{token}/dessubscrever', [ReservaPublicaController::class, 'unsubscribe'])->name('reserva.unsubscribe');
 Route::post('/contacto', ContactController::class)->middleware('throttle:8,1')->name('contacto.store');
+
+// Pré-reserva pública do salão
+Route::get('/reserva-salao', [SalaoController::class, 'show'])->name('salao.pre-reserva');
+Route::post('/reserva-salao', [SalaoController::class, 'store'])->middleware('throttle:5,1')->name('salao.pre-reserva.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
 // URL fixa para o QR dos cartazes — nunca muda
 Route::get('/inscricoes', [InscricaoController::class, 'index'])->name('inscricoes.index');
