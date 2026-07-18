@@ -294,7 +294,7 @@ const hoje = new Date().toISOString().slice(0, 10);
                 <div class="w-full max-w-2xl rounded-xl bg-white shadow-2xl">
                     <!-- Header modal -->
                     <div class="flex items-center justify-between border-b px-6 py-4">
-                        <h2 class="text-lg font-black">{{ editing ? 'Editar Aluguer' : 'Novo Aluguer' }}</h2>
+                        <h2 class="text-lg font-black text-slate-900">{{ editing ? 'Editar Aluguer' : 'Novo Aluguer' }}</h2>
                         <button @click="fecharModal" class="text-slate-400 hover:text-slate-600">✕</button>
                     </div>
 
@@ -302,39 +302,39 @@ const hoje = new Date().toISOString().slice(0, 10);
                         <!-- Dados do cliente -->
                         <div class="grid gap-4 px-6 py-4 sm:grid-cols-2">
                             <div class="sm:col-span-2">
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Nome do cliente *</label>
-                                <input v-model="form.nome_cliente" type="text" class="w-full rounded-md border-slate-300 text-sm" required />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Nome do cliente *</label>
+                                <input v-model="form.nome_cliente" type="text" class="w-full rounded-md border-slate-300 text-sm text-slate-900" required />
                                 <p v-if="form.errors.nome_cliente" class="mt-1 text-xs text-red-600">{{ form.errors.nome_cliente }}</p>
                             </div>
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Entidade / Organização</label>
-                                <input v-model="form.entidade" type="text" class="w-full rounded-md border-slate-300 text-sm" />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Entidade / Organização</label>
+                                <input v-model="form.entidade" type="text" class="w-full rounded-md border-slate-300 text-sm text-slate-900" />
                             </div>
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Telefone</label>
-                                <input v-model="form.telefone" type="tel" class="w-full rounded-md border-slate-300 text-sm" />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Telefone</label>
+                                <input v-model="form.telefone" type="tel" class="w-full rounded-md border-slate-300 text-sm text-slate-900" />
                             </div>
                             <div class="sm:col-span-2">
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Email</label>
-                                <input v-model="form.email" type="email" class="w-full rounded-md border-slate-300 text-sm" />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Email</label>
+                                <input v-model="form.email" type="email" class="w-full rounded-md border-slate-300 text-sm text-slate-900" />
                             </div>
                         </div>
 
                         <!-- Datas e estado -->
                         <div class="grid gap-4 px-6 py-4 sm:grid-cols-3">
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Data início *</label>
-                                <input v-model="form.data_inicio" type="date" class="w-full rounded-md border-slate-300 text-sm" required />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Data início *</label>
+                                <input v-model="form.data_inicio" type="date" class="w-full rounded-md border-slate-300 text-sm text-slate-900" required />
                                 <p v-if="form.errors.data_inicio" class="mt-1 text-xs text-red-600">{{ form.errors.data_inicio }}</p>
                             </div>
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Data fim *</label>
-                                <input v-model="form.data_fim" type="date" class="w-full rounded-md border-slate-300 text-sm" required :min="form.data_inicio" />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Data fim *</label>
+                                <input v-model="form.data_fim" type="date" class="w-full rounded-md border-slate-300 text-sm text-slate-900" required :min="form.data_inicio" />
                                 <p v-if="form.errors.data_fim" class="mt-1 text-xs text-red-600">{{ form.errors.data_fim }}</p>
                             </div>
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Estado</label>
-                                <select v-model="form.estado" class="w-full rounded-md border-slate-300 text-sm">
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Estado</label>
+                                <select v-model="form.estado" class="w-full rounded-md border-slate-300 text-sm text-slate-900">
                                     <option value="pendente">Pendente</option>
                                     <option value="confirmado">Confirmado</option>
                                     <option value="cancelado">Cancelado</option>
@@ -345,7 +345,7 @@ const hoje = new Date().toISOString().slice(0, 10);
 
                         <!-- Opções do salão -->
                         <div v-if="opcoes.length" class="px-6 py-4">
-                            <label class="mb-2 block text-xs font-bold text-slate-600 uppercase tracking-wide">Opções incluídas</label>
+                            <label class="mb-2 block text-sm font-bold text-slate-700">Opções incluídas</label>
                             <div class="grid gap-2 sm:grid-cols-2">
                                 <label
                                     v-for="o in opcoes.filter(x => x.ativo)"
@@ -361,7 +361,7 @@ const hoje = new Date().toISOString().slice(0, 10);
                                         class="mt-0.5 rounded"
                                     />
                                     <div>
-                                        <div class="text-sm font-semibold">{{ o.nome }}</div>
+                                        <div class="text-sm font-semibold text-slate-900">{{ o.nome }}</div>
                                         <div v-if="o.descricao" class="text-xs text-slate-500">{{ o.descricao }}</div>
                                         <div v-if="o.preco_extra > 0" class="mt-0.5 text-xs font-bold text-emerald-700">+{{ Number(o.preco_extra).toFixed(2) }}€</div>
                                     </div>
@@ -372,12 +372,12 @@ const hoje = new Date().toISOString().slice(0, 10);
                         <!-- Financeiro -->
                         <div class="grid gap-4 px-6 py-4 sm:grid-cols-2">
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Preço total (€)</label>
-                                <input v-model="form.preco_total" type="number" step="0.01" min="0" class="w-full rounded-md border-slate-300 text-sm" placeholder="0.00" />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Preço total (€)</label>
+                                <input v-model="form.preco_total" type="number" step="0.01" min="0" class="w-full rounded-md border-slate-300 text-sm text-slate-900" placeholder="0.00" />
                             </div>
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Método pagamento</label>
-                                <select v-model="form.metodo_pagamento" class="w-full rounded-md border-slate-300 text-sm">
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Método de pagamento</label>
+                                <select v-model="form.metodo_pagamento" class="w-full rounded-md border-slate-300 text-sm text-slate-900">
                                     <option value="">— Selecionar —</option>
                                     <option value="dinheiro">Dinheiro</option>
                                     <option value="transferencia">Transferência</option>
@@ -388,22 +388,22 @@ const hoje = new Date().toISOString().slice(0, 10);
                             </div>
                             <div class="flex items-center gap-2">
                                 <input v-model="form.pago" type="checkbox" id="pago" class="rounded" />
-                                <label for="pago" class="text-sm font-semibold cursor-pointer">Pagamento recebido</label>
+                                <label for="pago" class="text-sm font-semibold text-slate-800 cursor-pointer">Pagamento recebido</label>
                             </div>
                             <div>
-                                <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Caução (€)</label>
-                                <input v-model="form.caucao" type="number" step="0.01" min="0" class="w-full rounded-md border-slate-300 text-sm" placeholder="0.00" />
+                                <label class="mb-1 block text-sm font-bold text-slate-700">Caução (€)</label>
+                                <input v-model="form.caucao" type="number" step="0.01" min="0" class="w-full rounded-md border-slate-300 text-sm text-slate-900" placeholder="0.00" />
                             </div>
                             <div class="flex items-center gap-2">
                                 <input v-model="form.caucao_devolvida" type="checkbox" id="caucao_dev" class="rounded" />
-                                <label for="caucao_dev" class="text-sm font-semibold cursor-pointer">Caução devolvida</label>
+                                <label for="caucao_dev" class="text-sm font-semibold text-slate-800 cursor-pointer">Caução devolvida</label>
                             </div>
                         </div>
 
                         <!-- Notas -->
                         <div class="px-6 py-4">
-                            <label class="mb-1 block text-xs font-bold text-slate-600 uppercase tracking-wide">Notas / Observações</label>
-                            <textarea v-model="form.notas" rows="3" class="w-full rounded-md border-slate-300 text-sm" placeholder="Informações adicionais..."></textarea>
+                            <label class="mb-1 block text-sm font-bold text-slate-700">Notas / Observações</label>
+                            <textarea v-model="form.notas" rows="3" class="w-full rounded-md border-slate-300 text-sm text-slate-900" placeholder="Informações adicionais..."></textarea>
                         </div>
 
                         <!-- Botões -->
@@ -418,7 +418,7 @@ const hoje = new Date().toISOString().slice(0, 10);
                             </button>
                             <div v-else></div>
                             <div class="flex gap-2">
-                                <button type="button" @click="fecharModal" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold">Cancelar</button>
+                                <button type="button" @click="fecharModal" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancelar</button>
                                 <button type="submit" :disabled="form.processing" class="rounded-md bg-slate-900 px-5 py-2 text-sm font-bold text-white disabled:opacity-60">
                                     {{ editing ? 'Guardar' : 'Criar' }}
                                 </button>

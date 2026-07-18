@@ -1,6 +1,7 @@
 <script setup>
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import PublicShell from '@/Components/PublicShell.vue';
+import { useRecaptcha } from '@/Composables/useRecaptcha';
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -12,14 +13,17 @@ const page = usePage();
 const enviado  = computed(() => !!page.props.flash?.success);
 const msgSucc  = computed(() => page.props.flash?.success ?? '');
 
+const { obterToken } = useRecaptcha();
+
 const form = useForm({
-    nome_cliente: '',
-    telefone:     '',
-    email:        '',
-    data_inicio:  '',
-    data_fim:     '',
-    notas:        '',
-    opcoes:       [],
+    nome_cliente:     '',
+    telefone:         '',
+    email:            '',
+    data_inicio:      '',
+    data_fim:         '',
+    notas:            '',
+    opcoes:           [],
+    recaptcha_token:  '',
 });
 
 // Detectar conflito cliente-side
@@ -45,7 +49,8 @@ function toggleOpcao(id) {
     else form.opcoes.splice(i, 1);
 }
 
-function submeter() {
+async function submeter() {
+    form.recaptcha_token = await obterToken('reserva_salao');
     form.post(route('salao.pre-reserva.store'));
 }
 

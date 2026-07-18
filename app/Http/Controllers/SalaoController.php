@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Aluguer;
 use App\Models\AluguerOpcao;
+use App\Rules\Recaptcha;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -35,15 +36,18 @@ class SalaoController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'nome_cliente' => ['required', 'string', 'max:255'],
-            'telefone'     => ['required', 'string', 'max:50'],
-            'email'        => ['nullable', 'email', 'max:255'],
-            'data_inicio'  => ['required', 'date', 'after_or_equal:today'],
-            'data_fim'     => ['required', 'date', 'gte:data_inicio'],
-            'notas'        => ['nullable', 'string', 'max:2000'],
-            'opcoes'       => ['nullable', 'array'],
-            'opcoes.*'     => ['integer', 'exists:aluguer_opcoes,id'],
+            'nome_cliente'    => ['required', 'string', 'max:255'],
+            'telefone'        => ['required', 'string', 'max:50'],
+            'email'           => ['nullable', 'email', 'max:255'],
+            'data_inicio'     => ['required', 'date', 'after_or_equal:today'],
+            'data_fim'        => ['required', 'date', 'gte:data_inicio'],
+            'notas'           => ['nullable', 'string', 'max:2000'],
+            'opcoes'          => ['nullable', 'array'],
+            'opcoes.*'        => ['integer', 'exists:aluguer_opcoes,id'],
+            'recaptcha_token' => [new Recaptcha],
         ]);
+
+        unset($data['recaptcha_token']);
 
         // Verificar conflito com reservas existentes
         $conflito = Aluguer::query()
