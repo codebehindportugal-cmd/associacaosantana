@@ -60,10 +60,14 @@ class PosRestController extends Controller
             ->whereIn('pedidos.estado', ['pendente', 'preparacao', 'pronto'])
             ->with('items.produto');
 
-        $reservasAtivas = \App\Models\Reserva::whereDate('data', today())
+        // Todas as reservas sentadas hoje nas últimas 2h (mais antigas já estão a ser servidas)
+        $todasReservasSentadas = \App\Models\Reserva::whereDate('data', today())
             ->where('estado', 'sentada')
+            ->where('sentada_em', '>=', now()->subHours(2))
+            ->get(['id', 'nome', 'pessoas', 'mesa_atribuida']);
+
+        $reservasAtivas = $todasReservasSentadas
             ->whereNotNull('mesa_atribuida')
-            ->get(['id', 'nome', 'pessoas', 'mesa_atribuida'])
             ->groupBy(fn ($r) => (int) preg_replace('/\D/', '', $r->mesa_atribuida));
 
         $mesas = Mesa::principais()
@@ -86,6 +90,24 @@ class PosRestController extends Controller
                 );
             });
 
+        // Mesas com reserva_ativa E com pedidos activos — estas já estão a ser servidas
+        $numerosJaAtendidos = $mesas
+            ->filter(fn ($m) => $m->reserva_ativa && $m->pedidos->isNotEmpty())
+            ->pluck('numero')
+            ->all();
+
+        // Mesas com reserva_ativa sem pedido — já visíveis no alerta laranja
+        $numerosNaListaLaranja = $mesas->whereNotNull('reserva_ativa')->pluck('numero')->all();
+
+        // reservasSemMesa: sentadas cuja mesa_atribuida não mapeia a nenhuma mesa real do sistema
+        // (ex: grupo sem mesa atribuída, ou número de mesa que não existe)
+        $mesaNumerosExistentes = $mesas->pluck('numero')->all();
+        $reservasSemMesa = $todasReservasSentadas
+            ->filter(fn ($r) => ! $r->mesa_atribuida
+                || ! in_array((int) preg_replace('/\D/', '', $r->mesa_atribuida), $mesaNumerosExistentes))
+            ->values()
+            ->map(fn ($r) => ['id' => $r->id, 'nome' => $r->nome, 'pessoas' => $r->pessoas, 'mesa_atribuida' => $r->mesa_atribuida]);
+
         $pedidosFechadosHoje = Pedido::where('tipo', 'restaurante')
             ->where('estado', 'entregue')
             ->whereDate('updated_at', today())
@@ -97,6 +119,7 @@ class PosRestController extends Controller
         return Inertia::render('PosRest/Mesas', [
             'mesas' => $mesas,
             'pedidosFechadosHoje' => $pedidosFechadosHoje,
+            'reservasSemMesa' => $reservasSemMesa,
         ]);
     }
 

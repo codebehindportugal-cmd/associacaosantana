@@ -23,14 +23,18 @@ self.addEventListener('push', function (event) {
 
 self.addEventListener('notificationclick', function (event) {
     event.notification.close();
-    event.waitUntil(clients.matchAll({ type: 'window' }).then(function (clientList) {
+    // Notificações de "sentada" abrem o ecrã de reservas para o cliente ver a mesa
+    const url = event.notification.tag && event.notification.tag.startsWith('sentada-')
+        ? '/ecra-reservas'
+        : '/';
+    event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
         for (const client of clientList) {
-            if ('focus' in client) {
+            if (client.url.includes(url) && 'focus' in client) {
                 return client.focus();
             }
         }
         if (clients.openWindow) {
-            return clients.openWindow('/');
+            return clients.openWindow(url);
         }
     }));
 });

@@ -8,7 +8,7 @@ import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
 
 const chamandoComissao = ref(false);
 
-const props = defineProps({ mesas: Array, pedidosFechadosHoje: { type: Array, default: () => [] } });
+const props = defineProps({ mesas: Array, pedidosFechadosHoje: { type: Array, default: () => [] }, reservasSemMesa: { type: Array, default: () => [] } });
 let refresh = null;
 const qrAberto = ref(false);
 const qrDataUrl = ref('');
@@ -96,7 +96,7 @@ onBeforeUnmount(() => clearInterval(refresh));
             <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
         </header>
         <ChamarComissaoModal v-if="chamandoComissao" @fechar="chamandoComissao = false" />
-        <!-- Alerta: mesas com reserva sentada aguardando pedido -->
+        <!-- Alerta: mesas com reserva sentada aguardando pedido (mesa mapeada) -->
         <div v-if="mesasAguardandoPedido.length" class="mb-5 rounded-xl border-2 border-orange-400 bg-orange-950/80 p-4">
             <p class="mb-2 text-base font-black text-orange-300 uppercase tracking-wide">
                 🔔 {{ mesasAguardandoPedido.length === 1 ? '1 mesa aguarda pedido' : `${mesasAguardandoPedido.length} mesas aguardam pedido` }}
@@ -111,6 +111,24 @@ onBeforeUnmount(() => clearInterval(refresh));
                     <span class="text-lg">Mesa {{ m.reserva_ativa.mesa_atribuida || m.numero }}</span>
                     <span class="text-sm font-bold">· {{ m.reserva_ativa.nome }} · {{ m.reserva_ativa.pessoas }} pess.</span>
                 </Link>
+            </div>
+        </div>
+
+        <!-- Alerta: reservas sentadas sem mesa mapeada (ex: grupos grandes) -->
+        <div v-if="reservasSemMesa.length" class="mb-5 rounded-xl border-2 border-yellow-400 bg-yellow-950/80 p-4">
+            <p class="mb-2 text-base font-black text-yellow-300 uppercase tracking-wide">
+                🪑 {{ reservasSemMesa.length === 1 ? '1 reserva sentada aguarda pedido' : `${reservasSemMesa.length} reservas sentadas aguardam pedido` }}
+            </p>
+            <div class="flex flex-wrap gap-2">
+                <div
+                    v-for="r in reservasSemMesa"
+                    :key="r.id"
+                    class="flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-2 font-black text-gray-950"
+                >
+                    <span class="text-lg">{{ r.nome }}</span>
+                    <span class="text-sm font-bold">· {{ r.pessoas }} pess.</span>
+                    <span v-if="r.mesa_atribuida" class="text-sm font-bold">· Mesa {{ r.mesa_atribuida }}</span>
+                </div>
             </div>
         </div>
 
