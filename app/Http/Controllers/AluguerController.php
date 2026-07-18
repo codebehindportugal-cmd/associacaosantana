@@ -82,8 +82,12 @@ class AluguerController extends Controller
             ->with('success', 'Aluguer criado.');
     }
 
-    public function update(Request $request, Aluguer $aluguer): RedirectResponse
+    public function update(Request $request, $aluguer): RedirectResponse
     {
+        // Aceita quer o modelo (route model binding) quer um ID inteiro
+        $id     = $aluguer instanceof Aluguer ? $aluguer->getKey() : (int) $aluguer;
+        $model  = Aluguer::findOrFail($id);
+
         $data = $request->validate([
             'nome_cliente'     => ['required', 'string', 'max:255'],
             'entidade'         => ['nullable', 'string', 'max:255'],
@@ -105,8 +109,8 @@ class AluguerController extends Controller
         $opcoes = $data['opcoes'] ?? [];
         unset($data['opcoes']);
 
-        $aluguer->update($data);
-        $aluguer->opcoes()->sync($opcoes);
+        $model->update($data);
+        $model->opcoes()->sync($opcoes);
 
         return redirect()->route('alugueres.index')
             ->with('success', 'Aluguer atualizado.');

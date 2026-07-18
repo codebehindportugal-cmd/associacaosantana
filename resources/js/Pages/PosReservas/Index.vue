@@ -372,9 +372,11 @@ onBeforeUnmount(() => {
                                         {{ reserva.tem_push ? '🔔' : '📲' }}
                                     </button>
                                 </div>
-                                <div class="mt-1 flex flex-wrap gap-1.5 text-xs font-bold text-gray-300">
+                                <div class="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold text-gray-300">
                                     <span v-if="reserva.chamada_em" class="rounded bg-amber-500 px-1.5 py-0.5 text-gray-950">CHAMADA {{ horaData(reserva.chamada_em) }}</span>
                                     <span v-if="reserva.sentada_em" class="rounded bg-emerald-500 px-1.5 py-0.5 text-gray-950">SENTADA {{ horaData(reserva.sentada_em) }}</span>
+                                    <span v-if="reserva.mesa_atribuida" class="rounded bg-emerald-400 px-2 py-0.5 text-sm font-black text-gray-950">🪑 MESA {{ reserva.mesa_atribuida }}</span>
+                                    <span v-else-if="reserva.estado === 'sentada'" class="rounded bg-gray-600 px-1.5 py-0.5 text-gray-300">sem mesa</span>
                                 </div>
                                 <p v-if="reserva.observacoes" class="mt-1.5 rounded bg-gray-800 p-1.5 text-xs font-bold text-gray-200">{{ reserva.observacoes }}</p>
                                 <div v-if="reservaEmEdicao === reserva.id" class="mt-2 space-y-2 max-w-md">
@@ -490,6 +492,29 @@ onBeforeUnmount(() => {
                 </section>
 
                 <aside class="flex min-h-0 flex-col gap-3">
+
+                    <!-- Mesas ocupadas -->
+                    <section v-if="reservasSentadas.length" class="shrink-0 rounded-lg border border-emerald-600 bg-emerald-950/60 p-3">
+                        <div class="mb-2 flex items-center justify-between">
+                            <h2 class="text-base font-black text-emerald-300 uppercase tracking-wide">Mesas ocupadas</h2>
+                            <span class="rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-black text-emerald-100">{{ reservasSentadas.length }}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                            <div
+                                v-for="r in reservasSentadas"
+                                :key="r.id"
+                                class="rounded-lg p-2 text-center"
+                                :class="r.mesa_atribuida ? 'bg-emerald-800' : 'bg-gray-800 border border-gray-600'"
+                            >
+                                <div class="text-xl font-black" :class="r.mesa_atribuida ? 'text-emerald-200' : 'text-gray-500'">
+                                    {{ r.mesa_atribuida ? r.mesa_atribuida : '?' }}
+                                </div>
+                                <div class="truncate text-xs font-bold text-white leading-tight mt-0.5">{{ r.nome }}</div>
+                                <div class="text-[10px] font-bold text-emerald-400 mt-0.5">{{ r.pessoas }} pess · {{ horaReserva(r) }}</div>
+                            </div>
+                        </div>
+                    </section>
+
                     <section class="shrink-0 rounded-lg bg-gray-800 p-3 sm:p-4">
                         <h2 class="mb-3 text-xl font-black">NOVA RESERVA</h2>
                         <form class="grid gap-2" @submit.prevent="criarReserva">
