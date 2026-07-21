@@ -21,6 +21,7 @@ const form = useForm({
     num_criancas: 0,
     idades_criancas: '',
     observacoes: '',
+    pagar_online: false,
     recaptcha_token: '',
 });
 
@@ -29,6 +30,7 @@ const abrir = (evento) => {
     sucesso.value = '';
     form.reset();
     form.clearErrors();
+    form.pagar_online = false;
     if (evento.opcoes?.length) form.opcao = '';
 };
 
@@ -153,7 +155,7 @@ const submeter = async (evento) => {
                             <input v-model="form.nome" required class="rounded-md border-stone-300" placeholder="Nome *">
                             <input v-model="form.telefone" required type="tel" class="rounded-md border-stone-300" placeholder="Telefone *">
                         </div>
-                        <input v-model="form.email" :required="evento.pagamento_online" type="email" class="rounded-md border-stone-300" :placeholder="evento.pagamento_online ? 'Email * (recibo e confirmação)' : 'Email (para receberes a confirmação)'">
+                        <input v-model="form.email" :required="evento.pagamento_online && form.pagar_online === true" type="email" class="rounded-md border-stone-300" :placeholder="evento.pagamento_online && form.pagar_online === true ? 'Email * (recibo e confirmação)' : 'Email (para receberes a confirmação)'">
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="flex items-center gap-2 text-sm font-bold text-stone-600">
                                 {{ evento.pede_idades ? 'Nº de adultos' : 'Nº de pessoas' }}
@@ -175,10 +177,34 @@ const submeter = async (evento) => {
                         </div>
                         <textarea v-model="form.observacoes" rows="2" class="rounded-md border-stone-300" placeholder="Observações (opcional)"></textarea>
 
+                        <!-- Escolha de método de pagamento (só quando o evento suporta online) -->
+                        <div v-if="evento.pagamento_online" class="rounded-md border border-stone-200 p-3">
+                            <p class="mb-2 text-sm font-bold text-stone-700">Como preferes pagar?</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label
+                                    class="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm font-bold transition"
+                                    :class="form.pagar_online === false ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-stone-200 text-stone-600'"
+                                >
+                                    <input type="radio" v-model="form.pagar_online" :value="false" class="accent-amber-600">
+                                    Pagar no dia
+                                </label>
+                                <label
+                                    class="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm font-bold transition"
+                                    :class="form.pagar_online === true ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-stone-200 text-stone-600'"
+                                >
+                                    <input type="radio" v-model="form.pagar_online" :value="true" class="accent-amber-600">
+                                    💳 Pagar agora
+                                </label>
+                            </div>
+                            <p v-if="form.errors.pagar_online" class="mt-1 text-xs font-bold text-red-600">{{ form.errors.pagar_online }}</p>
+                        </div>
+
                         <div v-if="totalEstimado(evento) !== null" class="rounded-md bg-amber-50 p-3 text-center font-black text-stone-800">
                             Total estimado: {{ euros(totalEstimado(evento)) }}
                             <span v-if="detalheTotal(evento)" class="block text-xs font-bold text-stone-500">{{ detalheTotal(evento) }}</span>
-                            <span class="block text-xs font-bold text-stone-500">{{ evento.pagamento_online ? 'Pagamento online seguro (Viva)' : 'Pagamento no dia do evento' }}</span>
+                            <span class="block text-xs font-bold text-stone-500">
+                                {{ evento.pagamento_online && form.pagar_online === true ? 'Pagamento online seguro (Viva)' : 'Pagamento no dia do evento' }}
+                            </span>
                         </div>
 
                         <div v-if="Object.keys(form.errors).length" class="rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">
@@ -186,7 +212,7 @@ const submeter = async (evento) => {
                         </div>
 
                         <button class="rounded-xl bg-amber-600 p-3 text-lg font-black text-white hover:bg-amber-700 disabled:opacity-50" :disabled="form.processing">
-                            {{ form.processing ? 'A enviar...' : (evento.pagamento_online && totalEstimado(evento) ? '💳 INSCREVER E PAGAR' : 'INSCREVER') }}
+                            {{ form.processing ? 'A enviar...' : (evento.pagamento_online && form.pagar_online === true && totalEstimado(evento) ? '💳 INSCREVER E PAGAR' : 'INSCREVER') }}
                         </button>
                         <p v-if="recaptchaSiteKey" class="text-center text-xs text-stone-400">Protegido por reCAPTCHA</p>
                     </form>

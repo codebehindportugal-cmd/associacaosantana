@@ -43,17 +43,21 @@ class InscricaoController extends Controller
         $nomesOpcoes = array_column($opcoes, 'nome');
 
         $viva = app(VivaPayments::class);
-        $pagamentoOnline = $evento->inscricoes_pagamento_online && $viva->configurado();
+        $pagamentoOnlineDisponivel = $evento->inscricoes_pagamento_online && $viva->configurado();
+
+        // A pessoa pode escolher pagar online ou no dia (quando o evento suporta online)
+        $querPagarOnline = $pagamentoOnlineDisponivel && $request->boolean('pagar_online');
 
         $data = $request->validate([
             'nome' => ['required', 'string', 'max:150'],
             'telefone' => ['required', 'string', 'max:30'],
-            'email' => [$pagamentoOnline ? 'required' : 'nullable', 'email', 'max:150'],
+            'email' => [$querPagarOnline ? 'required' : 'nullable', 'email', 'max:150'],
             'num_pessoas' => ['required', 'integer', 'min:1', 'max:50'],
             'opcao' => [count($nomesOpcoes) ? 'required' : 'nullable', 'string', count($nomesOpcoes) ? 'in:'.implode(',', $nomesOpcoes) : 'max:150'],
             'num_criancas' => ['nullable', 'integer', 'min:0', 'max:30'],
             'idades_criancas' => ['nullable', 'string', 'max:150'],
             'observacoes' => ['nullable', 'string', 'max:1000'],
+            'pagar_online' => ['nullable', 'boolean'],
             'recaptcha_token' => [new \App\Rules\Recaptcha],
         ]);
 
@@ -75,8 +79,8 @@ class InscricaoController extends Controller
 
         $inscricao = $evento->inscricoes()->create($data);
 
-        // Pagamento online via Viva Smart Checkout
-        if ($pagamentoOnline && $inscricao->valor_estimado > 0) {
+        // Pagamento online via Viva Smart Checkout (só se a pessoa escolheu pagar agora)
+        if ($querPagarOnline && $inscricao->valor_estimado > 0) {
             try {
                 $orderCode = $viva->criarOrdem($inscricao);
                 $inscricao->update([
