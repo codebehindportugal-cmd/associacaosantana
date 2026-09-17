@@ -4,10 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Cota;
 use App\Models\Socio;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class PosCotasController extends Controller
 {
@@ -52,7 +56,8 @@ class PosCotasController extends Controller
 
     public function novoSocioForm(): Response
     {
-        $proximo = ((int) Socio::max('numero_socio')) + 1;
+        // numero_socio e texto: MAX() em texto dava "99" > "474"
+        $proximo = ((int) Socio::max(DB::raw('CAST(numero_socio AS UNSIGNED)'))) + 1;
 
         return Inertia::render('PosCotas/NovoSocio', ['proximoNumero' => (string) max(1, $proximo)]);
     }
@@ -102,7 +107,53 @@ class PosCotasController extends Controller
 
     public function recibo(Cota $cota): Response
     {
-        return Inertia::render('PosCotas/Recibo', ['cota' => $cota->load('socio')]);
+        $cotas = $this->cotasDoRecibo($cota);
+
+        return Inertia::render('PosCotas/Recibo', [
+            'cota' => $cota->load('socio'),
+            'anos' => $cotas->pluck('ano')->map(fn ($a) => (int) $a)->values(),
+            'total' => (float) $cotas->sum('valor'),
+            'pdfUrl' => route('pos.cotas.recibo.pdf', $cota),
+        ]);
+    }
+
+    /** PDF do recibo com os dados do socio (A5), para imprimir. */
+    public function reciboPdf(Cota $cota): HttpResponse
+    {
+        $cota->load('socio');
+        $cotas = $this->cotasDoRecibo($cota);
+        $logo = public_path('images/santana-logo.png');
+
+        $pdf = Pdf::loadView('pdf.recibo-cota', [
+            'socio' => $cota->socio,
+            'cotas' => $cotas,
+            'total' => (float) $cotas->sum('valor'),
+            'numero' => str_pad((string) $cota->id, 5, '0', STR_PAD_LEFT),
+            'dataPagamento' => optional($cota->data_pagamento)->format('d/m/Y'),
+            'metodo' => ['dinheiro' => 'Numerário', 'mbway' => 'MB WAY', 'transferencia' => 'Transferência bancária'][$cota->metodo_pagamento] ?? ($cota->metodo_pagamento ?: '—'),
+            'logo' => is_file($logo) ? 'data:image/png;base64,'.base64_encode(file_get_contents($logo)) : null,
+        ])->setPaper('a5', 'portrait');
+
+        return $pdf->stream("recibo-quota-{$cota->socio->numero_socio}-{$cota->id}.pdf");
+    }
+
+    /**
+     * Anos pagos no mesmo pagamento: quando se pagam varios anos de uma vez,
+     * o recibo mostra-os todos (mesmo socio, mesmo dia, gravados no mesmo minuto).
+     */
+    private function cotasDoRecibo(Cota $cota): Collection
+    {
+        if ($cota->estado !== 'pago' || ! $cota->data_pagamento) {
+            return collect([$cota]);
+        }
+
+        return Cota::where('socio_id', $cota->socio_id)
+            ->where('estado', 'pago')
+            ->whereDate('data_pagamento', $cota->data_pagamento)
+            ->where('metodo_pagamento', $cota->metodo_pagamento)
+            ->whereBetween('updated_at', [$cota->updated_at->copy()->subMinute(), $cota->updated_at->copy()->addMinute()])
+            ->orderBy('ano')
+            ->get();
     }
 
     public function emAtraso(): Response

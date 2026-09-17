@@ -48,7 +48,10 @@ class EventoController extends Controller
             'evento' => $this->eventoData($evento->load('media')),
             'fotosPendentes' => $evento->mediaPendente()->get()->map(fn (EventoMedia $media) => [
                 'id' => $media->id,
-                'url' => route('eventos.media.ver', $media->id),
+                'tipo' => $media->origem === EventoFotoPublicaController::ORIGEM_LINK_VIDEO ? 'link' : 'foto',
+                'url' => $media->origem === EventoFotoPublicaController::ORIGEM_LINK_VIDEO
+                    ? $media->caminho
+                    : route('eventos.media.ver', $media->id),
                 'enviado_nome' => $media->enviado_nome,
                 'enviado_contacto' => $media->enviado_contacto,
                 'enviado_em' => $media->created_at?->format('d/m/Y H:i'),
@@ -149,7 +152,13 @@ class EventoController extends Controller
         $this->apagarFicheiroMedia($media);
         $media->delete();
 
-        return back()->with('success', $media->aprovado ? 'Ficheiro removido.' : 'Foto rejeitada e apagada.');
+        $mensagem = match (true) {
+            $media->aprovado => 'Ficheiro removido.',
+            $media->origem === EventoFotoPublicaController::ORIGEM_LINK_VIDEO => 'Link de vídeo removido da lista.',
+            default => 'Foto rejeitada e apagada.',
+        };
+
+        return back()->with('success', $mensagem);
     }
 
     private function validatedData(Request $request): array
@@ -361,6 +370,10 @@ class EventoController extends Controller
 
     private function apagarFicheiroMedia(EventoMedia $media): void
     {
+        if ($media->origem === EventoFotoPublicaController::ORIGEM_LINK_VIDEO) {
+            return; // é só um link, não há ficheiro
+        }
+
         if (! $media->aprovado) {
             Storage::disk('local')->delete($media->caminho);
 

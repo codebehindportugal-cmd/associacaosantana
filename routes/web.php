@@ -81,6 +81,7 @@ Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('e
 // Envio de fotos pelo público (ficam pendentes até aprovação no backoffice)
 Route::get('/evento/{evento}/enviar-fotos', [EventoFotoPublicaController::class, 'show'])->name('eventos.fotos-publico');
 Route::post('/evento/{evento}/enviar-fotos', [EventoFotoPublicaController::class, 'store'])->middleware('throttle:30,1')->name('eventos.fotos-publico.store');
+Route::post('/evento/{evento}/enviar-video', [EventoFotoPublicaController::class, 'storeVideo'])->middleware('throttle:10,1')->name('eventos.fotos-publico.video');
 // URL fixa para o QR dos cartazes — nunca muda
 Route::get('/inscricoes', [InscricaoController::class, 'index'])->name('inscricoes.index');
 Route::get('/inscricoes/pagamento/retorno', [InscricaoController::class, 'pagamentoRetorno'])->name('inscricoes.pagamento.retorno');
@@ -159,6 +160,7 @@ Route::middleware('pos.auth')->prefix('pos-cotas')->name('pos.cotas.')->group(fu
     Route::get('/socio/{socio}', [PosCotasController::class, 'socio'])->name('socio');
     Route::post('/socio/{socio}/pagar', [PosCotasController::class, 'registarPagamento'])->name('pagar');
     Route::get('/recibo/{cota}', [PosCotasController::class, 'recibo'])->name('recibo');
+    Route::get('/recibo/{cota}/pdf', [PosCotasController::class, 'reciboPdf'])->name('recibo.pdf');
     Route::get('/em-atraso', [PosCotasController::class, 'emAtraso'])->name('em-atraso');
     Route::get('/resumo-dia', [PosCotasController::class, 'resumoDia'])->name('resumo-dia');
 });

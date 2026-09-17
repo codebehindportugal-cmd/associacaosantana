@@ -1,7 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     evento: Object,
@@ -17,13 +17,23 @@ const copiarLink = async () => {
     } catch { window.prompt('Copia o link:', props.evento.url_envio_fotos); }
 };
 const fotoAberta = ref(null);
+const fotosPorAprovar = computed(() => props.fotosPendentes.filter((f) => f.tipo !== 'link'));
+const videosPorTratar = computed(() => props.fotosPendentes.filter((f) => f.tipo === 'link'));
+const tratarVideo = (video) => {
+    if (!confirm('Já carregaste este vídeo no site? O link sai da lista.')) return;
+    router.delete(route('eventos.media.destroy', video.id), { preserveScroll: true });
+};
+const rejeitarVideo = (video) => {
+    if (!confirm('Ignorar este vídeo e remover o link da lista?')) return;
+    router.delete(route('eventos.media.destroy', video.id), { preserveScroll: true });
+};
 const aprovarFoto = (foto) => router.post(route('eventos.media.aprovar', foto.id), {}, { preserveScroll: true });
 const rejeitarFoto = (foto) => {
     if (!confirm('Rejeitar e apagar esta foto?')) return;
     router.delete(route('eventos.media.destroy', foto.id), { preserveScroll: true });
 };
 const aprovarTodas = () => {
-    if (!confirm(`Aprovar e publicar as ${props.fotosPendentes.length} fotos pendentes?`)) return;
+    if (!confirm(`Aprovar e publicar as ${fotosPorAprovar.value.length} fotos pendentes?`)) return;
     router.post(route('eventos.fotos-publico.aprovar-todas', props.evento.id), {}, { preserveScroll: true });
 };
 
@@ -157,9 +167,9 @@ const apagarMedia = (media) => {
                                 <input v-model="form.fotos_publico_ativo" type="checkbox" class="rounded border-slate-300">
                                 📷 Aceitar fotos enviadas pelo público
                             </label>
-                            <a v-if="fotosPendentes.length" href="#fotos-pendentes" class="rounded bg-rose-600 px-2 py-1 text-xs font-black text-white">{{ fotosPendentes.length }} por aprovar</a>
+                            <a v-if="fotosPendentes.length" href="#fotos-pendentes" class="rounded bg-rose-600 px-2 py-1 text-xs font-black text-white">{{ fotosPendentes.length }} por tratar</a>
                         </div>
-                        <p class="mt-1 text-xs text-slate-500">As pessoas enviam as fotos por este link. Só aparecem no site depois de aprovadas aqui em baixo. (Guarda o evento para ativar.)</p>
+                        <p class="mt-1 text-xs text-slate-500">As pessoas enviam fotos (e links de vídeos) por este link. As fotos só aparecem no site depois de aprovadas aqui em baixo; os vídeos são carregados por vocês. (Guarda o evento para ativar.)</p>
                         <div v-if="evento.fotos_publico_ativo" class="mt-3 flex flex-wrap items-center gap-2">
                             <input :value="evento.url_envio_fotos" readonly class="min-w-0 flex-1 rounded-md border-emerald-300 bg-white text-sm" @focus="$event.target.select()">
                             <button type="button" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-black text-white" @click="copiarLink">{{ linkCopiado ? 'Copiado ✓' : 'Copiar link' }}</button>
@@ -218,16 +228,33 @@ const apagarMedia = (media) => {
             </form>
         </div>
 
-        <section v-if="fotosPendentes.length" id="fotos-pendentes" class="mt-6 rounded-lg border-2 border-rose-200 bg-white p-5 shadow-sm">
+        <div v-if="fotosPendentes.length" id="fotos-pendentes"></div>
+        <section v-if="videosPorTratar.length" class="mt-6 rounded-lg border-2 border-sky-200 bg-white p-5 shadow-sm">
+            <h2 class="text-lg font-black">🎬 Vídeos enviados por link ({{ videosPorTratar.length }})</h2>
+            <p class="mb-4 text-sm text-slate-500">Abre o link, descarrega o vídeo e carrega-o em "Fotos e vídeos do evento" (mais abaixo). Depois marca como tratado.</p>
+            <div class="divide-y divide-slate-100">
+                <div v-for="video in videosPorTratar" :key="video.id" class="flex flex-wrap items-center gap-3 py-3">
+                    <div class="min-w-0 flex-1">
+                        <a :href="video.url" target="_blank" rel="noopener noreferrer" class="block truncate font-bold text-sky-700 underline">{{ video.url }}</a>
+                        <p class="truncate text-xs text-slate-500">{{ video.enviado_nome }} · {{ video.enviado_contacto || 'sem contacto' }} · {{ video.enviado_em }}</p>
+                    </div>
+                    <a :href="video.url" target="_blank" rel="noopener noreferrer" class="rounded-md bg-sky-700 px-3 py-1.5 text-xs font-black text-white">Abrir link ↗</a>
+                    <button type="button" class="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-black text-white" @click="tratarVideo(video)">✓ Já carreguei</button>
+                    <button type="button" class="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-50" @click="rejeitarVideo(video)">✕ Ignorar</button>
+                </div>
+            </div>
+        </section>
+
+        <section v-if="fotosPorAprovar.length" class="mt-6 rounded-lg border-2 border-rose-200 bg-white p-5 shadow-sm">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-lg font-black">📷 Fotos do público por aprovar ({{ fotosPendentes.length }})</h2>
+                    <h2 class="text-lg font-black">📷 Fotos do público por aprovar ({{ fotosPorAprovar.length }})</h2>
                     <p class="text-sm text-slate-500">Ainda não estão visíveis no site. Aprova as que queres publicar; as rejeitadas são apagadas.</p>
                 </div>
                 <button type="button" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-black text-white" @click="aprovarTodas">Aprovar todas</button>
             </div>
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div v-for="foto in fotosPendentes" :key="foto.id" class="rounded-md border border-slate-200 p-2">
+                <div v-for="foto in fotosPorAprovar" :key="foto.id" class="rounded-md border border-slate-200 p-2">
                     <button type="button" class="block w-full" @click="fotoAberta = foto">
                         <img :src="foto.url" :alt="`Foto de ${foto.enviado_nome}`" loading="lazy" class="aspect-video w-full rounded bg-slate-100 object-cover">
                     </button>

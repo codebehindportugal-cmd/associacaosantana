@@ -27,6 +27,9 @@ class EventoFotoPublicaController extends Controller
 {
     private const PASTA_PENDENTES = 'fotos-pendentes';
 
+    /** Vídeos: o público só envia o LINK; a associação descarrega e carrega o vídeo no site. */
+    public const ORIGEM_LINK_VIDEO = 'publico_link';
+
     // ---------- Público ----------
 
     public function show(Evento $evento): Response
@@ -90,13 +93,50 @@ class EventoFotoPublicaController extends Controller
         return response()->json(['ok' => true, 'id' => $media->id]);
     }
 
+    /**
+     * Recebe o LINK de um vídeo (YouTube, Google Drive, WeTransfer, ...).
+     * Não publica nada: fica na lista do backoffice para a associação tratar.
+     */
+    public function storeVideo(Request $request, Evento $evento): JsonResponse
+    {
+        $this->garantirAberto($evento);
+
+        $data = $request->validate([
+            'video_url' => ['required', 'url:http,https', 'max:2048'],
+            'nome' => ['required', 'string', 'max:120'],
+            'contacto' => ['nullable', 'string', 'max:160'],
+            'autorizo' => ['accepted'],
+            'recaptcha_token' => [new Recaptcha],
+        ], [
+            'video_url.required' => 'Indica o link do vídeo.',
+            'video_url.url' => 'O link do vídeo não é válido (deve começar por https://).',
+            'autorizo.accepted' => 'É preciso autorizar a publicação.',
+        ]);
+
+        $media = $evento->todaMedia()->create([
+            'tipo' => 'video',
+            'caminho' => $data['video_url'],
+            'url_origem' => $data['video_url'],
+            'titulo' => 'Vídeo de '.$data['nome'],
+            'origem' => self::ORIGEM_LINK_VIDEO,
+            'aprovado' => false,
+            'enviado_nome' => $data['nome'],
+            'enviado_contacto' => $data['contacto'] ?? null,
+            'ordem' => 0,
+        ]);
+
+        $this->avisarAssociacao($evento, $data['nome']);
+
+        return response()->json(['ok' => true, 'id' => $media->id]);
+    }
+
     // ---------- Backoffice ----------
 
     /** Mostra uma foto pendente (só para utilizadores autenticados). */
     public function ver(EventoMedia $media): BinaryFileResponse|RedirectResponse
     {
-        if ($media->aprovado) {
-            return redirect($media->caminho);
+        if ($media->aprovado || $media->origem === self::ORIGEM_LINK_VIDEO) {
+            return redirect()->away($media->caminho);
         }
 
         $disco = Storage::disk('local');
@@ -107,6 +147,10 @@ class EventoFotoPublicaController extends Controller
 
     public function aprovar(EventoMedia $media): RedirectResponse
     {
+        if ($media->origem === self::ORIGEM_LINK_VIDEO) {
+            return back()->with('success', 'Os vídeos enviados por link não se aprovam: descarrega-o, carrega-o em "Fotos e vídeos" e marca como tratado.');
+        }
+
         $this->aprovarMedia($media);
 
         return back()->with('success', 'Foto aprovada e publicada.');
@@ -115,7 +159,7 @@ class EventoFotoPublicaController extends Controller
     public function aprovarTodas(Evento $evento): RedirectResponse
     {
         $total = 0;
-        $evento->mediaPendente()->get()->each(function (EventoMedia $media) use (&$total) {
+        $evento->mediaPendente()->where('origem', '!=', self::ORIGEM_LINK_VIDEO)->get()->each(function (EventoMedia $media) use (&$total) {
             if ($this->aprovarMedia($media)) {
                 $total++;
             }
@@ -133,7 +177,7 @@ class EventoFotoPublicaController extends Controller
 
     private function aprovarMedia(EventoMedia $media): bool
     {
-        if ($media->aprovado) {
+        if ($media->aprovado || $media->origem === self::ORIGEM_LINK_VIDEO) {
             return false;
         }
 
@@ -168,9 +212,9 @@ class EventoFotoPublicaController extends Controller
 
         try {
             Mail::raw(
-                "Chegaram fotos novas para o evento \"{$evento->titulo}\" (enviadas por {$nome}).\n\n".
+                "Chegaram fotos/vídeos novos para o evento \"{$evento->titulo}\" (enviadas por {$nome}).\n\n".
                 "Estão à espera de aprovação no backoffice:\n".route('eventos.edit', $evento->id),
-                fn ($m) => $m->to($destino)->subject("Fotos por aprovar: {$evento->titulo}")
+                fn ($m) => $m->to($destino)->subject("Fotos/vídeos por tratar: {$evento->titulo}")
             );
         } catch (\Throwable $e) {
             Log::warning('Falha ao avisar fotos pendentes', ['evento' => $evento->id, 'erro' => $e->getMessage()]);
