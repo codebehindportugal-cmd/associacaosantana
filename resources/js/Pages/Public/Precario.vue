@@ -19,14 +19,14 @@ const euros = (valor) => `${Number(valor ?? 0).toFixed(2)} €`;
 </script>
 
 <template>
-    <Head title="Preçário" />
+    <Head title="Preçário da Festa" />
     <PublicShell>
         <main class="min-h-screen px-4 py-10">
             <section class="mx-auto max-w-2xl">
                 <header class="mb-6">
                     <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">ARDC Santana</p>
-                    <h1 class="mt-1 text-3xl font-bold text-stone-800">Preçário</h1>
-                    <p class="mt-1 text-sm text-stone-500">Lista de preços do bar e restaurante.</p>
+                    <h1 class="mt-1 text-3xl font-bold text-stone-800">Preçário da Festa</h1>
+                    <p class="mt-1 text-sm text-stone-500">Preços praticados no bar e restaurante durante a festa de Santana.</p>
                 </header>
 
                 <div class="sticky top-[84px] z-10 -mx-4 mb-5 overflow-x-auto border-y border-amber-200/60 bg-amber-50/95 px-4 py-3 backdrop-blur">

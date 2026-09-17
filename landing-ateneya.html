@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ateneya — Gestão de Associações Simplificada</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --primary: #1e40af;
+    --primary-light: #3b82f6;
+    --primary-dark: #1e3a8a;
+    --accent: #f59e0b;
+    --accent-dark: #d97706;
+    --dark: #0f172a;
+    --gray: #64748b;
+    --light: #f8fafc;
+    --white: #ffffff;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--dark); background: var(--white); line-height: 1.6; }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 2rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .nav-logo { font-size: 1.4rem; font-weight: 900; color: var(--primary); letter-spacing: -0.5px; }
+  .nav-logo span { color: var(--accent); }
+  .nav-cta {
+    background: var(--primary); color: white; padding: 0.5rem 1.25rem;
+    border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 0.9rem;
+    transition: background 0.2s;
+  }
+  .nav-cta:hover { background: var(--primary-dark); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh; display: flex; align-items: center;
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 50%, #1d4ed8 100%);
+    padding: 80px 2rem 4rem;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  .hero-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; position: relative; }
+  .hero-badge {
+    display: inline-block; background: rgba(245,158,11,0.2); color: var(--accent);
+    border: 1px solid rgba(245,158,11,0.4); border-radius: 50px;
+    padding: 0.35rem 1rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; margin-bottom: 1.25rem;
+  }
+  .hero h1 { font-size: clamp(2rem, 4vw, 3.25rem); font-weight: 900; color: white; line-height: 1.15; margin-bottom: 1.25rem; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { font-size: 1.15rem; color: rgba(255,255,255,0.8); margin-bottom: 2rem; }
+  .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--accent); color: var(--dark); padding: 0.875rem 2rem;
+    border-radius: 10px; text-decoration: none; font-weight: 800; font-size: 1rem;
+    transition: all 0.2s; display: inline-block;
+  }
+  .btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); }
+  .btn-secondary {
+    background: rgba(255,255,255,0.1); color: white; border: 2px solid rgba(255,255,255,0.3);
+    padding: 0.875rem 2rem; border-radius: 10px; text-decoration: none; font-weight: 700;
+    transition: all 0.2s; display: inline-block;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+  .hero-stats { display: flex; gap: 2rem; margin-top: 2.5rem; }
+  .stat { text-align: center; }
+  .stat-num { font-size: 1.75rem; font-weight: 900; color: var(--accent); }
+  .stat-label { font-size: 0.8rem; color: rgba(255,255,255,0.6); }
+  .hero-visual {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 20px; padding: 2rem; backdrop-filter: blur(10px);
+  }
+  .dash-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
+  .dash-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dash-dot.red { background: #ef4444; }
+  .dash-dot.yellow { background: #f59e0b; }
+  .dash-dot.green { background: #22c55e; }
+  .dash-title { color: rgba(255,255,255,0.5); font-size: 0.8rem; margin-left: auto; }
+  .module-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  .module-card {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px; padding: 1rem; cursor: default;
+    transition: background 0.2s;
+  }
+  .module-card:hover { background: rgba(255,255,255,0.14); }
+  .module-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+  .module-name { color: white; font-weight: 700; font-size: 0.85rem; }
+  .module-status { color: #22c55e; font-size: 0.75rem; font-weight: 600; }
+  .module-status.off { color: #94a3b8; }
+
+  /* SECTION BASE */
+  section { padding: 5rem 2rem; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .section-tag {
+    display: inline-block; background: #eff6ff; color: var(--primary);
+    border-radius: 50px; padding: 0.35rem 1rem; font-size: 0.8rem; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 1rem;
+  }
+  .section-title { font-size: clamp(1.75rem, 3vw, 2.5rem); font-weight: 900; margin-bottom: 1rem; }
+  .section-sub { font-size: 1.1rem; color: var(--gray); max-width: 600px; }
+
+  /* PROBLEMAS */
+  .problems { background: var(--light); }
+  .problems-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+  .problem-card {
+    background: white; border: 1px solid #e2e8f0; border-radius: 16px;
+    padding: 1.75rem; transition: box-shadow 0.2s;
+  }
+  .problem-card:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+  .problem-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+  .problem-card h3 { font-size: 1.05rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--dark); }
+  .problem-card p { font-size: 0.9rem; color: var(--gray); }
+
+  /* MÓDULOS / FEATURES */
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; margin-top: 3rem; }
+  .feature-card {
+    border: 2px solid #e2e8f0; border-radius: 20px; padding: 2rem;
+    transition: all 0.2s; position: relative; overflow: hidden;
+  }
+  .feature-card:hover { border-color: var(--primary-light); box-shadow: 0 12px 40px rgba(30,64,175,0.1); }
+  .feature-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .feature-card:hover::before { opacity: 1; }
+  .feature-icon { width: 56px; height: 56px; border-radius: 14px; background: #eff6ff; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; margin-bottom: 1.25rem; }
+  .feature-card h3 { font-size: 1.2rem; font-weight: 800; margin-bottom: 0.75rem; }
+  .feature-card p { color: var(--gray); font-size: 0.9rem; margin-bottom: 1.25rem; }
+  .feature-list { list-style: none; }
+  .feature-list li { font-size: 0.875rem; color: var(--gray); padding: 0.3rem 0; display: flex; align-items: flex-start; gap: 0.5rem; }
+  .feature-list li::before { content: '✓'; color: var(--primary); font-weight: 900; flex-shrink: 0; margin-top: 1px; }
+
+  /* VANTAGENS */
+  .advantages { background: var(--primary-dark); }
+  .advantages .section-tag { background: rgba(245,158,11,0.2); color: var(--accent); }
+  .advantages .section-title { color: white; }
+  .advantages .section-sub { color: rgba(255,255,255,0.6); }
+  .adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 3rem; }
+  .adv-card {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; padding: 1.75rem; text-align: center;
+    transition: background 0.2s;
+  }
+  .adv-card:hover { background: rgba(255,255,255,0.1); }
+  .adv-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+  .adv-card h3 { color: white; font-weight: 800; margin-bottom: 0.5rem; font-size: 1rem; }
+  .adv-card p { color: rgba(255,255,255,0.6); font-size: 0.875rem; }
+
+  /* COMO FUNCIONA */
+  .how-it-works { background: var(--light); }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 2rem; margin-top: 3rem; position: relative; }
+  .step { text-align: center; position: relative; }
+  .step-num {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--primary); color: white; font-weight: 900; font-size: 1.25rem;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 1.25rem;
+  }
+  .step h3 { font-weight: 800; margin-bottom: 0.5rem; }
+  .step p { color: var(--gray); font-size: 0.9rem; }
+
+  /* CTA */
+  .cta-section {
+    background: linear-gradient(135deg, var(--accent) 0%, #f97316 100%);
+    text-align: center; padding: 5rem 2rem;
+  }
+  .cta-section h2 { font-size: clamp(1.75rem, 3vw, 2.5rem); font-weight: 900; color: var(--dark); margin-bottom: 1rem; }
+  .cta-section p { font-size: 1.1rem; color: rgba(15,23,42,0.7); margin-bottom: 2.5rem; }
+  .cta-btn {
+    background: var(--dark); color: white; padding: 1rem 2.5rem;
+    border-radius: 12px; text-decoration: none; font-weight: 800; font-size: 1.1rem;
+    display: inline-block; transition: all 0.2s;
+  }
+  .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(0,0,0,0.25); }
+
+  /* FOOTER */
+  footer {
+    background: var(--dark); color: rgba(255,255,255,0.5); padding: 2rem;
+    text-align: center; font-size: 0.875rem;
+  }
+  footer strong { color: white; }
+
+  @media (max-width: 768px) {
+    .hero-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+    .hero-visual { display: none; }
+    .hero-stats { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">aten<span>eya</span></div>
+  <a href="#contacto" class="nav-cta">Experimentar grátis</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-badge">🚀 Plataforma de Gestão</div>
+      <h1>A gestão da tua associação, <span>finalmente simples</span></h1>
+      <p>Controla sócios, reservas, restaurante, eventos e finanças numa única plataforma. Pensado para associações portuguesas.</p>
+      <div class="hero-actions">
+        <a href="#contacto" class="btn-primary">Começar gratuitamente</a>
+        <a href="#funcionalidades" class="btn-secondary">Ver funcionalidades</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><div class="stat-num">6</div><div class="stat-label">Módulos</div></div>
+        <div class="stat"><div class="stat-num">100%</div><div class="stat-label">Online</div></div>
+        <div class="stat"><div class="stat-num">0€</div><div class="stat-label">Para começar</div></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="dash-header">
+        <div class="dash-dot red"></div>
+        <div class="dash-dot yellow"></div>
+        <div class="dash-dot green"></div>
+        <div class="dash-title">Painel de controlo</div>
+      </div>
+      <div class="module-grid">
+        <div class="module-card">
+          <div class="module-icon">🏛️</div>
+          <div class="module-name">Sócios & Cotas</div>
+          <div class="module-status">● Ativo</div>
+        </div>
+        <div class="module-card">
+          <div class="module-icon">🍽️</div>
+          <div class="module-name">Restaurante</div>
+          <div class="module-status">● Ativo</div>
+        </div>
+        <div class="module-card">
+          <div class="module-icon">🏠</div>
+          <div class="module-name">Reservas Salão</div>
+          <div class="module-status">● Ativo</div>
+        </div>
+        <div class="module-card">
+          <div class="module-icon">🎉</div>
+          <div class="module-name">Eventos</div>
+          <div class="module-status">● Ativo</div>
+        </div>
+        <div class="module-card">
+          <div class="module-icon">💰</div>
+          <div class="module-name">Tesouraria</div>
+          <div class="module-status">● Ativo</div>
+        </div>
+        <div class="module-card">
+          <div class="module-icon">📊</div>
+          <div class="module-name">Relatórios</div>
+          <div class="module-status off">● Inativo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEMAS -->
+<section class="problems">
+  <div class="container">
+    <div class="section-tag">😤 Os problemas que conheces bem</div>
+    <h2 class="section-title">Gerir uma associação não devia ser assim tão difícil</h2>
+    <p class="section-sub">Sabemos o que passa nas associações portuguesas todos os dias. Criámos a solução.</p>
+    <div class="problems-grid">
+      <div class="problem-card">
+        <div class="problem-icon">📋</div>
+        <h3>Listas em papel e Excel desatualizados</h3>
+        <p>Quem pagou as cotas? Quando foi a última reserva do salão? Os dados estão espalhados em ficheiros, cadernos e memórias.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">💸</div>
+        <h3>Cotas por cobrar sem controlo</h3>
+        <p>Não saber quem está em dia, quem deve e quanto acumula — uma dor de cabeça crónica para tesoureiros.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">📞</div>
+        <h3>Reservas do salão por telefone</h3>
+        <p>Confirmações por whatsapp, conflitos de datas, esquecimentos. Sem registo central, os problemas multiplicam-se.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">🍴</div>
+        <h3>Restaurante sem sistema</h3>
+        <p>Pedidos escritos à mão, erros nas contas, sem histórico de consumos — o restaurante a perder dinheiro sem saber porquê.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">🎟️</div>
+        <h3>Eventos desorganizados</h3>
+        <p>Inscrições por email e whatsapp, contagem manual de participantes, pagamentos em dinheiro sem controlo.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">📉</div>
+        <h3>Sem visão das finanças</h3>
+        <p>Quanto entrou este mês? Quanto saiu? Onde está o dinheiro? Perguntas simples sem resposta imediata.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FUNCIONALIDADES -->
+<section id="funcionalidades">
+  <div class="container">
+    <div class="section-tag">⚡ Funcionalidades</div>
+    <h2 class="section-title">Tudo o que a tua associação precisa</h2>
+    <p class="section-sub">Módulos independentes — ativas só o que usas, e pagas só o que precisas.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <h3>Sócios & Cotas</h3>
+        <p>Gestão completa da base de sócios e controlo de quotas em dia.</p>
+        <ul class="feature-list">
+          <li>Ficha de sócio completa</li>
+          <li>Controlo de pagamentos e histórico</li>
+          <li>Alertas de cotas em atraso</li>
+          <li>POS de pagamento de cotas em terminais</li>
+          <li>Relatório de sócios ativos/inativos</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🏠</div>
+        <h3>Reservas do Salão</h3>
+        <p>Formulário público de pré-reserva e gestão completa no backoffice.</p>
+        <ul class="feature-list">
+          <li>Formulário público com QR code</li>
+          <li>Calendário de disponibilidade</li>
+          <li>Gestão de opções e preços</li>
+          <li>Email automático de confirmação</li>
+          <li>Controlo de caução e pagamento</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🍽️</div>
+        <h3>Restaurante & Bar</h3>
+        <p>Sistema POS completo para terminais físicos no restaurante e bar.</p>
+        <ul class="feature-list">
+          <li>Gestão de mesas em tempo real</li>
+          <li>Pedidos direto na mesa pelo cliente</li>
+          <li>POS de restaurante e bar separados</li>
+          <li>Reservas de mesa com notificações push</li>
+          <li>Histórico de consumos</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🎉</div>
+        <h3>Eventos & Inscrições</h3>
+        <p>Página pública de inscrições com pagamento online integrado.</p>
+        <ul class="feature-list">
+          <li>QR code fixo para inscrições</li>
+          <li>Pagamento online via Multibanco/MB Way</li>
+          <li>Controlo de vagas e lista de espera</li>
+          <li>Opções por evento (menu, etc.)</li>
+          <li>Email automático ao inscrito</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💰</div>
+        <h3>Tesouraria</h3>
+        <p>Controlo financeiro da associação e contas da festa.</p>
+        <ul class="feature-list">
+          <li>Caixa diária</li>
+          <li>Contas bancárias</li>
+          <li>Faturas de compra</li>
+          <li>Contas da festa por evento</li>
+          <li>Relatórios financeiros</li>
+        </ul>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📺</div>
+        <h3>Extras</h3>
+        <p>Funcionalidades adicionais para valorizar a presença da associação.</p>
+        <ul class="feature-list">
+          <li>Ecrã de patrocinadores para TV</li>
+          <li>Gestão de patrocinadores</li>
+          <li>Site público da associação</li>
+          <li>Formulário de contacto</li>
+          <li>Política de privacidade</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VANTAGENS -->
+<section class="advantages">
+  <div class="container">
+    <div class="section-tag">✨ Porquê a Ateneya</div>
+    <h2 class="section-title">Feita por quem conhece as associações portuguesas</h2>
+    <p class="section-sub">Não é uma solução genérica adaptada. Foi construída de raiz para a realidade das associações.</p>
+    <div class="adv-grid">
+      <div class="adv-card">
+        <div class="adv-icon">🧩</div>
+        <h3>Modular</h3>
+        <p>Ativas só os módulos que usas. Sem pagar por funcionalidades que não precisas.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">📱</div>
+        <h3>Qualquer dispositivo</h3>
+        <p>Computador, tablet ou telemóvel. O backoffice funciona em todos.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">☁️</div>
+        <h3>Na cloud</h3>
+        <p>Sem instalar nada. Os dados estão sempre seguros e disponíveis.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">🖥️</div>
+        <h3>POS para terminais</h3>
+        <p>Tablets ou computadores antigos viram terminais de restaurante, bar e cotas.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">🇵🇹</div>
+        <h3>Em português</h3>
+        <p>Desenvolvida em Portugal, para associações portuguesas. Suporte em português.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">🔒</div>
+        <h3>Segura</h3>
+        <p>Dados encriptados, backups automáticos, conformidade com o RGPD.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">⚡</div>
+        <h3>Rápida de implementar</h3>
+        <p>Sem projetos de meses. A tua associação pode estar operacional em dias.</p>
+      </div>
+      <div class="adv-card">
+        <div class="adv-icon">🤝</div>
+        <h3>Suporte incluído</h3>
+        <p>Estamos disponíveis para ajudar na configuração e sempre que precisares.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA -->
+<section class="how-it-works">
+  <div class="container">
+    <div class="section-tag">🚀 Como começar</div>
+    <h2 class="section-title">Três passos para transformar a tua associação</h2>
+    <p class="section-sub">Sem contratos longos, sem configurações complexas.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Regista a tua associação</h3>
+        <p>Cria a conta em minutos. A tua associação fica com o seu próprio subdomínio exclusivo.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Escolhe os módulos</h3>
+        <p>Ativas só o que precisas: sócios, restaurante, reservas, eventos ou tudo.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Começa a usar</h3>
+        <p>A equipa da Ateneya ajuda na configuração inicial. Estás operacional em dias.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="contacto">
+  <div class="container">
+    <h2>Pronto para simplificar a gestão da tua associação?</h2>
+    <p>Experimenta gratuitamente. Sem cartão de crédito, sem compromissos.</p>
+    <a href="mailto:geral@ateneya.com" class="cta-btn">Falar connosco →</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p><strong>Ateneya</strong> — Gestão de Associações &nbsp;·&nbsp; <a href="mailto:geral@ateneya.com" style="color:inherit">geral@ateneya.com</a> &nbsp;·&nbsp; © 2026</p>
+</footer>
+
+</body>
+</html>

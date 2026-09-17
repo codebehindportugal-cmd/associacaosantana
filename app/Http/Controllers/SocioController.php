@@ -26,10 +26,16 @@ class SocioController extends Controller
             ->when($request->estado, fn ($query, $estado) => $query->where('estado', $estado))
             ->when($request->pesquisa, fn ($query, $pesquisa) => $query->where(fn ($q) => $q
                 ->where('nome', 'like', "%{$pesquisa}%")
-                ->orWhere('numero_socio', 'like', "%{$pesquisa}%")))
+                ->orWhere('numero_socio', 'like', "%{$pesquisa}%")
+                // A terra e o que as pessoas dizem primeiro quando ha nomes iguais
+                ->orWhere('morada', 'like', "%{$pesquisa}%")))
             ->orderBy('numero_socio')
-            ->paginate(15)
+            ->paginate(30)
             ->withQueryString();
+
+        // Esta listagem so usa cota_em_dia; os outros dois atributos calculados
+        // fariam mais 2 queries por linha sem irem parar a lado nenhum
+        $socios->getCollection()->each->makeHidden(['anos_em_atraso', 'valor_em_divida']);
 
         return Inertia::render('Socios/Index', ['socios' => $socios, 'filters' => $request->only('estado', 'pesquisa')]);
     }

@@ -21,12 +21,14 @@ class Produto extends Model
         'disponivel',
         'disponivel_restaurante',
         'disponivel_bar',
+        'talao_individual',
     ];
 
     protected $casts = [
         'disponivel' => 'boolean',
         'disponivel_restaurante' => 'boolean',
         'disponivel_bar' => 'boolean',
+        'talao_individual' => 'boolean',
         'preco' => 'decimal:2',
         'custo_compra_unitario' => 'decimal:4',
         'custo_preparacao_unitario' => 'decimal:4',

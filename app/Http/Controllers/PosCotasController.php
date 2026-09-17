@@ -40,10 +40,14 @@ class PosCotasController extends Controller
     public function socio(Socio $socio): Response
     {
         $cotasRecentes = $socio->cotas()->latest()->limit(24)->get();
-        $mesesEmAtraso = $socio->meses_em_atraso;
+        $anosEmAtraso = $socio->anos_em_atraso;
         $valorEmDivida = $socio->valor_em_divida;
+        $anosPagos = $socio->cotas()->where('estado', 'pago')->pluck('ano')->map(fn ($a) => (int) $a)->unique()->values();
 
-        return Inertia::render('PosCotas/Socio', compact('socio', 'cotasRecentes', 'mesesEmAtraso', 'valorEmDivida'));
+        return Inertia::render('PosCotas/Socio', compact('socio', 'cotasRecentes', 'anosEmAtraso', 'valorEmDivida', 'anosPagos') + [
+            'valorCota' => Socio::VALOR_COTA_ANUAL,
+            'anoInscricao' => (int) (optional($socio->data_inscricao)->year ?: now()->year),
+        ]);
     }
 
     public function novoSocioForm(): Response
@@ -55,46 +59,28 @@ class PosCotasController extends Controller
 
     public function registarPagamento(Request $request, Socio $socio): RedirectResponse
     {
+        // A cota e anual: paga-se um ano, ou varios de uma vez quando ha atraso
         $data = $request->validate([
-            'tipo' => ['required', 'in:mensal,anual'],
-            'meses' => ['nullable', 'array'],
-            'meses.*' => ['integer', 'between:1,12'],
-            'ano' => ['required', 'integer', 'min:2020', 'max:2100'],
-            'valor' => ['required', 'numeric', 'min:0'],
+            'anos' => ['required', 'array', 'min:1'],
+            'anos.*' => ['integer', 'min:2000', 'max:2100'],
             'metodo_pagamento' => ['required', 'in:dinheiro,mbway,transferencia'],
             'valor_recebido' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $ultimaCota = null;
 
-        if ($data['tipo'] === 'anual') {
-            $ultimaCota = $socio->cotas()->create([
-                'tipo' => 'anual',
-                'ano' => $data['ano'],
-                'mes' => null,
-                'valor' => $data['valor'],
-                'estado' => 'pago',
-                'data_pagamento' => today(),
-                'data_vencimento' => today(),
-                'metodo_pagamento' => $data['metodo_pagamento'],
-            ]);
-        } else {
-            foreach (($data['meses'] ?? []) as $mes) {
-                $ultimaCota = $socio->cotas()->updateOrCreate(
-                    ['tipo' => 'mensal', 'ano' => $data['ano'], 'mes' => $mes],
-                    [
-                        'valor' => 5,
-                        'estado' => 'pago',
-                        'data_pagamento' => today(),
-                        'data_vencimento' => now()->setDate($data['ano'], $mes, 1)->endOfMonth()->toDateString(),
-                        'metodo_pagamento' => $data['metodo_pagamento'],
-                    ],
-                );
-            }
-        }
-
-        if (! $ultimaCota) {
-            return back()->withErrors(['meses' => 'Seleciona pelo menos um mes.']);
+        foreach ($data['anos'] as $ano) {
+            $ultimaCota = $socio->cotas()->updateOrCreate(
+                ['ano' => $ano, 'tipo' => 'anual'],
+                [
+                    'mes' => null,
+                    'valor' => Socio::VALOR_COTA_ANUAL,
+                    'estado' => 'pago',
+                    'data_pagamento' => today(),
+                    'data_vencimento' => now()->setDate($ano, 12, 31)->toDateString(),
+                    'metodo_pagamento' => $data['metodo_pagamento'],
+                ],
+            );
         }
 
         return to_route('pos.cotas.recibo', $ultimaCota);
@@ -126,7 +112,7 @@ class PosCotasController extends Controller
             ->with(['cotas' => fn ($q) => $q->emAtraso()])
             ->orderBy('nome')
             ->get()
-            ->sortByDesc('meses_em_atraso')
+            ->sortByDesc('anos_em_atraso')
             ->values();
 
         return Inertia::render('PosCotas/EmAtraso', ['socios' => $socios]);

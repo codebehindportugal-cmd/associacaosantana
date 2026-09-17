@@ -33,6 +33,9 @@ const linkRota = (rota) => {
     return route(rota);
 };
 
+// Evita que uma rota em falta no servidor (deploy desalinhado) deixe o backoffice em branco
+const rotaExiste = (nome) => { try { return route().has(nome); } catch { return false; } };
+
 const podeGerir = () => hasRole('admin') || hasRole('gerente');
 const itemVisivel = (perm) => perm ? can(perm) : podeGerir();
 const urgentes = () => page.props.urgentes_count ?? 0;
@@ -84,7 +87,7 @@ const atenderChamada = async (id) => {
 };
 
 const grupos = [
-    { label: 'Restaurante',       items: [['Sala','sala.index','mesas.ver'],['Mesas','mesas.index','restaurante.ver'],['Pedidos','pedidos.index','pedidos.ver'],['Caixas','caixa.index','caixa.ver'],['Impressoras','impressoras.index',null]] },
+    { label: 'Restaurante',       items: [['Sala','sala.index','mesas.ver'],['Mesas','mesas.index','restaurante.ver'],['Pedidos','pedidos.index','pedidos.ver'],['Caixas','caixa.index','caixa.ver'],['Impressoras','impressoras.index',null],['Talão','talao.index',null]] },
     { label: 'Produtos',          items: [['Produtos','produtos.index','produtos.ver'],['Faturas/Stock','faturas-compras.index','produtos.ver']] },
     { label: 'Eventos & Reservas',items: [['Reservas','reservas.index','reservas.ver'],['Eventos','eventos.index',null],['Alugueres','alugueres.index',null]] },
     { label: 'Site',              items: [['Páginas','paginas.index',null],['Patrocinadores','patrocinadores.index',null]] },
@@ -94,12 +97,12 @@ const grupos = [
 ];
 
 const gruposVisiveis = computed(() =>
-    grupos.map((g) => ({ ...g, items: g.items.filter(([,,perm]) => itemVisivel(perm)) })).filter((g) => g.items.length > 0)
+    grupos.map((g) => ({ ...g, items: g.items.filter(([, rota, perm]) => rotaExiste(rota) && itemVisivel(perm)) })).filter((g) => g.items.length > 0)
 );
 
 const bottomLinks = computed(() =>
     [['Início','dashboard','dashboard.ver','🏠'],['Pedidos','pedidos.index','pedidos.ver','🍽️'],['Reservas','reservas.index','reservas.ver','📋'],['Sala','sala.index','mesas.ver','🪑']]
-    .filter(([,,perm]) => itemVisivel(perm))
+    .filter(([, rota, perm]) => rotaExiste(rota) && itemVisivel(perm))
 );
 
 onMounted(() => { polling = setInterval(() => router.reload({ only: ['urgentes_count', 'chamadas_comissao'], preserveScroll: true }), 30000); });

@@ -1,20 +1,32 @@
 import net from 'node:net';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
 const APP_URL = process.env.APP_URL;
 const PRINT_AGENT_TOKEN = process.env.PRINT_AGENT_TOKEN;
 const POLL_SECONDS = Number(process.env.POLL_SECONDS ?? 3);
 const PRINT_DELAY_MS = Number(process.env.PRINT_DELAY_MS ?? 200);
 const PRINT_CODEPAGE = (process.env.PRINT_CODEPAGE ?? 'cp860').toLowerCase();
+// Identifica este computador. Com varios postos, cada agente so vai buscar
+// os trabalhos das impressoras que lhe estao atribuidas no backoffice.
+const AGENTE = (process.env.AGENTE ?? '').trim();
 
 if (!APP_URL || !PRINT_AGENT_TOKEN) {
     console.error('Configura APP_URL e PRINT_AGENT_TOKEN antes de iniciar o agente.');
     process.exit(1);
 }
 
-const endpoint = (path) => `${APP_URL.replace(/\/$/, '')}/api/print-agent/${path}`;
+const endpoint = (caminho) => {
+    const url = `${APP_URL.replace(/\/$/, '')}/api/print-agent/${caminho}`;
 
-const api = async (path, options = {}) => {
-    const response = await fetch(endpoint(path), {
+    return AGENTE ? `${url}${url.includes('?') ? '&' : '?'}agente=${encodeURIComponent(AGENTE)}` : url;
+};
+
+const api = async (caminho, options = {}) => {
+    const response = await fetch(endpoint(caminho), {
         ...options,
         headers: {
             Authorization: `Bearer ${PRINT_AGENT_TOKEN}`,
@@ -122,7 +134,7 @@ const escpos = (job) => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const imprimir = (job) => new Promise((resolve, reject) => {
+const imprimirRede = (job, dados) => new Promise((resolve, reject) => {
     let terminou = false;
     const concluir = () => {
         if (!terminou) {
@@ -145,7 +157,7 @@ const imprimir = (job) => new Promise((resolve, reject) => {
 
     socket.on('connect', () => {
         socket.setNoDelay(true);
-        socket.write(escpos(job), () => socket.end());
+        socket.write(dados, () => socket.end());
     });
 
     socket.on('error', falhar);
@@ -155,6 +167,144 @@ const imprimir = (job) => new Promise((resolve, reject) => {
     });
     socket.on('close', concluir);
 });
+
+// ---------------------------------------------------------------------------
+// Impressora USB
+//
+// Windows: a impressora tem de estar instalada (Dispositivos e Impressoras) e
+// o campo "dispositivo" e o nome exacto com que la aparece. Os bytes ESC/POS
+// seguem em modo RAW pelo winspool, via PowerShell — o mesmo caminho que ja
+// usamos para abrir a gaveta do dinheiro.
+//
+// Linux/Raspberry: "dispositivo" e o ficheiro do sistema, normalmente
+// /dev/usb/lp0.
+// ---------------------------------------------------------------------------
+const PS_RAW_PRINT = [
+    'param([string]$Printer, [string]$Path)',
+    "$ErrorActionPreference = 'Stop'",
+    'Add-Type -TypeDefinition @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public class RawPrinterHelper {',
+    '    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]',
+    '    public class DOCINFOW {',
+    '        [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;',
+    '        [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;',
+    '        [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;',
+    '    }',
+    '    [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)]',
+    '    public static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);',
+    '    [DllImport("winspool.drv", SetLastError = true)]',
+    '    public static extern bool ClosePrinter(IntPtr hPrinter);',
+    '    [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)]',
+    '    public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOW di);',
+    '    [DllImport("winspool.drv", SetLastError = true)]',
+    '    public static extern bool EndDocPrinter(IntPtr hPrinter);',
+    '    [DllImport("winspool.drv", SetLastError = true)]',
+    '    public static extern bool StartPagePrinter(IntPtr hPrinter);',
+    '    [DllImport("winspool.drv", SetLastError = true)]',
+    '    public static extern bool EndPagePrinter(IntPtr hPrinter);',
+    '    [DllImport("winspool.drv", SetLastError = true)]',
+    '    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);',
+    '    public static void Send(string printerName, byte[] dados) {',
+    '        IntPtr hPrinter;',
+    '        if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero)) {',
+    '            throw new Exception("Nao foi possivel abrir a impressora: " + printerName);',
+    '        }',
+    '        try {',
+    '            DOCINFOW di = new DOCINFOW();',
+    '            di.pDocName = "Talao";',
+    '            di.pDataType = "RAW";',
+    '            if (!StartDocPrinter(hPrinter, 1, di)) { throw new Exception("StartDocPrinter falhou."); }',
+    '            try {',
+    '                if (!StartPagePrinter(hPrinter)) { throw new Exception("StartPagePrinter falhou."); }',
+    '                IntPtr ponteiro = Marshal.AllocCoTaskMem(dados.Length);',
+    '                try {',
+    '                    Marshal.Copy(dados, 0, ponteiro, dados.Length);',
+    '                    int escritos;',
+    '                    if (!WritePrinter(hPrinter, ponteiro, dados.Length, out escritos)) {',
+    '                        throw new Exception("WritePrinter falhou.");',
+    '                    }',
+    '                } finally {',
+    '                    Marshal.FreeCoTaskMem(ponteiro);',
+    '                }',
+    '                EndPagePrinter(hPrinter);',
+    '            } finally {',
+    '                EndDocPrinter(hPrinter);',
+    '            }',
+    '        } finally {',
+    '            ClosePrinter(hPrinter);',
+    '        }',
+    '    }',
+    '}',
+    '"@',
+    '[RawPrinterHelper]::Send($Printer, [System.IO.File]::ReadAllBytes($Path))',
+].join('\n');
+
+let caminhoScriptPs = null;
+
+const scriptPowerShell = async () => {
+    if (!caminhoScriptPs) {
+        caminhoScriptPs = path.join(os.tmpdir(), 'ardc-raw-print.ps1');
+        await fs.writeFile(caminhoScriptPs, PS_RAW_PRINT, 'utf8');
+    }
+
+    return caminhoScriptPs;
+};
+
+const correr = (comando, args) => new Promise((resolve, reject) => {
+    execFile(comando, args, { timeout: 20000, windowsHide: true }, (error, stdout, stderr) => {
+        if (error) {
+            reject(new Error(String(stderr || stdout || error.message).trim().split('\n')[0]));
+
+            return;
+        }
+
+        resolve(stdout);
+    });
+});
+
+const imprimirUsb = async (job, dados) => {
+    const dispositivo = job.printer.dispositivo;
+
+    if (!dispositivo) {
+        throw new Error('Impressora USB sem dispositivo definido no backoffice.');
+    }
+
+    if (process.platform !== 'win32') {
+        await fs.writeFile(dispositivo, dados);
+
+        return;
+    }
+
+    const ficheiro = path.join(os.tmpdir(), `ardc-talao-${randomUUID()}.bin`);
+    await fs.writeFile(ficheiro, dados);
+
+    try {
+        await correr('powershell.exe', [
+            '-NoProfile',
+            '-NonInteractive',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', await scriptPowerShell(),
+            '-Printer', dispositivo,
+            '-Path', ficheiro,
+        ]);
+    } finally {
+        await fs.unlink(ficheiro).catch(() => {});
+    }
+};
+
+const imprimir = async (job) => {
+    const dados = escpos(job);
+
+    if ((job.printer.tipo ?? 'rede') === 'usb') {
+        await imprimirUsb(job, dados);
+
+        return;
+    }
+
+    await imprimirRede(job, dados);
+};
 
 const ciclo = async () => {
     try {
@@ -175,6 +325,10 @@ const ciclo = async () => {
         console.error(`Erro no agente: ${error.message}`);
     }
 };
+
+console.log(AGENTE
+    ? `Agente "${AGENTE}" a arrancar. So trata das impressoras atribuidas a este posto.`
+    : 'Agente sem AGENTE definido. Trata das impressoras sem posto atribuido.');
 
 setInterval(ciclo, POLL_SECONDS * 1000);
 ciclo();

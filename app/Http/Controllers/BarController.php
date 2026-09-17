@@ -6,6 +6,7 @@ use App\Models\Configuracao;
 use App\Models\CaixaDiaria;
 use App\Models\Pedido;
 use App\Models\Produto;
+use App\Models\TalaoConfig;
 use App\Services\PrintJobService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,7 +54,7 @@ class BarController extends Controller
     {
         $data = $this->validarPedidoBar($request, true);
 
-        return DB::transaction(function () use ($data, $request) {
+        return DB::transaction(function () use ($data, $request, $printJobs) {
             if (! $this->caixaAberta($data['ponto_bar'])) {
                 return back()->withErrors(['ponto_bar' => 'Abre a caixa deste ponto antes de vender.']);
             }
@@ -91,17 +92,38 @@ class BarController extends Controller
             $pedidoFull = $pedido->fresh('items.produto.categoria', 'user', 'pos');
             $secaoImp   = $this->secaoImpressoraBar($pedido->ponto_bar);
 
-            $itensFrango = $pedidoFull->items->filter(fn ($i) => ($i->produto->categoria->secao ?? '') === 'frango');
-            $itensOutros = $pedidoFull->items->filter(fn ($i) => ($i->produto->categoria->secao ?? '') !== 'frango');
+            // Evento com pre-pagamento: um talao por unidade, cada um cortado,
+            // agrupados por seccao. A conta sai no fim.
+            if (TalaoConfig::atual()->taloesPorSeccao()) {
+                $grupos = $printJobs->unidadesPorSeccao($pedidoFull);
+                $totalTaloes = array_sum(array_map('count', $grupos));
+                $numero = 0;
 
-            foreach ($itensFrango as $item) {
-                for ($u = 0; $u < $item->quantidade; $u++) {
-                    $printJobs->criarTalaoBarUnitario($pedidoFull, $item->produto->nome, $secaoImp);
+                foreach ($grupos as $secao => $unidades) {
+                    foreach ($unidades as $nome) {
+                        $numero++;
+                        $printJobs->criarTalaoBarUnitario($pedidoFull, $nome, $secaoImp, $numero, $totalTaloes, $secao);
+                    }
                 }
-            }
 
-            if ($itensOutros->isNotEmpty()) {
-                $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+                $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
+            } else {
+                $itensIndividuais = $pedidoFull->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
+                $itensOutros = $pedidoFull->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
+
+                $totalTaloes = (int) $itensIndividuais->sum('quantidade');
+                $numero = 0;
+
+                foreach ($itensIndividuais as $item) {
+                    for ($u = 0; $u < $item->quantidade; $u++) {
+                        $numero++;
+                        $printJobs->criarTalaoBarUnitario($pedidoFull, $item->produto->nome, $secaoImp, $numero, $totalTaloes);
+                    }
+                }
+
+                if ($itensOutros->isNotEmpty()) {
+                    $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+                }
             }
 
             return to_route('bar.talao', $pedido)->with('success', 'Senha emitida.');

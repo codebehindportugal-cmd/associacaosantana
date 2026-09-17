@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AssociacaoParceira;
+use App\Models\Configuracao;
 use App\Models\FaturaCompra;
 use App\Models\FestaMovimento;
-use App\Models\Pedido;
+use App\Support\ReceitaFesta;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,11 +34,6 @@ class FestaContaController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        $pedidos = Pedido::query()
-            ->whereBetween(DB::raw('DATE(created_at)'), [$inicio->toDateString(), $fim->toDateString()])
-            ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
-            ->get();
-
         $custosAutomaticos = collect([
             [
                 'categoria' => 'compras_stock',
@@ -58,48 +54,24 @@ class FestaContaController extends Controller
             ])
             ->values();
 
-        $receitasAutomaticas = collect([
-            [
-                'categoria' => 'restaurante',
-                'label' => 'Restaurante',
-                'valor' => (float) $pedidos->where('tipo', 'restaurante')->sum('total'),
-                'origem' => 'automatico',
-            ],
-            [
-                'categoria' => 'bar',
-                'label' => 'Bar',
-                'valor' => (float) $pedidos->whereIn('tipo', ['bar_conta', 'bar_prepago'])->sum('total'),
-                'origem' => 'automatico',
-            ],
-            [
-                'categoria' => 'doacoes',
-                'label' => 'Doacoes',
-                'valor' => (float) $pedidos->sum('doacao'),
-                'origem' => 'automatico',
-            ],
-        ]);
-
-        $receitasManuais = $movimentos
-            ->where('tipo', 'receita')
-            ->groupBy('categoria')
-            ->map(fn ($grupo, $categoria) => [
-                'categoria' => $categoria,
-                'label' => $this->labelCategoria($categoria),
-                'valor' => (float) $grupo->sum('valor'),
-                'origem' => 'manual',
-            ])
-            ->values();
+        // Receita bruta vem do ReceitaFesta para ser exatamente o mesmo numero
+        // que as outras associacoes veem na pagina partilhada.
+        $receitas = ReceitaFesta::linhas($inicio->toDateString(), $fim->toDateString());
 
         $custos = $custosAutomaticos->merge($custosManuais)->values();
-        $receitas = $receitasAutomaticas->merge($receitasManuais)->values();
         $totalCustos = (float) $custos->sum('valor');
         $totalReceitas = (float) $receitas->sum('valor');
+
+        $token = Configuracao::where('chave', AssociacaoParceiraController::CHAVE_TOKEN)->value('valor');
 
         return Inertia::render('ContasFesta/Index', [
             'filters' => [
                 'data_inicio' => $inicio->toDateString(),
                 'data_fim' => $fim->toDateString(),
             ],
+            'associacoes' => AssociacaoParceira::orderBy('ordem')->orderBy('nome')->get(),
+            'divisao' => AssociacaoParceira::divisao($totalReceitas),
+            'linkPartilhado' => $token ? url('/contas-partilhadas/'.$token) : null,
             'custos' => $custos,
             'receitas' => $receitas,
             'movimentos' => $movimentos,

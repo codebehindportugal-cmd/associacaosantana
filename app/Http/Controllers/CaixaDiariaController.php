@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CaixaDiaria;
+use App\Models\Configuracao;
 use App\Models\Pedido;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -76,6 +77,9 @@ class CaixaDiariaController extends Controller
             ]);
         }
 
+        // Decidido antes de guardar, para nao contar a caixa que esta a ser aberta
+        $reporSenhas = $this->primeiraCaixaDeBar($data['ponto']);
+
         $caixa->fill([
             'fundo_maneio' => round((float) $data['fundo_maneio'], 2),
             'estado' => 'aberta',
@@ -87,7 +91,12 @@ class CaixaDiariaController extends Controller
             'fechado_at' => null,
         ])->save();
 
-        return back()->with('success', 'Caixa aberta para '.$data['ponto'].'.');
+        if ($reporSenhas) {
+            $this->reporSenhasBar();
+        }
+
+        return back()->with('success', 'Caixa aberta para '.$data['ponto'].'.'
+            .($reporSenhas ? ' As senhas recomecam no 1.' : ''));
     }
 
     public function fechar(Request $request, CaixaDiaria $caixa): RedirectResponse
@@ -116,6 +125,31 @@ class CaixaDiariaController extends Controller
         return back()->with('success', 'Caixa fechada para '.$caixa->ponto.'.');
     }
 
+    /**
+     * A contagem das senhas e partilhada por todos os pontos de bar, por isso
+     * so recomeca quando se abre o primeiro ponto — abrir o segundo a meio da
+     * noite nao pode repetir numeros que ja andam na mao dos clientes.
+     * O Restaurante trabalha por mesas e nunca mexe nas senhas.
+     */
+    private function primeiraCaixaDeBar(string $ponto): bool
+    {
+        if ($ponto === 'Restaurante') {
+            return false;
+        }
+
+        return ! CaixaDiaria::where('estado', 'aberta')
+            ->where('ponto', '!=', 'Restaurante')
+            ->exists();
+    }
+
+    private function reporSenhasBar(): void
+    {
+        Configuracao::updateOrCreate(
+            ['chave' => 'ultima_senha_bar'],
+            ['valor' => '0', 'descricao' => 'Ultima senha emitida no bar (reposta ao abrir a primeira caixa)']
+        );
+    }
+
     private function vendasDoPonto(CaixaDiaria $caixa): object
     {
         if ($caixa->ponto === 'Restaurante') {
@@ -138,6 +172,6 @@ class CaixaDiariaController extends Controller
 
     private function pontosPadrao(): array
     {
-        return ['Restaurante', 'Cafe', 'Bar 1', 'Bar 2'];
+        return ['Restaurante', 'Cafe', 'Bar 1'];
     }
 }

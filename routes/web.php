@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AluguerController;
+use App\Http\Controllers\AssociacaoParceiraController;
+use App\Http\Controllers\ContasPartilhadasController;
 use App\Http\Controllers\ContasBancariaController;
 use App\Http\Controllers\AluguerOpcaoController;
 use App\Http\Controllers\SalaoController;
@@ -29,6 +31,7 @@ use App\Http\Controllers\PosPainelController;
 use App\Http\Controllers\PosLoginController;
 use App\Http\Controllers\PosReservasController;
 use App\Http\Controllers\PosRestController;
+use App\Http\Controllers\PosTerminalController;
 use App\Http\Controllers\PrecarioController;
 use App\Http\Controllers\ProdutoController;
 use App\Http\Controllers\ProfileController;
@@ -40,6 +43,7 @@ use App\Http\Controllers\SponsorAdminController;
 use App\Http\Controllers\SponsorImageController;
 use App\Http\Controllers\SponsorScreenController;
 use App\Http\Controllers\SponsorshipController;
+use App\Http\Controllers\TalaoConfigController;
 use App\Http\Controllers\SocioController;
 use App\Http\Controllers\ChamadaComissaoController;
 use App\Http\Controllers\ReservaPublicaController;
@@ -57,6 +61,11 @@ Route::get('/politica-de-privacidade', [LegalController::class, 'privacidade'])-
 Route::get('/termos-e-condicoes', [LegalController::class, 'termos'])->name('legal.termos');
 Route::get('/politica-de-cookies', [LegalController::class, 'cookies'])->name('legal.cookies');
 Route::get('/precario', PrecarioController::class)->name('precario');
+
+// Contas partilhadas do evento — acesso read-only por token, sem login
+Route::get('/contas-partilhadas/{token}', ContasPartilhadasController::class)
+    ->middleware('throttle:60,1')
+    ->name('contas-partilhadas');
 
 // Reserva pública — página do cliente para subscrever notificações push
 Route::get('/reserva/{token}', [ReservaPublicaController::class, 'show'])->name('reserva.publica');
@@ -242,15 +251,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('valor-extras', [ValorExtraController::class, 'index'])->name('valor-extras.index');
     Route::post('valor-extras', [ValorExtraController::class, 'store'])->name('valor-extras.store');
     Route::delete('valor-extras/{valorExtra}', [ValorExtraController::class, 'destroy'])->name('valor-extras.destroy');
+    Route::get('talao', [TalaoConfigController::class, 'index'])->name('talao.index');
+    Route::post('talao', [TalaoConfigController::class, 'store'])->name('talao.store');
+    Route::post('talao/produtos', [TalaoConfigController::class, 'produtos'])->name('talao.produtos');
+    Route::patch('talao/{talao}', [TalaoConfigController::class, 'update'])->name('talao.update');
+    Route::delete('talao/{talao}', [TalaoConfigController::class, 'destroy'])->name('talao.destroy');
+    Route::post('talao/{talao}/usar', [TalaoConfigController::class, 'usar'])->name('talao.usar');
+    Route::post('talao/{talao}/teste', [TalaoConfigController::class, 'teste'])->name('talao.teste');
     Route::get('contas-festa', [FestaContaController::class, 'index'])->name('contas-festa.index');
+    Route::post('contas-festa/associacoes', [AssociacaoParceiraController::class, 'store'])->name('contas-festa.associacoes.store');
+    Route::put('contas-festa/associacoes/{associacao}', [AssociacaoParceiraController::class, 'update'])->name('contas-festa.associacoes.update');
+    Route::delete('contas-festa/associacoes/{associacao}', [AssociacaoParceiraController::class, 'destroy'])->name('contas-festa.associacoes.destroy');
+    Route::post('contas-festa/associacoes/igualar', [AssociacaoParceiraController::class, 'igualarPercentagens'])->name('contas-festa.associacoes.igualar');
+    Route::post('contas-festa/link-partilhado', [AssociacaoParceiraController::class, 'gerarLink'])->name('contas-festa.link.gerar');
+    Route::delete('contas-festa/link-partilhado', [AssociacaoParceiraController::class, 'apagarLink'])->name('contas-festa.link.apagar');
     Route::post('contas-festa', [FestaContaController::class, 'store'])->name('contas-festa.store');
     Route::put('contas-festa/{contasFesta}', [FestaContaController::class, 'update'])->name('contas-festa.update');
     Route::delete('contas-festa/{contasFesta}', [FestaContaController::class, 'destroy'])->name('contas-festa.destroy');
     Route::get('impressoras/download-agente', [ImpressoraController::class, 'downloadAgente'])->name('impressoras.download-agente');
     Route::post('impressoras/retentar-falhados', [ImpressoraController::class, 'retentarFalhados'])->name('impressoras.retentar-falhados');
     Route::get('impressoras/status-jobs', [ImpressoraController::class, 'statusJobs'])->name('impressoras.status-jobs');
+    Route::get('impressoras/teste-usb', [ImpressoraController::class, 'testeUsb'])->name('impressoras.teste-usb');
     Route::get('impressoras', [ImpressoraController::class, 'index'])->name('impressoras.index');
     Route::post('impressoras', [ImpressoraController::class, 'store'])->name('impressoras.store');
+    Route::post('impressoras/terminais', [PosTerminalController::class, 'store'])->name('terminais.store');
+    Route::patch('impressoras/terminais/{terminal}', [PosTerminalController::class, 'update'])->name('terminais.update');
+    Route::delete('impressoras/terminais/{terminal}', [PosTerminalController::class, 'destroy'])->name('terminais.destroy');
+    Route::post('impressoras/terminais/{terminal}/impressora', [PosTerminalController::class, 'impressora'])->name('terminais.impressora');
     Route::patch('impressoras/{impressora}', [ImpressoraController::class, 'update'])->name('impressoras.update');
     Route::delete('impressoras/{impressora}', [ImpressoraController::class, 'destroy'])->name('impressoras.destroy');
     Route::get('users', [UserController::class, 'index'])->name('users.index');

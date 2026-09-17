@@ -1,89 +1,188 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { ImpressoraUsb } from '@/escpos';
+import { computed, nextTick, onMounted, ref } from 'vue';
 
-const props = defineProps({ pedido: Object });
-const ticketRef = ref(null);
+const props = defineProps({
+    pedido: Object,
+    // Modelo de talão em uso (Restaurante > Talão)
+    talao: {
+        type: Object,
+        default: () => ({ titulo: 'Associação de Santana', cabecalho: [], rodape: [], instrucoes: [] }),
+    },
+    // Um talão por unidade: { produto, secao, indice, total }
+    taloesCliente: {
+        type: Array,
+        default: () => [],
+    },
+    // Como imprime este posto: agente | webusb | navegador
+    modoImpressao: {
+        type: String,
+        default: 'agente',
+    },
+    // Talões prontos em formato ESC/POS, para o WebUSB
+    taloesEscpos: {
+        type: Array,
+        default: () => [],
+    },
+});
+
+const usb = new ImpressoraUsb();
+const estadoUsb = ref(null);
+const erroUsb = ref(null);
+const aImprimir = ref(false);
+
 const data = () => new Date(props.pedido.created_at).toLocaleString('pt-PT');
 const operador = computed(() => props.pedido.operador_nome ?? props.pedido.user?.name ?? props.pedido.pos?.nome ?? 'Sem operador');
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
-const itemsImpressao = computed(() =>
-    (props.pedido.items || []).flatMap((item) => {
-        const quantidade = Math.max(1, Math.floor(Number(item.quantidade || 1)));
+const senha = computed(() => props.pedido.numero_senha || props.pedido.id);
+const titulo = computed(() => props.talao?.titulo || 'Associação de Santana');
+const cabecalho = computed(() => props.talao?.cabecalho ?? []);
+const rodape = computed(() => props.talao?.rodape ?? []);
+const instrucoes = computed(() => props.talao?.instrucoes ?? []);
+const taloes = computed(() => props.taloesCliente ?? []);
 
-        return Array.from({ length: quantidade }, (_, index) => ({
-            ...item,
-            printKey: `${item.id}-${index}`,
-        }));
-    }),
-);
+const linhasConta = computed(() => (props.pedido.items || []).map((item) => ({
+    id: item.id,
+    nome: item.produto?.nome ?? 'Produto',
+    quantidade: item.quantidade,
+    valor: Number(item.preco_unitario || 0) * Number(item.quantidade || 0),
+})));
 
-const updatePrintPageSize = () => {
-    if (!ticketRef.value) return;
-
-    const heightPx = ticketRef.value.getBoundingClientRect().height;
-    const heightMm = Math.max(35, Math.ceil((heightPx * 25.4) / 96) + 2);
-    let style = document.getElementById('thermal-ticket-page-size');
-
-    if (!style) {
-        style = document.createElement('style');
-        style.id = 'thermal-ticket-page-size';
-        document.head.appendChild(style);
-    }
-
-    style.textContent = `
-        @page { size: 80mm ${heightMm}mm; margin: 0; }
-        @media print {
-            html, body, #app, .thermal-ticket-page {
-                height: ${heightMm}mm !important;
-                min-height: 0 !important;
-                max-height: ${heightMm}mm !important;
-            }
-        }
-    `;
-};
-
-const printTicket = async () => {
+const imprimirHtml = async () => {
     await nextTick();
-    updatePrintPageSize();
     window.print();
 };
 
-onMounted(() => {
-    window.addEventListener('beforeprint', updatePrintPageSize);
-    setTimeout(printTicket, 500);
-});
+/**
+ * Impressão por WebUSB: os mesmos bytes que o agente enviaria, mandados
+ * daqui. É o caminho dos Chromebooks, e o único do browser que corta o papel.
+ */
+const imprimirUsb = async ({ pedirSeNecessario = false } = {}) => {
+    erroUsb.value = null;
+    aImprimir.value = true;
 
-onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageSize));
+    try {
+        if (!usb.ligada && !(await usb.reconectar())) {
+            if (!pedirSeNecessario) {
+                estadoUsb.value = 'por-ligar';
+
+                return;
+            }
+
+            await usb.escolher();
+        }
+
+        for (const payload of props.taloesEscpos) {
+            await usb.imprimir(payload);
+        }
+
+        estadoUsb.value = 'impresso';
+    } catch (e) {
+        if (e?.name === 'NotFoundError') return;
+        erroUsb.value = e?.message || String(e);
+        estadoUsb.value = 'erro';
+    } finally {
+        aImprimir.value = false;
+    }
+};
+
+const imprimir = () => (props.modoImpressao === 'webusb'
+    ? imprimirUsb({ pedirSeNecessario: true })
+    : imprimirHtml());
+
+onMounted(() => {
+    if (props.modoImpressao === 'webusb') {
+        imprimirUsb();
+
+        return;
+    }
+
+    if (props.modoImpressao === 'navegador') {
+        setTimeout(imprimirHtml, 500);
+    }
+
+    // 'agente': quem imprime é o agente local, aqui não se faz nada
+});
 </script>
 
 <template>
-    <main class="thermal-ticket-page min-h-screen bg-slate-100 p-4 text-slate-950 print:min-h-0 print:bg-white print:p-0">
-        <section ref="ticketRef" class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
-            <h1 class="text-center text-lg font-black">Associação de Santana</h1>
-            <div class="text-center font-black">{{ pedido.ponto_bar }}</div>
-            <div class="text-center text-xs font-bold">Operador: {{ operador }}</div>
-            <div class="ticket-token my-4 border-y border-dashed border-slate-400 py-4 text-center">
+    <main class="talao-pagina min-h-screen bg-slate-100 p-4 text-slate-950 print:min-h-0 print:bg-white print:p-0">
+        <!-- Um talão por unidade, cortado, para o cliente entregar na tasquinha -->
+        <section
+            v-for="talaoSeccao in taloes"
+            :key="'t' + talaoSeccao.indice"
+            class="talao mx-auto mb-4 max-w-[300px] bg-white p-4 font-mono shadow print:mb-0 print:shadow-none"
+        >
+            <h1 class="text-center text-lg font-black">{{ titulo }}</h1>
+            <div v-for="linha in cabecalho" :key="'c' + linha" class="text-center text-xs">{{ linha }}</div>
+            <div class="mt-1 text-center font-black">{{ pedido.ponto_bar }}</div>
+
+            <div class="talao-senha my-4 border-y border-dashed border-slate-400 py-4 text-center">
                 <div class="text-xs uppercase">Número da senha</div>
-                <div class="ticket-number text-5xl font-black">#{{ pedido.numero_senha || pedido.id }}</div>
+                <div class="talao-numero text-5xl font-black">#{{ senha }}</div>
             </div>
-            <div class="ticket-items space-y-2 text-lg font-black">
-                <div v-for="item in itemsImpressao" :key="item.printKey" class="flex justify-between gap-2">
-                    <span>{{ item.produto?.nome }}</span>
-                    <span>1 un.</span>
+
+            <div class="text-center text-xl font-black">1x {{ talaoSeccao.produto }}</div>
+            <div class="mt-1 text-center text-lg font-black uppercase">{{ talaoSeccao.secao }}</div>
+
+            <div v-if="talaoSeccao.total > 1" class="mt-3 text-center text-xs font-bold">
+                Talão {{ talaoSeccao.indice }} de {{ talaoSeccao.total }}
+            </div>
+
+            <div v-if="instrucoes.length" class="mt-4 border-t border-dashed border-slate-400 pt-3 text-center text-xs font-bold">
+                <div v-for="linha in instrucoes" :key="'i' + linha">{{ linha }}</div>
+            </div>
+
+            <div class="mt-3 text-center text-[10px]">{{ data() }}</div>
+        </section>
+
+        <!-- Conta: fica com quem está na caixa -->
+        <section class="talao talao-ultimo mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
+            <h1 class="text-center text-lg font-black">{{ titulo }}</h1>
+            <div v-for="linha in cabecalho" :key="'cc' + linha" class="text-center text-xs">{{ linha }}</div>
+            <div class="mt-1 text-center font-black">CONTA</div>
+
+            <div class="mt-2 text-center text-xs font-bold">{{ pedido.ponto_bar }} · Senha #{{ senha }}</div>
+            <div class="text-center text-xs">Operador: {{ operador }}</div>
+
+            <div class="talao-itens mt-4 space-y-1 border-t border-dashed border-slate-400 pt-3 text-sm">
+                <div v-for="linha in linhasConta" :key="linha.id" class="flex justify-between gap-2">
+                    <span>{{ linha.quantidade }}x {{ linha.nome }}</span>
+                    <span>{{ euros(linha.valor) }}</span>
                 </div>
             </div>
-            <div class="ticket-totals mt-4 border-t border-dashed border-slate-400 pt-3 text-sm">
+
+            <div class="talao-totais mt-3 border-t border-dashed border-slate-400 pt-3 text-sm">
                 <div class="flex justify-between"><span>Total</span><strong>{{ euros(pedido.total) }}</strong></div>
                 <div class="flex justify-between"><span>Recebido</span><strong>{{ euros(pedido.valor_recebido) }}</strong></div>
                 <div class="flex justify-between"><span>Troco</span><strong>{{ euros(pedido.troco) }}</strong></div>
                 <div v-if="Number(pedido.doacao || 0) > 0" class="flex justify-between"><span>Doação</span><strong>{{ euros(pedido.doacao) }}</strong></div>
             </div>
-            <div class="ticket-date mt-4 text-center text-xs">{{ data() }}</div>
-            <div class="ticket-thanks mt-3 text-center font-black">Obrigado!</div>
+
+            <div class="mt-4 text-center text-xs">{{ data() }}</div>
+            <div v-if="rodape.length" class="mt-2 text-center text-[10px]">
+                <div v-for="linha in rodape" :key="'r' + linha">{{ linha }}</div>
+            </div>
         </section>
+
+        <div v-if="modoImpressao === 'webusb'" class="no-print mx-auto mt-4 max-w-[300px] print:hidden">
+            <div v-if="estadoUsb === 'impresso'" class="rounded-xl bg-emerald-600 p-3 text-center font-black text-white">
+                Talões impressos
+            </div>
+            <div v-else-if="estadoUsb === 'por-ligar'" class="rounded-xl bg-amber-500 p-3 text-center text-sm font-black text-white">
+                Carrega em Imprimir para autorizar a impressora deste equipamento.
+                É só da primeira vez.
+            </div>
+            <div v-else-if="erroUsb" class="rounded-xl bg-red-600 p-3 text-center text-sm font-black text-white">
+                {{ erroUsb }}
+            </div>
+        </div>
+
         <div class="no-print mx-auto mt-4 flex max-w-[300px] gap-2 print:hidden">
-            <button class="flex-1 rounded-xl bg-slate-900 px-4 py-3 font-black text-white" @click="printTicket">Imprimir</button>
+            <button class="flex-1 rounded-xl bg-slate-900 px-4 py-3 font-black text-white disabled:opacity-50" :disabled="aImprimir" @click="imprimir">
+                {{ aImprimir ? 'A imprimir...' : 'Imprimir' }}
+            </button>
             <Link :href="route('pos.index')" class="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white">Nova Senha</Link>
         </div>
     </main>
@@ -101,8 +200,6 @@ onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageS
     #app {
         width: 80mm;
         min-width: 80mm;
-        height: fit-content !important;
-        min-height: auto !important;
         margin: 0;
         padding: 0;
         background: #fff;
@@ -110,66 +207,51 @@ onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageS
     }
 
     body {
-        display: inline-block;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
-    #app {
-        display: inline-block;
-    }
-
-    .thermal-ticket-page {
-        display: inline-block;
+    .talao-pagina {
         width: 80mm;
-        height: fit-content !important;
-        min-height: auto !important;
         margin: 0;
         padding: 0;
-        break-after: avoid;
-        page-break-after: avoid;
     }
 
-    .thermal-ticket {
+    /* Cada talão é uma página: a impressora corta entre eles */
+    .talao {
         box-sizing: border-box;
         width: 80mm;
         max-width: 80mm;
-        height: fit-content !important;
-        min-height: auto !important;
         margin: 0;
-        padding: 1mm;
+        padding: 2mm 1mm;
         box-shadow: none;
-        break-after: avoid;
-        page-break-after: avoid;
+        break-after: page;
+        page-break-after: always;
     }
 
-    .ticket-number {
+    .talao-ultimo {
+        break-after: auto;
+        page-break-after: auto;
+    }
+
+    .talao-numero {
         line-height: 1;
     }
 
-    .ticket-token {
+    .talao-senha {
         margin-top: 2mm !important;
         margin-bottom: 2mm !important;
         padding-top: 2mm !important;
         padding-bottom: 2mm !important;
     }
 
-    .ticket-items > :not([hidden]) ~ :not([hidden]) {
+    .talao-itens > :not([hidden]) ~ :not([hidden]) {
         margin-top: 1mm !important;
     }
 
-    .ticket-totals {
+    .talao-totais {
         margin-top: 2mm !important;
         padding-top: 1.5mm !important;
-    }
-
-    .ticket-date {
-        margin-top: 2mm !important;
-    }
-
-    .ticket-thanks {
-        margin-top: 1.5mm !important;
-        margin-bottom: 0 !important;
     }
 
     .no-print,

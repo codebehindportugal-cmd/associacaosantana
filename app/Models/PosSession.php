@@ -14,6 +14,8 @@ class PosSession extends Model
         'nome',
         'pin',
         'localizacao',
+        'impressora_id',
+        'impressao_navegador',
         'tipo',
         'ativo',
     ];
@@ -24,8 +26,18 @@ class PosSession extends Model
 
     protected $casts = [
         'ativo' => 'boolean',
+        'impressao_navegador' => 'boolean',
         'ultimo_login_em' => 'datetime',
     ];
+
+    /**
+     * Impressora do posto. Com varios pontos de pre-pagamento, o talao tem de
+     * sair onde a venda foi feita e nao na primeira impressora da seccao.
+     */
+    public function impressora()
+    {
+        return $this->belongsTo(Impressora::class);
+    }
 
     public function setPinAttribute(string $value): void
     {

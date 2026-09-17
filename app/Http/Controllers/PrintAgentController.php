@@ -12,7 +12,15 @@ class PrintAgentController extends Controller
     {
         $this->autorizarAgente($request);
 
+        // Com varios postos, cada agente so leva os trabalhos das suas
+        // impressoras. Um agente sem identificacao leva as que nao estao
+        // atribuidas a nenhum — mantem a instalacao antiga a funcionar.
+        $agente = trim((string) $request->query('agente'));
+
         $jobs = PrintJob::with('impressora')
+            ->whereHas('impressora', fn ($query) => $agente !== ''
+                ? $query->where('agente', $agente)
+                : $query->whereNull('agente'))
             ->where(function ($query) {
                 $query->where('estado', 'pendente')
                     ->orWhere(function ($subQuery) {
@@ -46,8 +54,10 @@ class PrintAgentController extends Controller
                 'payload' => $job->payload,
                 'printer' => [
                     'nome' => $job->impressora->nome,
+                    'tipo' => $job->impressora->tipo ?: 'rede',
                     'host' => $job->impressora->host,
                     'porta' => $job->impressora->porta,
+                    'dispositivo' => $job->impressora->dispositivo,
                     'secao' => $job->impressora->secao,
                 ],
             ])->values(),

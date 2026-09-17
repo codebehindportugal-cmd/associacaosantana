@@ -13,6 +13,7 @@ const props = defineProps({
 });
 
 const agora = ref(new Date());
+const menuAtivo = ref('ver');
 const reservaEmEdicao = ref(null);
 const sentarReservaId = ref(null);
 const pesquisa = ref('');
@@ -156,6 +157,7 @@ const criarReserva = () => {
                 form.data_reserva = props.hoje;
                 form.hora = '20:00';
                 form.pessoas = 2;
+                menuAtivo.value = 'ver';
             },
             onFinish: () => form.transform((dados) => dados),
         });
@@ -313,7 +315,31 @@ onBeforeUnmount(() => {
                 </button>
             </section>
 
-            <div class="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <!-- Tabs de navegação -->
+            <div class="mb-3 grid shrink-0 grid-cols-2 gap-2">
+                <button
+                    class="relative rounded-xl p-3 text-base font-black transition sm:text-lg"
+                    :class="menuAtivo === 'ver' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
+                    @click="menuAtivo = 'ver'"
+                >
+                    📋 VER RESERVAS
+                    <span
+                        v-if="gruposPorSentar"
+                        class="absolute -right-1.5 -top-1.5 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-black text-black"
+                    >{{ gruposPorSentar }}</span>
+                </button>
+                <button
+                    class="rounded-xl p-3 text-base font-black transition sm:text-lg"
+                    :class="menuAtivo === 'nova' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'"
+                    @click="menuAtivo = 'nova'"
+                >
+                    ➕ NOVA RESERVA
+                </button>
+            </div>
+
+            <!-- MENU: VER RESERVAS -->
+            <div v-if="menuAtivo === 'ver'" class="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_380px]">
+                <!-- Reservas de hoje -->
                 <section class="flex min-h-0 flex-col rounded-lg bg-gray-800 p-3 sm:p-4">
                     <div class="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
                         <h2 class="text-lg font-black sm:text-xl">RESERVAS DE HOJE</h2>
@@ -325,7 +351,7 @@ onBeforeUnmount(() => {
                             v-model="pesquisa"
                             type="search"
                             class="w-full rounded-lg border-gray-700 bg-gray-900 p-2.5 font-bold text-white placeholder:text-gray-500"
-                            placeholder="Pesquisar por nome, hora ou º de pessoas..."
+                            placeholder="Pesquisar por nome, hora ou nº de pessoas..."
                         >
                     </div>
 
@@ -385,38 +411,17 @@ onBeforeUnmount(() => {
                                     <span v-else-if="reserva.estado === 'sentada'" class="rounded bg-gray-600 px-1.5 py-0.5 text-gray-300">sem mesa</span>
                                 </div>
                                 <p v-if="reserva.observacoes" class="mt-1.5 rounded bg-gray-800 p-1.5 text-xs font-bold text-gray-200">{{ reserva.observacoes }}</p>
-                                <div v-if="reservaEmEdicao === reserva.id" class="mt-2 space-y-2 max-w-md">
-                                    <input
-                                        v-model="editForm.nome"
-                                        type="text"
-                                        placeholder="Nome"
-                                        class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
-                                    >
+                                <div v-if="reservaEmEdicao === reserva.id" class="mt-2 max-w-md space-y-2">
+                                    <input v-model="editForm.nome" type="text" placeholder="Nome" class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white">
                                     <div class="grid grid-cols-2 gap-2">
-                                        <input
-                                            v-model="editForm.hora"
-                                            type="time"
-                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
-                                        >
-                                        <input
-                                            v-model="editForm.pessoas"
-                                            type="number"
-                                            min="1"
-                                            class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white"
-                                        >
+                                        <input v-model="editForm.hora" type="time" class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white">
+                                        <input v-model="editForm.pessoas" type="number" min="1" class="rounded-lg border-gray-700 bg-gray-950 p-2 font-black text-white">
                                     </div>
-                                    <input
-                                        v-model="editForm.observacoes"
-                                        type="text"
-                                        placeholder="Observações"
-                                        class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-bold text-white"
-                                    >
+                                    <input v-model="editForm.observacoes" type="text" placeholder="Observações" class="w-full rounded-lg border-gray-700 bg-gray-950 p-2 font-bold text-white">
                                 </div>
                                 <div v-if="reservaEmEdicao === reserva.id && Object.keys(editForm.errors).length" class="mt-2 rounded bg-red-700 p-2 text-sm font-bold">
                                     <div v-for="erro in editForm.errors" :key="erro">{{ erro }}</div>
                                 </div>
-
-                                <!-- Formulário de sentar / mudar mesa -->
                                 <div v-if="sentarReservaId === reserva.id" class="mt-2">
                                     <p class="mb-1 text-xs font-bold uppercase text-emerald-400">
                                         {{ reserva.estado === 'sentada' ? `Mudar mesa (atual: ${reserva.mesa_atribuida || '—'})` : 'Nº da mesa' }}
@@ -436,139 +441,94 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div v-if="reservaEmEdicao === reserva.id" class="grid min-w-40 grid-cols-2 gap-1.5 self-start">
-                                <button
-                                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-black disabled:opacity-40"
-                                    :disabled="editForm.processing"
-                                    @click="guardarEdicao(reserva)"
-                                >
-                                    GRAVAR
-                                </button>
-                                <button
-                                    class="rounded-lg bg-gray-700 px-3 py-1.5 text-sm font-black disabled:opacity-40"
-                                    :disabled="editForm.processing"
-                                    @click="cancelarEdicao"
-                                >
-                                    FECHAR
-                                </button>
+                                <button class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-black disabled:opacity-40" :disabled="editForm.processing" @click="guardarEdicao(reserva)">GRAVAR</button>
+                                <button class="rounded-lg bg-gray-700 px-3 py-1.5 text-sm font-black disabled:opacity-40" :disabled="editForm.processing" @click="cancelarEdicao">FECHAR</button>
                             </div>
-
                             <div v-else-if="sentarReservaId === reserva.id" class="grid min-w-40 gap-1.5 self-start">
-                                <button
-                                    class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-black disabled:opacity-40"
-                                    :disabled="sentarForm.processing"
-                                    @click="confirmarSentar(reserva)"
-                                >
-                                    CONFIRMAR
-                                </button>
-                                <button
-                                    class="rounded-lg bg-gray-700 px-3 py-2 text-sm font-black"
-                                    @click="sentarReservaId = null"
-                                >
-                                    CANCELAR
-                                </button>
+                                <button class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-black disabled:opacity-40" :disabled="sentarForm.processing" @click="confirmarSentar(reserva)">CONFIRMAR</button>
+                                <button class="rounded-lg bg-gray-700 px-3 py-2 text-sm font-black" @click="sentarReservaId = null">CANCELAR</button>
                             </div>
-
                             <div v-else class="grid min-w-40 grid-cols-2 gap-1.5 self-start">
-                                <button
-                                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-black disabled:opacity-40"
-                                    :disabled="reserva.estado === 'sentada'"
-                                    @click="editar(reserva)"
-                                >
-                                    EDITAR
-                                </button>
-                                <button
-                                    class="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-black text-gray-950 disabled:opacity-40"
-                                    :disabled="reserva.estado === 'sentada'"
-                                    @click="chamar(reserva)"
-                                >
-                                    CHAMAR
-                                </button>
-                                <button
-                                    class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black"
-                                    @click="abrirSentar(reserva)"
-                                >
-                                    {{ reserva.estado === 'sentada' ? 'MUDAR MESA' : 'SENTADA' }}
-                                </button>
-                                <button
-                                    class="rounded-lg bg-gray-700 px-3 py-1.5 text-sm font-black disabled:opacity-40"
-                                    :disabled="reserva.estado === 'sentada'"
-                                    @click="cancelar(reserva)"
-                                >
-                                    CANCELAR
-                                </button>
-                                <button
-                                    class="col-span-2 rounded-lg bg-red-900/70 px-3 py-1 text-xs font-black text-red-300 hover:bg-red-800"
-                                    @click="eliminar(reserva)"
-                                >
-                                    🗑 ELIMINAR
-                                </button>
+                                <button class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-black disabled:opacity-40" :disabled="reserva.estado === 'sentada'" @click="editar(reserva)">EDITAR</button>
+                                <button class="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-black text-gray-950 disabled:opacity-40" :disabled="reserva.estado === 'sentada'" @click="chamar(reserva)">CHAMAR</button>
+                                <button class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-black" @click="abrirSentar(reserva)">{{ reserva.estado === 'sentada' ? 'MUDAR MESA' : 'SENTADA' }}</button>
+                                <button class="rounded-lg bg-gray-700 px-3 py-1.5 text-sm font-black disabled:opacity-40" :disabled="reserva.estado === 'sentada'" @click="cancelar(reserva)">CANCELAR</button>
+                                <button class="col-span-2 rounded-lg bg-red-900/70 px-3 py-1 text-xs font-black text-red-300 hover:bg-red-800" @click="eliminar(reserva)">🗑 ELIMINAR</button>
                             </div>
                         </article>
                     </div>
                 </section>
 
-                <aside class="flex min-h-0 flex-col gap-3">
-                    <section class="shrink-0 rounded-lg bg-gray-800 p-3 sm:p-4">
-                        <h2 class="mb-3 text-xl font-black">NOVA RESERVA</h2>
-                        <form class="grid gap-2" @submit.prevent="criarReserva">
-                            <input v-model="form.nome" class="rounded-lg border-gray-700 bg-gray-900 p-3 text-lg font-black text-white" placeholder="Nome">
-                            <div class="grid grid-cols-3 gap-2">
-                                <input v-model="form.data_reserva" type="date" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
-                                <input v-model="form.hora" type="time" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
-                                <input v-model="form.pessoas" type="number" min="1" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
-                            </div>
-                            <textarea v-model="form.observacoes" rows="2" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Observações"></textarea>
-                            <div v-if="Object.keys(form.errors).length" class="rounded bg-red-700 p-2 font-bold">
-                                <div v-for="erro in form.errors" :key="erro">{{ erro }}</div>
-                            </div>
-                            <button class="rounded-lg bg-blue-600 p-4 text-lg font-black disabled:opacity-50" :disabled="form.processing">
-                                CRIAR RESERVA
-                            </button>
-                        </form>
-                    </section>
-
-                    <section class="flex min-h-0 flex-1 flex-col rounded-lg bg-gray-800 p-3 sm:p-4">
-                        <h2 class="mb-2 shrink-0 text-lg font-black">PROXIMAS</h2>
-
-                        <div class="mb-2 shrink-0">
-                            <input
-                                v-model="pesquisaProximas"
-                                type="search"
-                                class="w-full rounded-lg border-gray-700 bg-gray-900 p-2 text-sm font-bold text-white placeholder:text-gray-500"
-                                placeholder="Pesquisar..."
-                            >
+                <!-- Próximas reservas -->
+                <aside class="flex min-h-0 flex-col rounded-lg bg-gray-800 p-3 sm:p-4">
+                    <h2 class="mb-2 shrink-0 text-lg font-black">PRÓXIMAS</h2>
+                    <div class="mb-2 shrink-0">
+                        <input
+                            v-model="pesquisaProximas"
+                            type="search"
+                            class="w-full rounded-lg border-gray-700 bg-gray-900 p-2 text-sm font-bold text-white placeholder:text-gray-500"
+                            placeholder="Pesquisar..."
+                        >
+                    </div>
+                    <div class="mb-2 flex shrink-0 flex-wrap gap-1.5">
+                        <button
+                            v-for="opcao in [
+                                { valor: 'todas', rotulo: 'Todas' },
+                                { valor: 'amanha', rotulo: 'Amanhã' },
+                                { valor: 'semana', rotulo: 'Esta semana' },
+                            ]"
+                            :key="opcao.valor"
+                            class="rounded-full px-2.5 py-1 text-xs font-bold transition"
+                            :class="filtroProximas === opcao.valor ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
+                            @click="filtroProximas = opcao.valor"
+                        >
+                            {{ opcao.rotulo }}
+                        </button>
+                    </div>
+                    <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+                        <div v-if="!proximasFiltradas.length" class="rounded-lg bg-gray-900 p-4 text-center text-sm font-bold text-gray-300">
+                            Nenhuma reserva encontrada.
                         </div>
-
-                        <div class="mb-2 flex shrink-0 flex-wrap gap-1.5">
-                            <button
-                                v-for="opcao in [
-                                    { valor: 'todas', rotulo: 'Todas' },
-                                    { valor: 'amanha', rotulo: 'Amanha' },
-                                    { valor: 'semana', rotulo: 'Esta semana' },
-                                ]"
-                                :key="opcao.valor"
-                                class="rounded-full px-2.5 py-1 text-xs font-bold transition"
-                                :class="filtroProximas === opcao.valor ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
-                                @click="filtroProximas = opcao.valor"
-                            >
-                                {{ opcao.rotulo }}
-                            </button>
-                        </div>
-
-                        <div class="min-h-0 flex-1 overflow-y-auto pr-1">
-                            <div v-if="!proximasFiltradas.length" class="rounded-lg bg-gray-900 p-4 text-center text-sm font-bold text-gray-300">
-                                Nenhuma reserva encontrada.
+                        <div v-for="reserva in proximasFiltradas" :key="reserva.id" class="mb-2 rounded-lg bg-gray-900 p-2.5">
+                            <div class="flex items-center justify-between gap-3">
+                                <strong class="truncate text-base">{{ reserva.nome }}</strong>
+                                <span class="font-black text-blue-300">{{ dia(reserva.data) }}</span>
                             </div>
-                            <div v-for="reserva in proximasFiltradas" :key="reserva.id" class="mb-2 rounded-lg bg-gray-900 p-2.5">
-                                <div class="flex items-center justify-between gap-3">
-                                    <strong class="truncate text-base">{{ reserva.nome }}</strong>
-                                    <span class="font-black text-blue-300">{{ dia(reserva.data) }}</span>
-                                </div>
-                                <div class="mt-1 text-sm font-bold text-gray-300">{{ horaReserva(reserva) }} · {{ reserva.pessoas }} pessoas</div>
-                            </div>
+                            <div class="mt-1 text-sm font-bold text-gray-300">{{ horaReserva(reserva) }} · {{ reserva.pessoas }} pessoas</div>
                         </div>
-                    </section>
+                    </div>
                 </aside>
+            </div>
+
+            <!-- MENU: NOVA RESERVA -->
+            <div v-if="menuAtivo === 'nova'" class="flex min-h-0 flex-1 items-start justify-center">
+                <section class="w-full max-w-lg rounded-lg bg-gray-800 p-4 sm:p-6">
+                    <h2 class="mb-4 text-2xl font-black">NOVA RESERVA</h2>
+                    <form class="grid gap-3" @submit.prevent="criarReserva">
+                        <input v-model="form.nome" class="rounded-lg border-gray-700 bg-gray-900 p-3 text-lg font-black text-white" placeholder="Nome *" required>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="mb-1 block text-xs font-bold text-gray-400">DATA</label>
+                                <input v-model="form.data_reserva" type="date" class="w-full rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-bold text-gray-400">HORA</label>
+                                <input v-model="form.hora" type="time" class="w-full rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-bold text-gray-400">PESSOAS</label>
+                                <input v-model="form.pessoas" type="number" min="1" class="w-full rounded-lg border-gray-700 bg-gray-900 p-3 font-black text-white">
+                            </div>
+                        </div>
+                        <textarea v-model="form.observacoes" rows="3" class="rounded-lg border-gray-700 bg-gray-900 p-3 font-bold text-white" placeholder="Observações (opcional)"></textarea>
+                        <div v-if="Object.keys(form.errors).length" class="rounded bg-red-700 p-3 font-bold">
+                            <div v-for="erro in form.errors" :key="erro">{{ erro }}</div>
+                        </div>
+                        <button class="rounded-lg bg-blue-600 p-4 text-xl font-black disabled:opacity-50" :disabled="form.processing">
+                            {{ form.processing ? 'A CRIAR...' : '✅ CRIAR RESERVA' }}
+                        </button>
+                    </form>
+                </section>
             </div>
         </div>
 

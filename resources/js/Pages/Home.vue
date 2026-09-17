@@ -1,10 +1,9 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { useRecaptcha } from '@/composables/useRecaptcha';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import CookieBanner from '@/Components/CookieBanner.vue';
 import SponsorsSlider from '@/Components/SponsorsSlider.vue';
-import SantanaHeroScene from '@/Components/SantanaHeroScene.vue';
 
 const props = defineProps({
     upcomingEvents: Array,
@@ -13,129 +12,71 @@ const props = defineProps({
 });
 
 const associationLogo = '/images/santana-logo.png';
-const santaAnaImage = '/images/santa-ana.png';
+const heroImage = '/images/edificio-entrada.jpg';
+const groupImage = '/images/grupo-recortado.jpg';
 const contactEmail = 'ardcsantana@outlook.com';
 const currentYear = new Date().getFullYear();
 
+// Preencher com os valores reais.
+const stats = { fundada: '19—', socios: '+300', eventos: '20+' };
+
+const fallbackShots = ['/images/edificio-parque.jpg', '/images/edificio-capela.jpg', '/images/edificio-fachada.jpg', heroImage];
+
 const menuOpen = ref(false);
-const selectedEventTab = ref('todos');
-const activeHeroSlide = ref(0);
-const lightboxItem = ref(null);
-const openFaq = ref(null);
 const formSent = ref(false);
+const errors = ref({});
 const form = useForm({ name: '', email: '', phone: '', message: '', recaptcha_token: '' });
 const { obterToken } = useRecaptcha();
-const errors = ref({});
 
 const upcoming = computed(() => props.upcomingEvents ?? []);
-const archived = computed(() => props.pastEvents ?? []);
-const allEvents = computed(() => [...upcoming.value, ...archived.value]);
-const heroEvents = computed(() => {
-    const source = upcoming.value.length ? upcoming.value : allEvents.value;
-    return source.slice(0, 5);
+const allEvents = computed(() => [...(props.upcomingEvents ?? []), ...(props.pastEvents ?? [])]);
+const featured = computed(() => upcoming.value[0] ?? allEvents.value[0] ?? null);
+const gridEvents = computed(() => {
+    const featId = featured.value?.id;
+    const list = upcoming.value.length > 1 ? upcoming.value.slice(1, 4) : allEvents.value.filter((e) => !featId || e.id !== featId).slice(0, 3);
+    return list;
 });
-const activeHeroEvent = computed(() => heroEvents.value[activeHeroSlide.value] ?? null);
-const heroVisual = computed(() => activeHeroEvent.value?.poster || santaAnaImage);
+const temPatrocinios = computed(() => (props.patrocinadores ?? []).length > 0);
 
-let heroTimer;
+const galeria = computed(() => {
+    const fromMedia = allEvents.value.flatMap((e) => (e.media ?? []).filter((m) => m.tipo === 'foto').map((m) => m.caminho));
+    const fromPosters = allEvents.value.filter((e) => e.poster).map((e) => e.poster);
+    const imgs = [...new Set([...fromMedia, ...fromPosters])];
+    const base = imgs.length ? imgs : [];
+    const filled = [...base, groupImage, ...fallbackShots];
+    return [...new Set(filled)].slice(0, 6);
+});
 
 const navLinks = [
-    ['Início', '/'],
-    ['Sobre Nós', route('pages.sobre-nos')],
-    ['Eventos', '#eventos'],
-    ['Patrocínios', route('patrocinios.index')],
-    ['Contacto', '#contactos'],
+    ['A Casa', '#casa'], ['Eventos', '#eventos'], ['Salão', '#salao'],
+    ['Festa', '#festa'], ['Comunidade', '#comunidade'], ['Galeria', '#galeria'], ['Contacto', '#contacto'],
 ];
-
 const pillars = [
-    { icon: '🎭', label: 'Cultura', text: 'Mantemos vivas as tradições, as festas e os momentos que contam a história de Santana.' },
-    { icon: '⚽', label: 'Desporto', text: 'Criamos oportunidades para caminhar, mexer, participar e juntar gerações.' },
-    { icon: '🤝', label: 'Convívio', text: 'A associação é uma casa aberta para sócios, famílias, amigos e visitantes.' },
+    { icon: '🎭', label: 'Cultura', text: 'Festas, tradições e os momentos que contam a história de Santana, de geração em geração.' },
+    { icon: '⚽', label: 'Desporto', text: 'Oportunidades para mexer, caminhar e participar — juntando idades e famílias.' },
+    { icon: '🤝', label: 'Convívio', text: 'O salão e o largo: uma casa aberta a sócios, amigos e visitantes o ano inteiro.' },
 ];
 
-const eventTabs = computed(() => {
-    const badges = [...new Set(allEvents.value.map(e => e.badge).filter(Boolean))];
-    return [
-        { key: 'todos', label: 'Todos' },
-        { key: 'proximos', label: 'Próximos' },
-        { key: 'anteriores', label: 'Anteriores' },
-        ...badges.map(b => ({ key: `badge:${b}`, label: b })),
-    ];
-});
-
-const filteredEvents = computed(() => {
-    if (selectedEventTab.value === 'proximos') return upcoming.value;
-    if (selectedEventTab.value === 'anteriores') return archived.value;
-    if (selectedEventTab.value.startsWith('badge:')) {
-        const badge = selectedEventTab.value.replace('badge:', '');
-        return allEvents.value.filter(e => e.badge === badge);
-    }
-    return allEvents.value;
-});
-
-const featuredEvent = computed(() => filteredEvents.value[0] ?? allEvents.value[0] ?? null);
-
-const galleryItems = computed(() => {
-    const media = allEvents.value
-        .flatMap(e => (e.media ?? []).map(m => ({ ...m, event: e.title, category: e.badge || 'Momentos especiais' })))
-        .filter(m => m.tipo === 'foto');
-    const posters = allEvents.value
-        .filter(e => e.poster)
-        .map(e => ({ tipo: 'foto', caminho: e.poster, titulo: e.title, event: e.date, category: e.badge || 'Comunidade' }));
-    return [...media, ...posters].slice(0, 9);
-});
-
-const faqs = [
-    ['Como posso tornar-me sócio?', 'Preenche o formulário nesta página ou contacta a associação por email, telefone ou redes sociais.'],
-    ['Os eventos são abertos a não sócios?', 'Muitas iniciativas são abertas à comunidade. Quando existir inscrição obrigatória, essa indicação aparece no evento.'],
-    ['Posso ajudar como voluntário?', 'Sim. Toda a ajuda conta: preparação de eventos, apoio no bar, divulgação e novas ideias para a associação.'],
-    ['Onde acompanho novidades?', 'Segue a ARDC Santana no Facebook e Instagram para veres cartazes, fotografias e avisos recentes.'],
-];
-
-const scrollTo = (target) => {
+function scrollTo(target) {
     menuOpen.value = false;
     if (!target.startsWith('#')) { window.location.href = target; return; }
     document.querySelector(target)?.scrollIntoView({ behavior: 'smooth' });
-};
+}
+function eventHref(event) {
+    try { return event && event.id ? route('eventos.public.show', event.id) : '#eventos'; }
+    catch (e) { return '#eventos'; }
+}
+function r(name, fallback) {
+    try { return typeof route === 'function' ? route(name) : fallback; }
+    catch (e) { return fallback; }
+}
+function posterFor(event, i) {
+    return event && event.poster ? event.poster : fallbackShots[i % fallbackShots.length];
+}
 
-const calendarHref = (event) => {
-    const title = encodeURIComponent(event.title);
-    const details = encodeURIComponent(event.description || 'Evento ARDC Santana');
-    const location = encodeURIComponent(event.location || event.subtitle || 'ARDC Santana');
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
-};
+// (revelação por scroll é feita em CSS puro — sem IntersectionObserver)
 
-const eventHref = (event) => route('eventos.public.show', event.id);
-
-const absoluteEventUrl = (event) => {
-    const path = event.id ? eventHref(event) : '#eventos';
-    return new URL(path, window.location.origin).toString();
-};
-
-const copyEventLink = async (event) => {
-    const url = absoluteEventUrl(event);
-    try { await navigator.clipboard.writeText(url); }
-    catch { window.prompt('Copia o link do evento:', url); }
-};
-
-const shareEvent = async (event) => {
-    const url = absoluteEventUrl(event);
-    if (navigator.share) {
-        try { await navigator.share({ title: event.title, text: event.description || 'Evento ARDC Santana', url }); }
-        catch { copyEventLink(event); }
-        return;
-    }
-    copyEventLink(event);
-};
-
-const selectHeroSlide = (index) => {
-    if (!heroEvents.value.length) return;
-    activeHeroSlide.value = (index + heroEvents.value.length) % heroEvents.value.length;
-};
-const nextHeroSlide = () => selectHeroSlide(activeHeroSlide.value + 1);
-const prevHeroSlide = () => selectHeroSlide(activeHeroSlide.value - 1);
-
-const validateForm = async () => {
+async function submitForm() {
     errors.value = {};
     if (!form.name.trim()) errors.value.name = 'Indica o teu nome.';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errors.value.email = 'Indica um email válido.';
@@ -148,647 +89,362 @@ const validateForm = async () => {
         onSuccess: () => { formSent.value = true; form.reset(); },
         onError: () => { errors.value = form.errors; },
     });
-};
+}
 
-onMounted(() => {
-    const items = document.querySelectorAll('.reveal');
-    const observer = new IntersectionObserver(entries => {
-        entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('is-visible'); });
-    }, { threshold: 0.12 });
-    items.forEach(el => observer.observe(el));
-
-    if (heroEvents.value.length > 1) {
-        heroTimer = window.setInterval(nextHeroSlide, 6000);
-    }
-});
-
-onBeforeUnmount(() => window.clearInterval(heroTimer));
 </script>
 
 <template>
     <Head title="ARDC Santana | Associação Recreativa, Desportiva e Cultural">
-        <meta head-key="description" name="description" content="Conhece a ARDC Santana, participa nos nossos eventos, torna-te sócio e ajuda a manter viva a comunidade.">
+        <meta head-key="description" name="description" content="A casa de todos em Santana — recreio, desporto e cultura. Eventos, aluguer do salão, festa e comunidade.">
+        <link head-key="preload-hero" rel="preload" as="image" :href="heroImage" fetchpriority="high">
     </Head>
 
-    <main class="min-h-screen bg-amber-50 text-stone-800 scroll-smooth">
+    <div class="santana">
+        <div class="topbar"><div class="wrap"><span>Santana · Carvalhal Benfeito · Caldas da Rainha</span><span class="hide-sm"><Link :href="r('salao.pre-reserva', '/reserva-salao')"><b>Reserve o salão online</b></Link> · @ardcsantana</span></div></div>
 
-        <!-- NAV -->
-        <header class="fixed inset-x-0 top-0 z-50 border-b border-amber-200/80 bg-amber-50/95 backdrop-blur-xl">
-            <nav class="mx-auto flex max-w-7xl items-center justify-between px-5 py-3.5 lg:px-8">
-                <Link href="/" class="flex items-center gap-3">
-                    <img :src="associationLogo" alt="Logo ARDC Santana" class="h-10 w-10 rounded-full object-contain bg-white border border-amber-200 p-1">
-                    <span class="font-display text-base font-semibold tracking-wide text-stone-800">ARDC Santana</span>
-                </Link>
-
-                <div class="hidden items-center gap-0.5 md:flex">
-                    <button
-                        v-for="link in navLinks"
-                        :key="link[0]"
-                        type="button"
-                        class="rounded-md px-3.5 py-2 text-sm font-medium text-stone-600 transition hover:text-stone-900 hover:bg-amber-100"
-                        @click="scrollTo(link[1])"
-                    >
-                        {{ link[0] }}
-                    </button>
-                </div>
-
-                <a :href="`mailto:${contactEmail}`" class="hidden lg:inline-flex items-center gap-2 rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700">
-                    Contactar
+        <header class="nav">
+            <div class="wrap nav-inner">
+                <a class="brand" href="#inicio" @click.prevent="scrollTo('#inicio')">
+                    <img :src="associationLogo" alt="ARDC Santana" />
+                    <span><b>ARDC Santana</b><small>Recreio · Desporto · Cultura</small></span>
                 </a>
-
-                <button type="button" class="grid h-10 w-10 place-items-center rounded-md text-stone-600 hover:bg-amber-100 md:hidden" aria-label="Abrir menu" @click="menuOpen = !menuOpen">
-                    <span class="hamburger" :class="{ open: menuOpen }" />
-                </button>
-            </nav>
-
-            <Transition name="menu-slide">
-                <div v-if="menuOpen" class="border-t border-amber-200 bg-amber-50 px-5 py-3 md:hidden">
-                    <button
-                        v-for="link in navLinks"
-                        :key="link[0]"
-                        type="button"
-                        class="block w-full rounded-md px-3 py-2.5 text-left text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-amber-100"
-                        @click="scrollTo(link[1])"
-                    >
-                        {{ link[0] }}
-                    </button>
+                <nav class="menu">
+                    <a v-for="link in navLinks" :key="link[0]" :href="link[1]" @click.prevent="scrollTo(link[1])">{{ link[0] }}</a>
+                    <Link class="btn btn-primary btn-sm" :href="r('salao.pre-reserva', '/reserva-salao')">Reservar salão</Link>
+                    <Link class="btn btn-green btn-sm" :href="r('patrocinios.index', '/patrocinios')">Ser sócio</Link>
+                </nav>
+                <button class="burger" aria-label="Menu" @click="menuOpen = !menuOpen"><span :class="{ open: menuOpen }"></span></button>
+            </div>
+            <Transition name="drop">
+                <div v-if="menuOpen" class="mobile-menu">
+                    <a v-for="link in navLinks" :key="link[0]" :href="link[1]" @click.prevent="scrollTo(link[1])">{{ link[0] }}</a>
+                    <Link class="btn btn-primary" :href="r('salao.pre-reserva', '/reserva-salao')">Reservar o salão</Link>
+                    <Link class="btn btn-green" :href="r('patrocinios.index', '/patrocinios')">Ser sócio</Link>
                 </div>
             </Transition>
         </header>
 
         <!-- HERO -->
-        <section class="relative isolate flex min-h-screen flex-col justify-end overflow-hidden pt-20 bg-gray-950">
-            <!-- 3D scene background -->
-            <div class="absolute inset-0 -z-30">
-                <SantanaHeroScene />
-            </div>
-            <!-- Event image at reduced opacity so 3D shows through -->
-            <Transition name="hero-fade" mode="out-in">
-                <img
-                    :key="heroVisual"
-                    :src="heroVisual"
-                    alt=""
-                    class="absolute inset-0 -z-20 h-full w-full object-cover opacity-25"
-                >
-            </Transition>
-            <!-- Gradiente quente dourado -->
-            <div class="absolute inset-0 -z-10 bg-gradient-to-t from-stone-900/95 via-stone-800/40 to-transparent" />
-            <div class="absolute inset-0 -z-10 bg-gradient-to-r from-stone-900/70 via-stone-900/15 to-transparent" />
-
-            <div class="mx-auto w-full max-w-7xl px-5 pb-16 lg:px-8">
-                <div class="reveal max-w-3xl">
-                    <p class="eyebrow-hero">
-                        {{ activeHeroEvent?.badge || 'Associação Recreativa, Desportiva e Cultural' }}
-                    </p>
-                    <h1 class="font-display mt-4 text-5xl font-bold leading-[1.07] text-white sm:text-6xl lg:text-7xl">
-                        {{ activeHeroEvent?.title || 'ARDC Santana' }}
-                    </h1>
-                    <p class="mt-5 max-w-xl text-lg leading-relaxed text-stone-200">
-                        {{ activeHeroEvent?.description || 'Cultura, desporto e comunidade numa casa viva, feita por pessoas e para pessoas.' }}
-                    </p>
-                    <p v-if="activeHeroEvent?.date" class="mt-2 text-sm font-semibold text-amber-300">
-                        {{ activeHeroEvent.date }} · {{ activeHeroEvent.location || activeHeroEvent.subtitle }}
-                    </p>
-
-                    <div class="mt-8 flex flex-wrap gap-3">
-                        <Link
-                            v-if="activeHeroEvent?.id"
-                            :href="eventHref(activeHeroEvent)"
-                            class="rounded-md bg-amber-500 px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-amber-600"
-                        >
-                            Ver evento
-                        </Link>
-                        <button type="button" class="rounded-md bg-amber-500 px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-amber-600" @click="scrollTo('#eventos')">
-                            Ver próximos eventos
-                        </button>
-                        <button type="button" class="rounded-md border border-white/30 bg-white/15 px-6 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/25" @click="scrollTo('#socios')">
-                            Tornar-me sócio
-                        </button>
-                    </div>
+        <section class="hero" id="inicio">
+            <div class="hero-img" :style="{ backgroundImage: `url(${heroImage})` }"></div>
+            <div class="hero-orn" aria-hidden="true"></div>
+            <div class="wrap"><div class="hero-inner">
+                <p class="eyebrow light">Desde sempre, a casa da aldeia</p>
+                <h1>O coração <span class="italic">de Santana</span></h1>
+                <p class="lead">Recreio, desporto e cultura numa casa aberta a sócios, famílias e visitantes — onde a aldeia se encontra, festeja e cuida das suas tradições.</p>
+                <div class="hero-cta">
+                    <a class="btn btn-primary" href="#eventos" @click.prevent="scrollTo('#eventos')">Ver eventos →</a>
+                    <Link class="btn btn-ghost" :href="r('salao.pre-reserva', '/reserva-salao')">Reservar o salão</Link>
                 </div>
-
-                <div v-if="heroEvents.length > 1" class="mt-10 flex items-center gap-4">
-                    <button type="button" class="hero-arrow" aria-label="Anterior" @click="prevHeroSlide">‹</button>
-                    <div class="flex gap-2">
-                        <button
-                            v-for="(_, i) in heroEvents"
-                            :key="i"
-                            type="button"
-                            class="hero-dot"
-                            :class="{ active: activeHeroSlide === i }"
-                            @click="selectHeroSlide(i)"
-                        />
-                    </div>
-                    <button type="button" class="hero-arrow" aria-label="Seguinte" @click="nextHeroSlide">›</button>
-                    <span class="ml-2 text-xs font-medium text-white/50">{{ activeHeroSlide + 1 }} / {{ heroEvents.length }}</span>
-                </div>
-            </div>
+            </div></div>
+            <div class="infocard"><div class="wrap"><div class="inner">
+                <div class="cell"><div class="k">Próximo evento</div><div class="v">{{ featured ? featured.title : 'Em breve' }}<small>{{ featured && featured.date ? featured.date : 'Segue @ardcsantana' }}</small></div></div>
+                <div class="cell"><div class="k">Onde estamos</div><div class="v">Santana<small>Carvalhal Benfeito</small></div></div>
+                <Link class="cell" :href="r('salao.pre-reserva', '/reserva-salao')"><div class="k">Aluguer do salão</div><div class="v">Reservar →<small>pedido de pré-reserva online</small></div></Link>
+            </div></div></div>
         </section>
 
-        <!-- SOBRE -->
-        <section id="sobre" class="py-24 bg-amber-50">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal mb-14 text-center">
-                    <p class="eyebrow">Sobre nós</p>
-                    <h2 class="section-title mt-3">Uma casa local com memória,<br>agenda e futuro.</h2>
-                    <p class="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-stone-500">
-                        A ARDC Santana é uma associação recreativa, desportiva e cultural. Nasceu da vontade de criar um ponto de encontro para a terra e continua a ser uma casa aberta para sócios, vizinhos, famílias e amigos.
-                    </p>
-                </div>
-
-                <div class="grid gap-6 md:grid-cols-3">
-                    <article v-for="pillar in pillars" :key="pillar.label" class="reveal pillar-card">
-                        <span class="text-3xl">{{ pillar.icon }}</span>
-                        <h3 class="mt-4 text-xl font-bold text-stone-800">{{ pillar.label }}</h3>
-                        <p class="mt-2 leading-relaxed text-stone-500">{{ pillar.text }}</p>
-                    </article>
-                </div>
-
-                <div class="reveal mt-12 flex flex-wrap items-center gap-8 border-t border-amber-200 pt-10">
-                    <div class="kpi">
-                        <span class="kpi__value">1991</span>
-                        <span class="kpi__label">Fundação</span>
-                    </div>
-                    <div class="h-10 w-px bg-amber-200" />
-                    <div class="kpi">
-                        <span class="kpi__value">{{ upcoming.length }}</span>
-                        <span class="kpi__label">Próximos eventos</span>
-                    </div>
-                    <div class="h-10 w-px bg-amber-200" />
-                    <div class="kpi">
-                        <span class="kpi__value">{{ allEvents.length }}</span>
-                        <span class="kpi__label">Eventos publicados</span>
-                    </div>
-                    <div class="ml-auto">
-                        <Link :href="route('pages.sobre-nos')" class="text-sm font-semibold text-amber-700 hover:text-amber-900 transition">
-                            Conhecer a associação →
-                        </Link>
-                    </div>
-                </div>
+        <!-- A CASA -->
+        <section class="section" id="casa"><div class="wrap">
+            <div class="sec-head reveal"><p class="eyebrow">A nossa casa</p><h2>Um lugar para viver a aldeia</h2><p class="desc">Três valências, uma só casa. É aqui que a comunidade se junta o ano inteiro.</p></div>
+            <div class="grid3">
+                <div v-for="p in pillars" :key="p.label" class="pcard reveal"><div class="strip"></div><div class="body"><div class="ic">{{ p.icon }}</div><h3>{{ p.label }}</h3><p>{{ p.text }}</p></div></div>
             </div>
-        </section>
-
-        <!-- DIVISOR DOURADO -->
-        <div class="gold-divider" />
+        </div></section>
 
         <!-- EVENTOS -->
-        <section id="eventos" class="py-24 bg-white">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal mb-10">
-                    <p class="eyebrow">Agenda</p>
-                    <h2 class="section-title mt-3">Eventos, memórias<br>e próximos encontros.</h2>
-                </div>
-
-                <div v-if="eventTabs.length" class="mb-8 overflow-x-auto">
-                    <div class="inline-flex gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-1.5">
-                        <button
-                            v-for="tab in eventTabs"
-                            :key="tab.key"
-                            type="button"
-                            class="shrink-0 rounded-md px-4 py-2 text-sm font-semibold transition"
-                            :class="selectedEventTab === tab.key
-                                ? 'bg-amber-600 text-white shadow-sm'
-                                : 'text-stone-600 hover:text-stone-900 hover:bg-amber-100'"
-                            @click="selectedEventTab = tab.key"
-                        >
-                            {{ tab.label }}
-                        </button>
-                    </div>
-                </div>
-
-                <div v-if="filteredEvents.length" class="grid gap-6 xl:grid-cols-[1fr_1.4fr]">
-                    <!-- Featured -->
-                    <article v-if="featuredEvent" class="reveal event-card-featured">
-                        <div class="relative overflow-hidden">
-                            <img :src="featuredEvent.poster || associationLogo" :alt="featuredEvent.title" class="aspect-video w-full object-cover">
-                            <div class="absolute inset-0 bg-gradient-to-t from-stone-900/70 to-transparent" />
-                            <span class="absolute left-4 top-4 rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-white shadow">
-                                {{ featuredEvent.badge || 'Destaque' }}
-                            </span>
-                        </div>
-                        <div class="p-6">
-                            <p class="text-sm font-semibold text-amber-700">{{ featuredEvent.date }} · {{ featuredEvent.location || featuredEvent.subtitle }}</p>
-                            <h3 class="mt-2 text-2xl font-bold text-stone-800 leading-tight">{{ featuredEvent.title }}</h3>
-                            <p class="mt-3 leading-relaxed text-stone-500 line-clamp-3">{{ featuredEvent.description || 'Mais informações em breve.' }}</p>
-                            <div class="mt-6 flex flex-wrap gap-2">
-                                <Link v-if="featuredEvent.id" :href="eventHref(featuredEvent)" class="rounded-md bg-amber-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-amber-700 transition shadow-sm">
-                                    Ver detalhes
-                                </Link>
-                                <a :href="calendarHref(featuredEvent)" target="_blank" rel="noreferrer" class="rounded-md border border-amber-200 px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-amber-50 transition">
-                                    Calendário
-                                </a>
-                                <button type="button" class="rounded-md border border-amber-200 px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-amber-50 transition" @click="shareEvent(featuredEvent)">
-                                    Partilhar
-                                </button>
-                            </div>
-                        </div>
-                    </article>
-
-                    <!-- List -->
-                    <div class="grid content-start gap-3">
-                        <article
-                            v-for="event in filteredEvents"
-                            :key="event.id || event.title"
-                            class="reveal event-card-row"
-                        >
-                            <img :src="event.poster || associationLogo" :alt="event.title" class="h-24 w-24 shrink-0 rounded-md object-cover sm:h-28 sm:w-28">
-                            <div class="flex min-w-0 flex-col justify-between gap-2 py-1">
-                                <div>
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">{{ event.badge || 'Evento' }}</span>
-                                        <span class="text-xs text-stone-400">{{ event.date }}</span>
-                                    </div>
-                                    <h3 class="mt-1.5 text-base font-bold text-stone-800 leading-snug">{{ event.title }}</h3>
-                                    <p class="mt-0.5 text-sm text-stone-400">{{ event.location || event.subtitle }}</p>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <Link v-if="event.id" :href="eventHref(event)" class="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 transition">
-                                        Saber mais
-                                    </Link>
-                                    <button type="button" class="rounded-md border border-amber-200 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:bg-amber-50 transition" @click="copyEventLink(event)">
-                                        Copiar link
-                                    </button>
-                                </div>
-                            </div>
-                        </article>
-                    </div>
-                </div>
-
-                <div v-else class="reveal rounded-lg border border-dashed border-amber-300 bg-amber-50 p-12 text-center">
-                    <p class="text-lg font-bold text-stone-800">Sem eventos nesta seleção.</p>
-                    <button type="button" class="mt-4 rounded-md bg-amber-600 px-4 py-2.5 text-sm font-bold text-white" @click="selectedEventTab = 'todos'">
-                        Ver todos
-                    </button>
-                </div>
+        <section class="section feat-ev" id="eventos"><div class="wrap">
+            <div class="sec-head reveal"><p class="eyebrow">Em destaque</p><h2>Próximos eventos</h2></div>
+            <a v-if="featured" class="fe reveal" :href="eventHref(featured)">
+                <div class="fe-img" :style="{ backgroundImage: `url(${featured.poster || groupImage})` }"><span v-if="featured.date" class="ribbon">{{ featured.date }}</span></div>
+                <div class="fe-body"><span class="badge">{{ featured.badge || 'Evento' }}</span><h3>{{ featured.title }}</h3><p>{{ featured.description || featured.subtitle || 'Junta-te a nós na próxima iniciativa da associação.' }}</p><span class="btn btn-primary">Ver evento →</span></div>
+            </a>
+            <div v-if="gridEvents.length" class="ev-grid">
+                <a v-for="(event, i) in gridEvents" :key="event.id || event.title" class="ev reveal" :href="eventHref(event)">
+                    <div class="poster" :style="{ backgroundImage: `url(${posterFor(event, i)})` }"><span v-if="event.date" class="rib">{{ event.date }}</span></div>
+                    <div class="b"><span class="bd">{{ event.badge || 'Evento' }}</span><h3>{{ event.title }}</h3><p v-if="event.location || event.subtitle">{{ event.location || event.subtitle }}</p><span class="more">Saber mais →</span></div>
+                </a>
             </div>
-        </section>
+            <p v-if="!featured" class="empty">Novos eventos em breve. Segue-nos em <b>@ardcsantana</b>.</p>
+        </div></section>
 
-        <!-- DIVISOR DOURADO -->
-        <div class="gold-divider" />
-
-        <!-- SÓCIOS + CONTACTO -->
-        <section id="socios" class="py-24 bg-amber-50">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="grid gap-12 lg:grid-cols-2 lg:items-start">
-                    <div class="reveal">
-                        <p class="eyebrow">Torna-te sócio</p>
-                        <h2 class="section-title mt-3">Faz parte<br>da associação.</h2>
-                        <p class="mt-5 text-lg leading-relaxed text-stone-500">
-                            Ser sócio é participar, apoiar a manutenção da associação e ajudar a manter viva esta casa comunitária. Toda a contribuição faz diferença.
-                        </p>
-                        <ul class="mt-8 space-y-3">
-                            <li v-for="item in ['Participar em eventos', 'Tornar-se sócio', 'Voluntariado', 'Apoio a iniciativas', 'Partilhar nas redes sociais']" :key="item" class="flex items-center gap-3 text-stone-600">
-                                <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                                {{ item }}
-                            </li>
-                        </ul>
-                        <div class="mt-8 flex flex-wrap gap-3">
-                            <a href="https://www.facebook.com/ardcsantana" target="_blank" rel="noreferrer" class="rounded-md border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-amber-100 transition shadow-sm">Facebook</a>
-                            <a href="https://www.instagram.com/ardcsantana/" target="_blank" rel="noreferrer" class="rounded-md border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-amber-100 transition shadow-sm">Instagram</a>
-                        </div>
-                    </div>
-
-                    <form class="reveal rounded-xl border border-amber-200 bg-white p-8 shadow-md" novalidate @submit.prevent="validateForm">
-                        <h3 class="text-xl font-bold text-stone-800">Contacta-nos</h3>
-                        <p class="mt-1 text-sm text-stone-500">Responderemos o mais brevemente possível.</p>
-                        <div class="mt-6 grid gap-4 sm:grid-cols-2">
-                            <label class="field">
-                                <span>Nome</span>
-                                <input v-model="form.name" type="text" autocomplete="name">
-                                <span v-if="errors.name" class="error">{{ errors.name }}</span>
-                            </label>
-                            <label class="field">
-                                <span>Email</span>
-                                <input v-model="form.email" type="email" autocomplete="email">
-                                <span v-if="errors.email" class="error">{{ errors.email }}</span>
-                            </label>
-                            <label class="field sm:col-span-2">
-                                <span>Telefone</span>
-                                <input v-model="form.phone" type="tel" autocomplete="tel">
-                                <span v-if="errors.phone" class="error">{{ errors.phone }}</span>
-                            </label>
-                            <label class="field sm:col-span-2">
-                                <span>Mensagem</span>
-                                <textarea v-model="form.message" rows="4" />
-                                <span v-if="errors.message" class="error">{{ errors.message }}</span>
-                            </label>
-                        </div>
-                        <button type="submit" class="mt-5 w-full rounded-md bg-amber-600 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-50" :disabled="form.processing">
-                            {{ form.processing ? 'A enviar...' : 'Enviar mensagem' }}
-                        </button>
-                        <p v-if="formSent" class="mt-3 rounded-md bg-emerald-50 border border-emerald-200 p-3 text-sm font-medium text-emerald-800">
-                            Obrigado. A tua mensagem foi recebida.
-                        </p>
-                    </form>
-                </div>
+        <!-- SALÃO + BAR -->
+        <section class="section" id="salao"><div class="wrap">
+            <div class="sec-head reveal"><p class="eyebrow">Os nossos espaços</p><h2>Feitos para receber</h2></div>
+            <div class="feat">
+                <div class="fbox salao reveal"><img :src="heroImage" alt="" loading="lazy" decoding="async" style="object-position:left center" /><div class="ov"></div><div class="inner"><p class="eyebrow light">O salão</p><h3>Reserve o salão</h3><p>Casamentos, batizados, aniversários e convívios. Um espaço amplo, no coração da aldeia, pronto a receber a sua festa.</p><Link class="btn btn-primary" :href="r('salao.pre-reserva', '/reserva-salao')">Pedir pré-reserva</Link></div></div>
+                <div class="fbox bar reveal" id="festa"><img :src="heroImage" alt="" loading="lazy" decoding="async" style="object-position:right center" /><div class="ov"></div><div class="inner"><p class="eyebrow light">Festa de Santana</p><h3>Os dias da festa</h3><p>Durante a festa, o restaurante e o bar da associação servem a aldeia e quem nos visita. Consulte os preços praticados na festa.</p><Link class="btn btn-primary" :href="r('precario', '/precario')">Ver preçário da festa</Link></div></div>
             </div>
-        </section>
+        </div></section>
+
+        <div class="scallop up"></div>
+        <section class="quote"><div class="tx"></div><div class="wrap"><blockquote>“A casa de todos nós.”</blockquote><div class="who">O espírito da ARDC Santana</div></div></section>
+        <div class="scallop"></div>
+
+        <!-- COMUNIDADE -->
+        <section class="section" id="comunidade"><div class="wrap"><div class="commu">
+            <div class="frame reveal"><img :src="groupImage" alt="Sócios da ARDC Santana" loading="lazy" decoding="async" /></div>
+            <div class="reveal"><p class="eyebrow">A comunidade</p><h2>Feita por gente da terra</h2><p>A Associação Recreativa, Desportiva e Cultural de Santana nasceu do desejo de ter um sítio nosso — para conviver, festejar e cuidar das tradições. Hoje continua a ser isso mesmo: a casa de todos.</p>
+                <div class="stats"><div class="stat"><b>{{ stats.fundada }}</b><span>Fundada em</span></div><div class="stat"><b>{{ stats.socios }}</b><span>Sócios</span></div><div class="stat"><b>{{ stats.eventos }}</b><span>Eventos por ano</span></div></div>
+            </div>
+        </div></div></section>
 
         <!-- GALERIA -->
-        <section id="galeria" class="py-24 bg-white border-t border-amber-100">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="reveal mb-10 text-center">
-                    <p class="eyebrow">Galeria</p>
-                    <h2 class="section-title mt-3">Momentos especiais.</h2>
-                </div>
-
-                <div v-if="galleryItems.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <button
-                        v-for="item in galleryItems"
-                        :key="`${item.caminho}-${item.titulo}`"
-                        type="button"
-                        class="group relative overflow-hidden rounded-xl shadow-sm"
-                        @click="lightboxItem = item"
-                    >
-                        <img :src="item.caminho" :alt="item.titulo || item.event" class="aspect-[4/3] w-full object-cover transition duration-500 group-hover:scale-105">
-                        <div class="absolute inset-0 bg-amber-900/0 transition duration-300 group-hover:bg-amber-900/40" />
-                        <div class="absolute inset-0 flex items-end p-4 opacity-0 transition group-hover:opacity-100">
-                            <p class="text-sm font-semibold text-white drop-shadow">{{ item.titulo || item.event }}</p>
-                        </div>
-                    </button>
-                </div>
-                <div v-else class="rounded-xl border border-dashed border-amber-200 bg-amber-50 p-12 text-center">
-                    <p class="text-stone-500">Ainda não há fotografias publicadas.</p>
-                </div>
+        <section class="section spon" id="galeria"><div class="wrap">
+            <div class="sec-head center reveal"><p class="eyebrow center">Momentos</p><h2>A vida da associação</h2></div>
+            <div class="gal">
+                <div v-for="(img, i) in galeria" :key="i" class="tile-img reveal" :style="{ backgroundImage: `url(${img})` }"></div>
             </div>
-        </section>
+        </div></section>
 
-        <!-- FAQ -->
-        <section class="py-24 bg-amber-50 border-t border-amber-100">
-            <div class="mx-auto max-w-3xl px-5 lg:px-8">
-                <div class="reveal mb-10 text-center">
-                    <p class="eyebrow">FAQ</p>
-                    <h2 class="section-title mt-3">Perguntas frequentes.</h2>
-                </div>
-                <div class="space-y-2">
-                    <article v-for="(faq, index) in faqs" :key="faq[0]" class="reveal overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
-                        <button type="button" class="flex w-full items-center justify-between gap-4 px-6 py-5 text-left font-semibold text-stone-800 hover:bg-amber-50 transition" @click="openFaq = openFaq === index ? null : index">
-                            {{ faq[0] }}
-                            <span class="shrink-0 text-amber-600 text-xl font-bold leading-none">{{ openFaq === index ? '−' : '+' }}</span>
-                        </button>
-                        <Transition name="faq">
-                            <p v-if="openFaq === index" class="border-t border-amber-100 px-6 py-5 leading-relaxed text-stone-500">{{ faq[1] }}</p>
-                        </Transition>
-                    </article>
-                </div>
-            </div>
-        </section>
-
-        <!-- CONTACTOS -->
-        <section id="contactos" class="py-24 bg-white border-t border-amber-100">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="grid gap-10 lg:grid-cols-[1fr_1.5fr] lg:items-start">
-                    <div class="reveal">
-                        <p class="eyebrow">Contactos</p>
-                        <h2 class="section-title mt-3">Fala connosco.</h2>
-                        <div class="mt-8 space-y-4 text-stone-500">
-                            <p class="font-medium text-stone-700">Santana, Carvalhal Benfeito<br>Caldas da Rainha</p>
-                            <p>
-                                <a :href="`mailto:${contactEmail}`" class="font-semibold text-amber-700 hover:text-amber-900 transition">{{ contactEmail }}</a>
-                            </p>
-                        </div>
-                        <div class="mt-8 flex flex-wrap gap-3">
-                            <a href="https://www.facebook.com/ardcsantana" target="_blank" rel="noreferrer" class="rounded-md border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-amber-50 transition shadow-sm">Facebook</a>
-                            <a href="https://www.instagram.com/ardcsantana/" target="_blank" rel="noreferrer" class="rounded-md border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 hover:bg-amber-50 transition shadow-sm">Instagram</a>
-                        </div>
-                    </div>
-
-                    <div class="reveal overflow-hidden rounded-xl border border-amber-200 shadow-md">
-                        <iframe
-                            title="Localização da ARDC Santana"
-                            class="h-[400px] w-full"
-                            loading="lazy"
-                            src="https://www.openstreetmap.org/export/embed.html?bbox=-9.075%2C39.448%2C-9.049%2C39.462&layer=mapnik&marker=39.455031%2C-9.062453"
-                        />
-                    </div>
-                </div>
-            </div>
-        </section>
+        <!-- SÓCIO -->
+        <section class="join"><div class="wrap"><p class="eyebrow center join-eb">Faça parte</p><h2>Torne-se sócio da associação</h2><p>Apoie as festas, o desporto e a cultura da aldeia — e faça parte da casa de todos.</p><Link class="btn btn-green" :href="r('patrocinios.index', '/patrocinios')">Quero ser sócio</Link></div></section>
 
         <!-- PATROCINADORES -->
-        <SponsorsSlider :patrocinadores="props.patrocinadores || []" />
+        <section v-if="temPatrocinios" class="section"><div class="wrap" style="text-align:center">
+            <p class="eyebrow center">Quem nos apoia</p><h2 style="color:var(--green);margin-top:.3rem">Patrocinadores</h2>
+            <div style="margin-top:30px"><SponsorsSlider :patrocinadores="patrocinadores" /></div>
+        </div></section>
+
+        <!-- CONTACTO -->
+        <section class="section contact-sec" id="contacto"><div class="wrap"><div class="contact-grid">
+            <div class="reveal">
+                <p class="eyebrow">Fale connosco</p><h2>Contacto</h2>
+                <p class="ct-lead">Dúvidas, sugestões ou quer participar? Deixe uma mensagem — respondemos com gosto.</p>
+                <ul class="ct-list">
+                    <li><span>📍</span> Santana, Carvalhal Benfeito, Caldas da Rainha</li>
+                    <li><span>✉️</span> <a :href="`mailto:${contactEmail}`">{{ contactEmail }}</a></li>
+                    <li><span>📱</span> Facebook e Instagram: @ardcsantana</li>
+                </ul>
+                <div class="hours">
+                    <span class="hours-t">Reservas do salão</span>
+                    <p class="hours-p">Para alugar o salão (casamentos, batizados, aniversários, convívios), faça o pedido de pré-reserva online — a associação confirma a disponibilidade.</p>
+                    <Link class="btn btn-primary btn-sm" :href="r('salao.pre-reserva', '/reserva-salao')">Pedir pré-reserva do salão →</Link>
+                </div>
+            </div>
+            <div class="ct-card reveal">
+                <div v-if="formSent" class="ct-sent"><div class="ct-sent-ic">✓</div><h3>Mensagem enviada</h3><p>Obrigado pelo contacto. Respondemos assim que possível.</p></div>
+                <form v-else @submit.prevent="submitForm" novalidate>
+                    <div class="field"><label>Nome</label><input v-model="form.name" type="text" placeholder="O seu nome" /><small v-if="errors.name">{{ errors.name }}</small></div>
+                    <div class="field-row">
+                        <div class="field"><label>Email</label><input v-model="form.email" type="email" placeholder="email@exemplo.pt" /><small v-if="errors.email">{{ errors.email }}</small></div>
+                        <div class="field"><label>Telefone</label><input v-model="form.phone" type="tel" placeholder="9xx xxx xxx" /><small v-if="errors.phone">{{ errors.phone }}</small></div>
+                    </div>
+                    <div class="field"><label>Mensagem</label><textarea v-model="form.message" rows="4" placeholder="Como podemos ajudar?"></textarea><small v-if="errors.message">{{ errors.message }}</small></div>
+                    <button type="submit" class="btn btn-green" :disabled="form.processing">{{ form.processing ? 'A enviar…' : 'Enviar mensagem' }}</button>
+                </form>
+            </div>
+        </div></div></section>
 
         <!-- FOOTER -->
-        <footer class="border-t border-amber-200 bg-stone-800 py-10 text-stone-300">
-            <div class="mx-auto max-w-7xl px-5 lg:px-8">
-                <div class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex items-center gap-3">
-                        <img :src="associationLogo" alt="" class="h-9 w-9 rounded-full object-contain bg-stone-700 border border-amber-700/40 p-1">
-                        <span class="font-semibold text-white">ARDC Santana</span>
-                    </div>
-                    <div class="flex flex-wrap gap-4 text-sm text-stone-400">
-                        <button v-for="link in navLinks" :key="link[0]" type="button" class="hover:text-amber-300 transition" @click="scrollTo(link[1])">{{ link[0] }}</button>
-                    </div>
-                </div>
-                <div class="mt-8 flex flex-col gap-3 border-t border-stone-700 pt-6 text-xs text-stone-500 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex flex-wrap gap-4">
-                        <Link :href="route('legal.privacidade')" class="hover:text-amber-300 transition">Política de Privacidade</Link>
-                        <Link :href="route('legal.termos')" class="hover:text-amber-300 transition">Termos e Condições</Link>
-                        <Link :href="route('legal.cookies')" class="hover:text-amber-300 transition">Política de Cookies</Link>
-                        <a href="https://www.livroreclamacoes.pt" target="_blank" rel="noopener" class="hover:text-amber-300 transition">Livro de Reclamações</a>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <p>© {{ currentYear }} Associação de Santana.</p>
-                        <a href="https://ateneya.com/" target="_blank" rel="noopener" class="font-medium text-stone-400 hover:text-amber-300 transition">#CreatingDevelopingImproving4you</a>
-                    </div>
-                </div>
+        <footer class="foot">
+            <div class="wrap"><div class="foot-grid">
+                <div><div class="brand foot-brand"><img :src="associationLogo" alt="" /><b>ARDC Santana</b></div><p class="foot-about">Associação Recreativa, Desportiva e Cultural de Santana. A casa de todos, em Carvalhal Benfeito.</p></div>
+                <div><h4>Navegar</h4><a v-for="link in navLinks" :key="link[0]" :href="link[1]" @click.prevent="scrollTo(link[1])">{{ link[0] }}</a></div>
+                <div><h4>Contactos</h4><Link :href="r('salao.pre-reserva', '/reserva-salao')">Reservar o salão</Link><a :href="`mailto:${contactEmail}`">{{ contactEmail }}</a><a href="#">Santana, Carvalhal Benfeito</a><a href="#">@ardcsantana</a></div>
+                <div><h4>Legal</h4><Link :href="r('legal.privacidade', '/politica-de-privacidade')">Privacidade</Link><Link :href="r('legal.termos', '/termos-e-condicoes')">Termos</Link><Link :href="r('legal.cookies', '/politica-de-cookies')">Cookies</Link></div>
+            </div>
+            <div class="foot-bot"><span>© {{ currentYear }} Associação Recreativa, Desportiva e Cultural de Santana</span><a href="https://ateneya.com/" target="_blank" rel="noopener">#CreatingDevelopingImproving4you</a></div>
             </div>
         </footer>
 
         <CookieBanner />
-
-        <!-- LIGHTBOX -->
-        <Transition name="lightbox">
-            <div v-if="lightboxItem" class="fixed inset-0 z-[60] grid place-items-center bg-stone-900/85 p-5 backdrop-blur-sm" @click.self="lightboxItem = null">
-                <div class="max-w-4xl w-full overflow-hidden rounded-xl border border-amber-200 shadow-2xl">
-                    <img :src="lightboxItem.caminho" :alt="lightboxItem.titulo || lightboxItem.event" class="max-h-[70vh] w-full object-contain bg-stone-100">
-                    <div class="flex items-center justify-between gap-4 bg-white p-4">
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-amber-600">{{ lightboxItem.category }}</p>
-                            <h3 class="mt-0.5 font-bold text-stone-800">{{ lightboxItem.titulo || lightboxItem.event }}</h3>
-                        </div>
-                        <button type="button" class="rounded-md border border-amber-200 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-amber-50 transition" @click="lightboxItem = null">Fechar</button>
-                    </div>
-                </div>
-            </div>
-        </Transition>
-    </main>
+    </div>
 </template>
 
 <style scoped>
-.eyebrow {
-    color: #b45309;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-}
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500;1,9..144,600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-.eyebrow-hero {
-    color: #fcd34d;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
+.santana {
+    --cream: #F4EAD5; --paper: #FBF6EB; --ink: #241F1A; --stone: #655C50;
+    --green: #2E4732; --green-d: #20321F; --ochre: #D99A2B; --ochre-d: #9A6A12; --terra: #A2472B;
+    --r: 20px; --sh: 0 14px 40px rgba(46,71,50,.10);
+    --tile: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%3E%3Crect%20width%3D%2260%22%20height%3D%2260%22%20fill%3D%22%23F4EAD5%22/%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%232E4732%22%20stroke-width%3D%221.6%22%3E%3Cpath%20d%3D%22M30%206%20A24%2024%200%200%201%2054%2030%20A24%2024%200%200%201%2030%2054%20A24%2024%200%200%201%206%2030%20A24%2024%200%200%201%2030%206%20Z%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%2211%22/%3E%3C/g%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%224%22%20fill%3D%22%23D99A2B%22/%3E%3Ccircle%20cx%3D%220%22%20cy%3D%220%22%20r%3D%224%22%20fill%3D%22%23A2472B%22/%3E%3Ccircle%20cx%3D%2260%22%20cy%3D%220%22%20r%3D%224%22%20fill%3D%22%23A2472B%22/%3E%3Ccircle%20cx%3D%220%22%20cy%3D%2260%22%20r%3D%224%22%20fill%3D%22%23A2472B%22/%3E%3Ccircle%20cx%3D%2260%22%20cy%3D%2260%22%20r%3D%224%22%20fill%3D%22%23A2472B%22/%3E%3C/svg%3E");
+    --orn: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2248%22%20height%3D%2248%22%20viewBox%3D%220%200%2048%2048%22%3E%3Cg%20fill%3D%22none%22%20stroke%3D%22%23F0D79A%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22M24%203l6%2015%2015%206-15%206-6%2015-6-15-15-6%2015-6z%22/%3E%3C/g%3E%3Ccircle%20cx%3D%2224%22%20cy%3D%2224%22%20r%3D%223.5%22%20fill%3D%22%23F0D79A%22/%3E%3C/svg%3E");
+    background: var(--paper); color: var(--ink);
+    font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 17px; line-height: 1.62;
 }
+.santana h1, .santana h2, .santana h3, .santana h4 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; line-height: 1.06; letter-spacing: -0.01em; margin: 0; }
+.italic { font-style: italic; font-weight: 500; }
+.santana a { color: inherit; text-decoration: none; }
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 26px; }
+.hide-sm { display: inline; }
+.eyebrow { font-size: 0.72rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--ochre-d); font-weight: 700; margin: 0; display: inline-flex; align-items: center; gap: 0.7rem; }
+.eyebrow::before { content: ""; width: 26px; height: 1.5px; background: var(--ochre); }
+.eyebrow.light { color: #f4dca6; } .eyebrow.light::before { background: #f4dca6; }
+.eyebrow.center { justify-content: center; }
+.btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.9rem 1.6rem; border-radius: 999px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: 0.2s; border: 1.5px solid transparent; font-family: inherit; }
+.btn-sm { padding: 0.55rem 1.1rem; font-size: 0.9rem; }
+.btn-primary { background: var(--ochre); color: #3a2708; box-shadow: 0 10px 26px rgba(217,154,43,.36); }
+.btn-primary:hover { background: #c58a1e; transform: translateY(-2px); }
+.btn-ghost { border-color: rgba(255,255,255,.65); color: #fff; } .btn-ghost:hover { background: rgba(255,255,255,.14); }
+.btn-green { background: var(--green); color: #fff; } .btn-green:hover { background: var(--green-d); }
+.btn:disabled { opacity: 0.6; cursor: default; }
 
-.section-title {
-    color: #1c1917;
-    font-size: clamp(2rem, 4.5vw, 3.5rem);
-    font-weight: 700;
-    line-height: 1.1;
-}
+.topbar { background: var(--green-d); color: #c3d0c4; font-size: 0.72rem; letter-spacing: 0.06em; }
+.topbar .wrap { display: flex; justify-content: space-between; align-items: center; height: 34px; } .topbar b { color: #f4dca6; }
 
-.gold-divider {
-    height: 3px;
-    background: linear-gradient(90deg, transparent, #d97706 20%, #f59e0b 50%, #d97706 80%, transparent);
-}
+.nav { position: sticky; top: 0; z-index: 50; background: rgba(251,246,235,.93); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(46,71,50,.14); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 78px; }
+.brand { display: flex; align-items: center; gap: 0.75rem; } .brand img { width: 48px; height: 48px; object-fit: contain; }
+.brand b { font-family: 'Fraunces', serif; font-size: 1.32rem; font-weight: 600; display: block; }
+.brand small { display: block; font-size: 0.6rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--stone); margin-top: -2px; }
+.menu { display: flex; gap: 0.2rem; align-items: center; }
+.menu a { padding: 0.55rem 0.85rem; border-radius: 9px; font-size: 0.92rem; font-weight: 500; color: #3a352e; transition: 0.2s; }
+.menu a:hover { background: rgba(46,71,50,.08); color: var(--green); }
+.burger { display: none; width: 44px; height: 44px; border: 0; background: none; cursor: pointer; position: relative; }
+.burger span, .burger span::before, .burger span::after { content: ''; position: absolute; left: 10px; height: 2px; width: 24px; background: var(--green); transition: 0.25s; }
+.burger span { top: 21px; } .burger span::before { top: -7px; } .burger span::after { top: 7px; }
+.burger span.open { background: transparent; } .burger span.open::before { top: 0; transform: rotate(45deg); } .burger span.open::after { top: 0; transform: rotate(-45deg); }
+.mobile-menu { display: flex; flex-direction: column; gap: 0.2rem; padding: 12px 26px 20px; border-bottom: 1px solid rgba(46,71,50,.12); background: var(--paper); }
+.mobile-menu a { padding: 0.7rem 0.4rem; font-weight: 500; color: #3a352e; } .mobile-menu .btn { margin-top: 8px; justify-content: center; }
+.drop-enter-active, .drop-leave-active { transition: opacity 0.25s, transform 0.25s; } .drop-enter-from, .drop-leave-to { opacity: 0; transform: translateY(-8px); }
+.menu a.btn { padding: 0.55rem 1.05rem; font-weight: 600; margin-left: 0.25rem; }
+.menu a.btn-primary, .menu a.btn-primary:hover { color: #3a2708; } .menu a.btn-primary:hover { background: #c58a1e; }
+.menu a.btn-green, .menu a.btn-green:hover { color: #fff; } .menu a.btn-green:hover { background: var(--green-d); }
+.infocard a.cell { display: block; transition: background .2s; } .infocard a.cell:hover { background: #fff; }
+@media (max-width: 1140px) { .menu { display: none; } .burger { display: block; } }
+@media (max-width: 620px) { .hide-sm { display: none; } }
 
-/* KPIs */
-.kpi { display: flex; flex-direction: column; gap: 0.2rem; }
-.kpi__value { font-size: 1.75rem; font-weight: 700; color: #92400e; line-height: 1; }
-.kpi__label { font-size: 0.75rem; color: #a8a29e; font-weight: 500; }
+.hero { position: relative; min-height: 92vh; display: flex; align-items: center; overflow: hidden; }
+.hero-img { position: absolute; inset: 0; background-position: center 40%; background-size: cover; }
+.hero-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(16,26,19,.9) 0%, rgba(20,32,24,.66) 42%, rgba(26,40,30,.28) 72%), linear-gradient(0deg, rgba(16,26,19,.8), transparent 46%); }
+/* Parallax subtil no hero (scroll-driven) */
+@supports (animation-timeline: scroll()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .hero-img { animation: hero-par linear both; animation-timeline: scroll(root); animation-range: 0 100vh; will-change: transform; }
+    }
+}
+@keyframes hero-par { to { transform: translateY(9%) scale(1.08); } }
+.hero-inner { position: relative; z-index: 3; color: #fff; padding: 70px 0 150px; max-width: 38rem; }
+.hero h1 { font-size: clamp(2.8rem, 6.8vw, 5.6rem); color: #fff; margin: 0.6rem 0 0.3rem; text-shadow: 0 6px 34px rgba(0,0,0,.5); }
+.hero .lead { font-size: 1.16rem; color: #f2ead9; margin: 0.5rem 0 2rem; text-shadow: 0 2px 14px rgba(0,0,0,.55); max-width: 32rem; }
+.hero-cta { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+.hero-orn { position: absolute; top: 120px; right: 64px; width: 104px; height: 104px; background: var(--orn) center/contain no-repeat; opacity: 0.4; z-index: 3; }
+.infocard { position: absolute; left: 0; right: 0; bottom: -1px; z-index: 4; }
+.infocard .wrap { display: flex; }
+.infocard .inner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(46,71,50,.14); border-radius: 16px 16px 0 0; overflow: hidden; box-shadow: 0 -14px 40px rgba(0,0,0,.2); max-width: 760px; width: 100%; }
+.infocard .cell { background: var(--paper); padding: 20px 24px; }
+.infocard .k { font-size: 0.64rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ochre-d); font-weight: 700; }
+.infocard .v { font-family: 'Fraunces', serif; font-size: 1.1rem; color: var(--ink); margin-top: 3px; line-height: 1.2; }
+.infocard .v small { display: block; font-family: 'Space Grotesk'; font-size: 0.8rem; color: var(--stone); font-weight: 400; }
+@media (max-width: 720px) { .infocard { position: static; } .infocard .inner { grid-template-columns: 1fr; border-radius: 0; } .hero-inner { padding-bottom: 70px; } }
 
-/* Pillars */
-.pillar-card {
-    background: #fff;
-    border: 1px solid #fde68a;
-    border-radius: 0.75rem;
-    padding: 1.75rem;
-    box-shadow: 0 1px 4px rgb(0 0 0 / 0.04);
-    transition: border-color 300ms, box-shadow 300ms;
-}
-.pillar-card:hover {
-    border-color: #f59e0b;
-    box-shadow: 0 4px 16px rgb(245 158 11 / 0.12);
-}
+.scallop { height: 30px; background-color: var(--paper); background-image: radial-gradient(circle at 15px -2px, transparent 14px, var(--green) 15px); background-size: 30px 30px; background-repeat: repeat-x; }
+.scallop.up { background-color: var(--green); background-image: radial-gradient(circle at 15px 32px, transparent 14px, var(--paper) 15px); }
 
-/* Event cards */
-.event-card-featured {
-    background: #fff;
-    border: 1px solid #fde68a;
-    border-radius: 0.75rem;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.06);
-    transition: box-shadow 300ms;
-}
-.event-card-featured:hover {
-    box-shadow: 0 6px 24px rgb(245 158 11 / 0.15);
-}
+.section { padding: 100px 0; position: relative; }
+.sec-head { max-width: 42rem; margin-bottom: 50px; } .sec-head.center { margin: 0 auto 50px; text-align: center; }
+.sec-head h2 { font-size: clamp(2.1rem, 4.2vw, 3.2rem); margin: 0.5rem 0 0; color: var(--green); }
+.sec-head p.desc { color: var(--stone); margin: 0.8rem 0 0; }
 
-.event-card-row {
-    display: flex;
-    gap: 1rem;
-    padding: 0.875rem;
-    background: #fff;
-    border: 1px solid #fde68a;
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 4px rgb(0 0 0 / 0.04);
-    transition: border-color 300ms, box-shadow 300ms;
-}
-.event-card-row:hover {
-    border-color: #f59e0b;
-    box-shadow: 0 4px 16px rgb(245 158 11 / 0.12);
-}
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+@media (max-width: 860px) { .grid3 { grid-template-columns: 1fr; } }
+.pcard { background: #fff; border: 1px solid rgba(46,71,50,.12); border-radius: var(--r); overflow: hidden; transition: 0.25s; box-shadow: var(--sh); }
+.pcard:hover { transform: translateY(-6px); box-shadow: 0 26px 54px rgba(46,71,50,.16); }
+.pcard .strip { height: 12px; background: var(--tile); background-size: 24px; }
+.pcard .body { padding: 32px; }
+.pcard .ic { width: 62px; height: 62px; border-radius: 16px; display: grid; place-items: center; font-size: 1.8rem; background: linear-gradient(160deg, rgba(217,154,43,.22), rgba(162,71,43,.14)); margin-bottom: 18px; }
+.pcard h3 { font-size: 1.6rem; color: var(--green); margin-bottom: 0.5rem; } .pcard p { color: var(--stone); font-size: 0.98rem; margin: 0; }
 
-/* Hero nav */
-.hero-arrow {
-    display: grid;
-    place-items: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 9999px;
-    border: 1px solid rgb(255 255 255 / 0.3);
-    background: rgb(255 255 255 / 0.1);
-    color: #fff;
-    font-size: 1.4rem;
-    font-weight: 700;
-    line-height: 1;
-    backdrop-blur: blur(4px);
-    transition: background 200ms, border-color 200ms;
-}
-.hero-arrow:hover {
-    background: rgb(245 158 11 / 0.4);
-    border-color: #f59e0b;
-}
+.feat-ev { background: var(--cream); }
+.fe { display: grid; grid-template-columns: 0.9fr 1.1fr; background: #fff; border-radius: 22px; overflow: hidden; box-shadow: 0 24px 60px rgba(46,71,50,.16); border: 1px solid rgba(46,71,50,.1); }
+@media (max-width: 860px) { .fe { grid-template-columns: 1fr; } }
+.fe .fe-img { background-size: cover; background-position: center; min-height: 360px; position: relative; }
+.fe .fe-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(30,50,36,.15), rgba(20,32,24,.35)); }
+.fe .fe-img .ribbon { position: absolute; top: 22px; left: 22px; z-index: 2; background: var(--terra); color: #fff; padding: 8px 16px; border-radius: 10px; font-weight: 700; }
+.fe .fe-body { padding: 46px; }
+.fe .fe-body .badge { font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ochre-d); font-weight: 700; }
+.fe h3 { font-size: 2.3rem; color: var(--ink); margin: 0.4rem 0 0.6rem; } .fe p { color: var(--stone); margin: 0 0 22px; }
+.ev-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 26px; }
+@media (max-width: 860px) { .ev-grid { grid-template-columns: 1fr; } }
+.ev { background: #fff; border-radius: var(--r); overflow: hidden; border: 1px solid rgba(46,71,50,.12); transition: 0.25s; display: flex; flex-direction: column; box-shadow: var(--sh); }
+.ev:hover { transform: translateY(-5px); box-shadow: 0 24px 50px rgba(46,71,50,.16); }
+.ev .poster { height: 186px; background-size: cover; background-position: center; position: relative; }
+.ev .poster::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(20,32,24,.35)); }
+.ev .rib { position: absolute; top: 14px; left: 14px; z-index: 2; background: #fff; border-radius: 9px; padding: 5px 11px; font-size: 0.72rem; font-weight: 700; color: var(--terra); box-shadow: 0 6px 16px rgba(0,0,0,.2); }
+.ev .b { padding: 24px; flex: 1; display: flex; flex-direction: column; }
+.ev .bd { font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ochre-d); font-weight: 700; }
+.ev h3 { font-size: 1.32rem; margin: 0.3rem 0 0.3rem; } .ev p { color: var(--stone); font-size: 0.9rem; margin: 0 0 14px; flex: 1; }
+.ev .more { color: var(--green); font-weight: 600; font-size: 0.9rem; }
+.empty { color: var(--stone); font-size: 1.05rem; }
 
-.hero-dot {
-    width: 1.5rem;
-    height: 0.35rem;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 0.35);
-    transition: background 300ms, width 300ms;
+.feat { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 860px) { .feat { grid-template-columns: 1fr; } }
+.fbox { position: relative; border-radius: 22px; overflow: hidden; min-height: 400px; display: flex; align-items: flex-end; color: #fff; }
+.fbox img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.fbox .ov { position: absolute; inset: 0; }
+.fbox.salao .ov { background: linear-gradient(180deg, rgba(35,58,42,.2), rgba(28,46,34,.94)); }
+.fbox.bar .ov { background: linear-gradient(180deg, rgba(162,71,43,.18), rgba(110,42,24,.94)); }
+.fbox .inner { position: relative; padding: 42px; z-index: 2; }
+.fbox h3 { font-size: 2.1rem; margin: 0.3rem 0 0.5rem; } .fbox p { color: rgba(255,255,255,.92); max-width: 26rem; margin: 0 0 20px; }
+
+.quote { background: var(--green); color: #fff; text-align: center; padding: 96px 0; position: relative; overflow: hidden; }
+.quote .tx { position: absolute; inset: 0; background: var(--tile); background-size: 60px; opacity: 0.05; }
+.quote blockquote { position: relative; font-family: 'Fraunces', serif; font-style: italic; font-weight: 500; font-size: clamp(1.8rem, 4vw, 3rem); max-width: 26rem; margin: 0 auto; line-height: 1.2; }
+.quote .who { position: relative; margin-top: 20px; color: #f4dca6; letter-spacing: 0.16em; text-transform: uppercase; font-size: 0.72rem; }
+
+.commu { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+@media (max-width: 860px) { .commu { grid-template-columns: 1fr; } }
+.commu .frame { position: relative; padding: 14px; background: #fff; border-radius: 22px; box-shadow: 0 24px 60px rgba(46,71,50,.2); }
+.commu .frame::after { content: ''; position: absolute; top: -16px; right: -16px; width: 64px; height: 64px; background: var(--orn) center/contain no-repeat; }
+.commu .frame img { width: 100%; border-radius: 14px; display: block; }
+.commu h2 { font-size: clamp(2.1rem, 4vw, 3.1rem); color: var(--green); margin: 0.4rem 0 0.6rem; } .commu p { color: #453f37; }
+.stats { display: flex; gap: 40px; margin-top: 30px; flex-wrap: wrap; }
+.stat b { font-family: 'Fraunces', serif; font-size: 2.6rem; color: var(--terra); display: block; line-height: 1; }
+.stat span { font-size: 0.78rem; color: var(--stone); letter-spacing: 0.05em; }
+
+.spon { background: var(--cream); }
+.gal { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 184px; gap: 14px; margin-top: 36px; }
+@media (max-width: 860px) { .gal { grid-template-columns: repeat(2, 1fr); } }
+.tile-img { background-size: cover; background-position: center; border-radius: 14px; transition: 0.3s; }
+.tile-img:hover { transform: scale(1.02); }
+.gal .tile-img:nth-child(1) { grid-column: span 2; grid-row: span 2; } .gal .tile-img:nth-child(4) { grid-row: span 2; }
+
+.join { background: linear-gradient(160deg, var(--ochre), #c58a1e); color: #3a2708; text-align: center; padding: 88px 0; }
+.join .join-eb { color: #6e4a0e; justify-content: center; }
+.join h2 { font-size: clamp(2.1rem, 4.5vw, 3.3rem); color: #3a2708; margin: 0 0 0.4rem; } .join p { color: #553a10; max-width: 34rem; margin: 0 auto 26px; }
+
+.contact-sec { background: var(--paper); }
+.contact-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 48px; align-items: start; }
+@media (max-width: 860px) { .contact-grid { grid-template-columns: 1fr; } }
+.contact-sec h2 { font-size: clamp(2rem, 4vw, 3rem); color: var(--green); margin: 0.3rem 0 0.6rem; }
+.ct-lead { color: #453f37; }
+.ct-list { list-style: none; padding: 0; margin: 24px 0 0; }
+.ct-list li { display: flex; gap: 10px; align-items: center; padding: 8px 0; color: #453f37; } .ct-list a { color: var(--ochre-d); font-weight: 600; }
+.hours { margin-top: 26px; max-width: 22rem; }
+.hours-t { display: block; font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ochre-d); font-weight: 700; margin-bottom: 8px; }
+.hours-p { margin: 0 0 14px; font-size: 0.92rem; color: var(--stone); }
+.hours-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed rgba(46,71,50,.2); }
+.ct-card { background: #fff; border: 1px solid rgba(46,71,50,.14); border-radius: 20px; padding: 30px; box-shadow: var(--sh); }
+.field { margin-bottom: 16px; display: flex; flex-direction: column; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 520px) { .field-row { grid-template-columns: 1fr; } }
+.field label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--stone); margin-bottom: 6px; }
+.field input, .field textarea { border: 1.5px solid rgba(46,71,50,.18); border-radius: 12px; padding: 12px 14px; font-family: inherit; font-size: 0.98rem; background: var(--paper); color: var(--ink); transition: 0.2s; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--ochre); box-shadow: 0 0 0 3px rgba(217,154,43,.18); background: #fff; }
+.field small { color: #b23b22; font-size: 0.78rem; margin-top: 5px; }
+.ct-card .btn { width: 100%; justify-content: center; margin-top: 6px; }
+.ct-sent { text-align: center; padding: 30px 10px; }
+.ct-sent-ic { width: 56px; height: 56px; border-radius: 999px; background: rgba(46,71,50,.12); color: var(--green); font-size: 1.6rem; display: grid; place-items: center; margin: 0 auto 14px; }
+.ct-sent h3 { color: var(--green); font-size: 1.4rem; margin: 0 0 0.3rem; } .ct-sent p { color: var(--stone); margin: 0; }
+
+.foot { background: var(--green-d); color: #cbd6cc; padding: 64px 0 26px; }
+.foot-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 34px; }
+@media (max-width: 860px) { .foot-grid { grid-template-columns: 1fr 1fr; } }
+.foot-brand { margin-bottom: 14px; } .foot-brand img { width: 46px; height: 46px; } .foot-brand b { color: #fff; font-family: 'Fraunces', serif; font-size: 1.2rem; }
+.foot-about { color: #a9bbab; max-width: 20rem; font-size: 0.92rem; }
+.foot h4 { color: #fff; font-family: 'Fraunces', serif; font-size: 1.1rem; margin: 0 0 14px; }
+.foot a { color: #cbd6cc; display: block; padding: 3px 0; font-size: 0.92rem; } .foot a:hover { color: var(--ochre); }
+.foot-bot { border-top: 1px solid rgba(255,255,255,.12); margin-top: 36px; padding-top: 20px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 0.8rem; color: #9fb0a2; }
+
+/* Revelação por scroll — CSS puro (scroll-driven animations), progressive enhancement */
+.reveal { opacity: 1; } /* base: visível para browsers sem suporte */
+@supports ((animation-timeline: view()) and (animation-range: entry)) {
+    @media (prefers-reduced-motion: no-preference) {
+        .reveal { opacity: 0; animation: reveal-in linear both; animation-timeline: view(); animation-range: entry 5% cover 26%; }
+    }
 }
-.hero-dot.active {
-    background: #fbbf24;
-    width: 2.5rem;
-}
-
-/* Form */
-.field { display: grid; gap: 0.35rem; font-size: 0.875rem; font-weight: 500; color: #57534e; }
-.field input,
-.field textarea {
-    background: #fffbeb;
-    border: 1px solid #fde68a;
-    border-radius: 0.5rem;
-    color: #1c1917;
-    font-size: 0.875rem;
-    padding: 0.625rem 0.875rem;
-    transition: border-color 200ms, box-shadow 200ms;
-    width: 100%;
-}
-.field input:focus,
-.field textarea:focus {
-    border-color: #d97706;
-    box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
-    outline: none;
-}
-.error { color: #dc2626; font-size: 0.75rem; }
-
-/* Hamburger */
-.hamburger,
-.hamburger::before,
-.hamburger::after {
-    background: currentColor;
-    border-radius: 999px;
-    content: '';
-    display: block;
-    height: 2px;
-    transition: transform 200ms ease, opacity 200ms ease;
-    width: 1.25rem;
-}
-.hamburger::before { transform: translateY(-6px); }
-.hamburger::after  { transform: translateY(4px); }
-.hamburger.open { background: transparent; }
-.hamburger.open::before { transform: translateY(2px) rotate(45deg); }
-.hamburger.open::after  { transform: translateY(0) rotate(-45deg); }
-
-/* Reveal */
-.reveal {
-    opacity: 0;
-    transform: translateY(18px);
-    transition: opacity 600ms ease, transform 600ms ease;
-}
-.reveal.is-visible { opacity: 1; transform: translateY(0); }
-
-/* Transitions */
-.menu-slide-enter-active,
-.menu-slide-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
-.menu-slide-enter-from,
-.menu-slide-leave-to { opacity: 0; transform: translateY(-0.5rem); }
-
-.hero-fade-enter-active,
-.hero-fade-leave-active { transition: opacity 800ms ease; }
-.hero-fade-enter-from,
-.hero-fade-leave-to { opacity: 0; }
-
-.lightbox-enter-active,
-.lightbox-leave-active { transition: opacity 200ms ease; }
-.lightbox-enter-from,
-.lightbox-leave-to { opacity: 0; }
-
-.faq-enter-active,
-.faq-leave-active { transition: opacity 200ms ease, max-height 250ms ease; max-height: 200px; overflow: hidden; }
-.faq-enter-from,
-.faq-leave-to { opacity: 0; max-height: 0; }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .santana *, .santana *::before, .santana *::after { animation: none !important; } }
 </style>

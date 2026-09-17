@@ -1,5 +1,6 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
+import Paginacao from '@/Components/Paginacao.vue';
 import { Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -49,12 +50,13 @@ const eliminarSocio = (socio) => {
             >
                 {{ opcao[1] }}
             </button>
-            <input v-model="pesquisa" class="ml-auto w-full rounded-md border-slate-300 text-sm sm:w-64" placeholder="🔍 Nome ou nº de sócio..." @input="pesquisar">
+            <input v-model="pesquisa" class="ml-auto w-full rounded-md border-slate-300 text-sm sm:w-64" placeholder="🔍 Nome, nº de sócio ou terra..." @input="pesquisar">
         </div>
         <div class="overflow-x-auto rounded-lg bg-white shadow-sm">
-            <table class="w-full min-w-[580px] text-left text-sm"><thead class="bg-slate-50"><tr><th class="p-3">Número</th><th>Nome</th><th>Telefone</th><th>Cota</th><th></th></tr></thead>
-                <tbody><tr v-for="socio in socios.data" :key="socio.id" class="border-t"><td class="p-3">{{ socio.numero_socio }}</td><td>{{ socio.nome }}</td><td>{{ socio.telefone }}</td><td><span class="rounded px-2 py-1 text-xs" :class="socio.cota_em_dia ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'">{{ socio.cota_em_dia ? 'Em dia' : 'Em atraso' }}</span></td><td class="space-x-3"><Link :href="route('socios.show', socio.id)" class="font-semibold text-emerald-700">Ver</Link><Link :href="route('socios.edit', socio.id)" class="font-semibold text-slate-700">Editar</Link><button type="button" class="font-semibold text-red-700" @click="eliminarSocio(socio)">Eliminar</button></td></tr></tbody>
+            <table class="w-full min-w-[580px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-3">Número</th><th class="p-3">Nome</th><th class="p-3">Terra</th><th class="p-3">Telefone</th><th class="p-3">Cota</th><th></th></tr></thead>
+                <tbody><tr v-for="socio in socios.data" :key="socio.id" class="border-t"><td class="p-3 font-mono font-bold text-slate-700">{{ socio.numero_socio }}</td><td class="p-3">{{ socio.nome }}</td><td class="p-3 text-slate-600">{{ socio.morada || '—' }}</td><td class="p-3 text-slate-600">{{ socio.telefone || '—' }}</td><td class="p-3"><span class="rounded px-2 py-1 text-xs" :class="socio.cota_em_dia ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'">{{ socio.cota_em_dia ? 'Em dia' : 'Em atraso' }}</span></td><td class="space-x-3"><Link :href="route('socios.show', socio.id)" class="font-semibold text-emerald-700">Ver</Link><Link :href="route('socios.edit', socio.id)" class="font-semibold text-slate-700">Editar</Link><button type="button" class="font-semibold text-red-700" @click="eliminarSocio(socio)">Eliminar</button></td></tr></tbody>
             </table>
+            <Paginacao :dados="socios" etiqueta="sócios" />
         </div>
     </AppLayout>
 </template>

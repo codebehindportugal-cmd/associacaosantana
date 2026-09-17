@@ -12,7 +12,7 @@ const navItems = [
     ['Eventos', `${route('home')}#eventos`],
     ['Patrocínios', route('patrocinios.index')],
     ['Reservar Salão', route('salao.pre-reserva')],
-    ['Contacto', `${route('home')}#contactos`],
+    ['Contacto', `${route('home')}#contacto`],
 ];
 </script>
 

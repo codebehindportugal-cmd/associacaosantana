@@ -11,6 +11,9 @@ const props = defineProps({
     resumo: Object,
     categoriasCusto: Array,
     categoriasReceita: Array,
+    associacoes: Array,
+    divisao: Object,
+    linkPartilhado: String,
 });
 
 const filtros = reactive({ ...props.filters });
@@ -137,6 +140,98 @@ const apagar = (movimento) => {
 };
 
 const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-PT') : '-';
+
+// ---------------------------------------------------------------------------
+// Associacoes que partilham o evento: a receita BRUTA e dividida pelas
+// percentagens acordadas; cada associacao suporta os seus proprios custos.
+// ---------------------------------------------------------------------------
+const edicaoAssocId = ref(null);
+const linkCopiado = ref(false);
+
+const percentagemFmt = (valor) => Number(valor || 0).toLocaleString('pt-PT', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+}) + '%';
+
+const assocVazia = {
+    nome: '',
+    sigla: '',
+    percentagem: '',
+    responsavel: '',
+    telefone: '',
+    email: '',
+};
+
+const assocForm = useForm({ ...assocVazia });
+const assocEditForm = useForm({ ...assocVazia, ativo: true, ordem: 0 });
+
+const criarAssociacao = () => {
+    assocForm.post(route('contas-festa.associacoes.store'), {
+        preserveScroll: true,
+        onSuccess: () => assocForm.reset(),
+    });
+};
+
+const editarAssociacao = (associacao) => {
+    edicaoAssocId.value = associacao.id;
+    assocEditForm.clearErrors();
+    assocEditForm.nome = associacao.nome;
+    assocEditForm.sigla = associacao.sigla || '';
+    assocEditForm.percentagem = associacao.percentagem;
+    assocEditForm.responsavel = associacao.responsavel || '';
+    assocEditForm.telefone = associacao.telefone || '';
+    assocEditForm.email = associacao.email || '';
+    assocEditForm.ativo = associacao.ativo;
+    assocEditForm.ordem = associacao.ordem;
+};
+
+const guardarAssociacao = (associacao) => {
+    assocEditForm.transform((dados) => ({ ...dados, _method: 'put' }))
+        .post(route('contas-festa.associacoes.update', associacao.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                edicaoAssocId.value = null;
+            },
+        });
+};
+
+const apagarAssociacao = (associacao) => {
+    if (confirm('Remover "' + associacao.nome + '" da divisao?')) {
+        router.post(route('contas-festa.associacoes.destroy', associacao.id), { _method: 'delete' }, { preserveScroll: true });
+    }
+};
+
+const igualarPercentagens = () => {
+    if (confirm('Dividir 100% em partes iguais por todas as associacoes ativas?')) {
+        router.post(route('contas-festa.associacoes.igualar'), {}, { preserveScroll: true });
+    }
+};
+
+const gerarLink = () => {
+    const aviso = props.linkPartilhado
+        ? 'Gerar um link novo invalida o que ja foi distribuido. Continuar?'
+        : null;
+
+    if (aviso && !confirm(aviso)) return;
+
+    router.post(route('contas-festa.link.gerar'), {}, { preserveScroll: true });
+};
+
+const desativarLink = () => {
+    if (confirm('Desativar o link? As outras associacoes deixam de ver as contas.')) {
+        router.post(route('contas-festa.link.apagar'), { _method: 'delete' }, { preserveScroll: true });
+    }
+};
+
+const copiarLink = async () => {
+    try {
+        await navigator.clipboard.writeText(props.linkPartilhado);
+        linkCopiado.value = true;
+        setTimeout(() => { linkCopiado.value = false; }, 2500);
+    } catch (e) {
+        linkCopiado.value = false;
+    }
+};
 </script>
 
 <template>
@@ -178,6 +273,131 @@ const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:
             <div class="rounded-lg bg-white p-5 shadow-sm">
                 <div class="text-sm font-bold text-slate-500">Contas feitas</div>
                 <div class="mt-2 text-3xl font-black" :class="Number(resumo.resultado) >= 0 ? 'text-emerald-700' : 'text-red-700'">{{ euros(resumo.resultado) }}</div>
+            </div>
+        </section>
+
+        <section class="mb-6 rounded-lg bg-white p-5 shadow-sm">
+            <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-black">Associacoes participantes</h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Divisao da <strong>receita bruta</strong> ({{ euros(divisao.receita_bruta) }}).
+                        Cada associacao suporta os seus proprios custos.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    class="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    @click="igualarPercentagens"
+                >
+                    Igualar percentagens
+                </button>
+            </div>
+
+            <div v-if="!divisao.percentagens_ok" class="mb-4 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800">
+                As percentagens somam {{ percentagemFmt(divisao.soma_percentagens) }} e nao 100%.
+                Os valores abaixo estao provisorios.
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[720px] text-left text-sm">
+                    <thead class="text-xs uppercase text-slate-500">
+                        <tr>
+                            <th class="py-2">Associacao</th>
+                            <th>Responsavel</th>
+                            <th class="text-right">%</th>
+                            <th class="text-right">Quota-parte</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="associacao in associacoes" :key="associacao.id" class="border-t border-slate-100">
+                            <template v-if="edicaoAssocId === associacao.id">
+                                <td class="py-2">
+                                    <input v-model="assocEditForm.nome" class="w-48 rounded-md border-slate-300 text-sm">
+                                    <input v-model="assocEditForm.sigla" class="mt-1 w-24 rounded-md border-slate-300 text-xs" placeholder="Sigla">
+                                </td>
+                                <td>
+                                    <input v-model="assocEditForm.responsavel" class="w-40 rounded-md border-slate-300 text-sm" placeholder="Nome">
+                                    <input v-model="assocEditForm.telefone" class="mt-1 w-32 rounded-md border-slate-300 text-xs" placeholder="Telefone">
+                                </td>
+                                <td class="text-right">
+                                    <input v-model="assocEditForm.percentagem" type="number" min="0" max="100" step="0.01" class="w-20 rounded-md border-slate-300 text-right text-sm">
+                                </td>
+                                <td class="text-right text-slate-400">-</td>
+                                <td class="text-right">
+                                    <button type="button" class="font-bold text-emerald-700" @click="guardarAssociacao(associacao)">Guardar</button>
+                                    <button type="button" class="ml-3 font-bold text-slate-500" @click="edicaoAssocId = null">Cancelar</button>
+                                </td>
+                            </template>
+                            <template v-else>
+                                <td class="py-3">
+                                    <strong>{{ associacao.nome }}</strong>
+                                    <span v-if="associacao.sigla" class="ml-1 text-xs text-slate-500">({{ associacao.sigla }})</span>
+                                    <div v-if="!associacao.ativo" class="text-xs font-bold text-slate-400">inativa</div>
+                                </td>
+                                <td class="text-slate-600">
+                                    {{ associacao.responsavel || '-' }}
+                                    <div v-if="associacao.telefone" class="text-xs text-slate-500">{{ associacao.telefone }}</div>
+                                </td>
+                                <td class="text-right font-bold">{{ percentagemFmt(associacao.percentagem) }}</td>
+                                <td class="text-right font-black text-emerald-700">
+                                    {{ euros((divisao.linhas.find((l) => l.id === associacao.id) || {}).valor) }}
+                                </td>
+                                <td class="text-right">
+                                    <button type="button" class="font-bold text-amber-700" @click="editarAssociacao(associacao)">Editar</button>
+                                    <button type="button" class="ml-3 font-bold text-red-700" @click="apagarAssociacao(associacao)">Remover</button>
+                                </td>
+                            </template>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="border-t-2 border-slate-200">
+                            <td colspan="2" class="py-3 font-black">Atribuido</td>
+                            <td class="text-right font-bold">{{ percentagemFmt(divisao.soma_percentagens) }}</td>
+                            <td class="text-right font-black">{{ euros(divisao.atribuido) }}</td>
+                            <td></td>
+                        </tr>
+                        <tr v-if="Math.abs(Number(divisao.residuo)) >= 0.01">
+                            <td colspan="3" class="py-2 text-xs text-slate-500">Por atribuir / arredondamento</td>
+                            <td class="text-right text-xs font-bold text-slate-500">{{ euros(divisao.residuo) }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <form class="mt-4 grid gap-3 border-t border-slate-100 pt-4 lg:grid-cols-[1fr_110px_100px_1fr_140px_auto]" @submit.prevent="criarAssociacao">
+                <input v-model="assocForm.nome" required class="rounded-md border-slate-300 text-sm" placeholder="Nome da associacao">
+                <input v-model="assocForm.sigla" class="rounded-md border-slate-300 text-sm" placeholder="Sigla">
+                <input v-model="assocForm.percentagem" required type="number" min="0" max="100" step="0.01" class="rounded-md border-slate-300 text-sm" placeholder="%">
+                <input v-model="assocForm.responsavel" class="rounded-md border-slate-300 text-sm" placeholder="Responsavel">
+                <input v-model="assocForm.telefone" class="rounded-md border-slate-300 text-sm" placeholder="Telefone">
+                <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" :disabled="assocForm.processing">
+                    {{ assocForm.processing ? 'A guardar...' : 'Adicionar' }}
+                </button>
+            </form>
+            <div v-if="Object.keys(assocForm.errors).length || Object.keys(assocEditForm.errors).length" class="mt-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                <div v-for="(erro, campo) in { ...assocForm.errors, ...assocEditForm.errors }" :key="campo"><strong>{{ campo }}:</strong> {{ erro }}</div>
+            </div>
+
+            <div class="mt-5 rounded-lg bg-slate-50 p-4">
+                <div class="text-sm font-black text-slate-700">Link para as outras associacoes</div>
+                <p class="mt-1 text-xs text-slate-500">
+                    Pagina de consulta, sem login, so com receita e divisao. Nao mostra custos internos.
+                </p>
+                <div v-if="linkPartilhado" class="mt-3 flex flex-wrap items-center gap-2">
+                    <input :value="linkPartilhado" readonly class="min-w-0 flex-1 rounded-md border-slate-300 bg-white text-xs">
+                    <button type="button" class="rounded-md bg-slate-900 px-3 py-2 text-xs font-bold text-white" @click="copiarLink">
+                        {{ linkCopiado ? 'Copiado' : 'Copiar' }}
+                    </button>
+                    <a :href="linkPartilhado" target="_blank" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">Abrir</a>
+                    <button type="button" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-amber-700" @click="gerarLink">Gerar novo</button>
+                    <button type="button" class="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-red-700" @click="desativarLink">Desativar</button>
+                </div>
+                <button v-else type="button" class="mt-3 rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" @click="gerarLink">
+                    Gerar link partilhado
+                </button>
             </div>
         </section>
 

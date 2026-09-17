@@ -9,6 +9,9 @@ class Socio extends Model
 {
     use HasFactory;
 
+    /** A cota e anual e simbolica: 5 EUR por ano. */
+    public const VALOR_COTA_ANUAL = 5.0;
+
     protected $fillable = [
         'numero_socio',
         'nome',
@@ -20,7 +23,7 @@ class Socio extends Model
         'estado',
     ];
 
-    protected $appends = ['cota_em_dia', 'meses_em_atraso', 'valor_em_divida'];
+    protected $appends = ['cota_em_dia', 'anos_em_atraso', 'valor_em_divida'];
 
     protected $casts = [
         'data_inscricao' => 'date',
@@ -36,55 +39,49 @@ class Socio extends Model
         return $query->where('estado', 'ativo');
     }
 
+    /** Em atraso = nao tem a cota deste ano paga. */
     public function scopeEmAtraso($query)
     {
-        return $query->where(function ($query) {
-            $query->whereHas('cotas', fn ($cotas) => $cotas->where('estado', 'em_atraso'))
-                ->orWhereDoesntHave('cotas', fn ($cotas) => $cotas->where('estado', 'pago')->where('ano', now()->year));
-        });
+        return $query->whereDoesntHave(
+            'cotas',
+            fn ($cotas) => $cotas->where('estado', 'pago')->where('ano', now()->year),
+        );
     }
 
     public function getCotaEmDiaAttribute(): bool
     {
         return $this->cotas()
             ->where('estado', 'pago')
-            ->where(function ($query) {
-                $query->where(function ($mensal) {
-                    $mensal->where('tipo', 'mensal')
-                        ->where('ano', now()->year)
-                        ->where('mes', now()->month);
-                })->orWhere(function ($anual) {
-                    $anual->where('tipo', 'anual')->where('ano', now()->year);
-                });
-            })
+            ->where('ano', now()->year)
             ->exists();
     }
 
-    public function getMesesEmAtrasoAttribute(): int
+    /**
+     * Anos por pagar, desde o ano de inscricao ate ao ano corrente.
+     *
+     * Antes contavam-se meses, de quando a cota era mensal. E anual: quem nao
+     * paga desde 2024 deve dois anos, nao vinte e quatro meses.
+     */
+    public function getAnosEmAtrasoAttribute(): int
     {
-        if ($this->cota_em_dia) {
-            return 0;
-        }
+        $anoAtual = (int) now()->year;
+        $inicio = (int) (optional($this->data_inscricao)->year ?: $anoAtual);
+        $inicio = min($inicio, $anoAtual);
 
-        $anoAtual = now()->year;
-        $mesAtual = now()->month;
         $pagos = $this->cotas()
             ->where('estado', 'pago')
-            ->where('ano', $anoAtual)
-            ->pluck('mes')
-            ->filter()
-            ->map(fn ($mes) => (int) $mes)
+            ->pluck('ano')
+            ->map(fn ($ano) => (int) $ano)
+            ->unique()
             ->all();
 
-        $inicio = max(1, (int) optional($this->data_inscricao)->month ?: 1);
-
-        return collect(range($inicio, $mesAtual))
-            ->reject(fn ($mes) => in_array($mes, $pagos, true))
+        return collect(range($inicio, $anoAtual))
+            ->reject(fn ($ano) => in_array($ano, $pagos, true))
             ->count();
     }
 
     public function getValorEmDividaAttribute(): float
     {
-        return $this->meses_em_atraso * 5.0;
+        return $this->anos_em_atraso * self::VALOR_COTA_ANUAL;
     }
 }

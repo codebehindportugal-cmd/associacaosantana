@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Impressora;
+use App\Models\PosSession;
+use App\Models\TalaoConfig;
 use App\Models\PrintJob;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,6 +34,27 @@ class ImpressoraController extends Controller
         return Inertia::render('Impressoras/Index', [
             'impressoras' => Impressora::orderBy('nome')->get(),
             'secoes' => self::SECOES,
+            'terminais' => PosSession::orderBy('nome')->get(['id', 'nome', 'tipo', 'localizacao', 'impressora_id', 'impressao_navegador', 'ativo']),
+            'tiposTerminal' => ['restaurante', 'reservas', 'bar', 'cafe', 'cotas'],
+            'tiposImpressora' => Impressora::TIPOS,
+        ]);
+    }
+
+    /**
+     * Teste de impressao por WebUSB: o browser fala com a impressora USB
+     * sem agente nenhum. Unico caminho nos Chromebooks.
+     */
+    public function testeUsb(): Response
+    {
+        $talao = TalaoConfig::atual();
+
+        return Inertia::render('Impressoras/TesteUsb', [
+            'talao' => [
+                'titulo' => $talao->tituloImpresso(),
+                'cabecalho' => array_column($talao->linhasCabecalho(), 'texto'),
+                'rodape' => $talao->linhasRodape(),
+                'instrucoes' => array_column($talao->linhasInstrucoes(), 'texto'),
+            ],
         ]);
     }
 
@@ -113,8 +136,14 @@ class ImpressoraController extends Controller
         return [
             'nome' => ['required', 'string', 'max:255'],
             'secao' => ['nullable', 'string', 'in:'.implode(',', array_keys(self::SECOES))],
-            'host' => ['required', 'string', 'max:255'],
-            'porta' => ['required', 'integer', 'min:1', 'max:65535'],
+            'tipo' => ['required', 'in:'.implode(',', array_keys(Impressora::TIPOS))],
+            // Rede: IP e porta. USB: nome da impressora no Windows ou /dev/usb/lp0
+            'host' => ['nullable', 'required_if:tipo,rede', 'string', 'max:255'],
+            'porta' => ['nullable', 'required_if:tipo,rede', 'integer', 'min:1', 'max:65535'],
+            // So a USB pelo agente precisa do nome do dispositivo; no WebUSB
+            // e o proprio utilizador que escolhe a impressora no browser
+            'dispositivo' => ['nullable', 'required_if:tipo,usb', 'string', 'max:255'],
+            'agente' => ['nullable', 'string', 'max:60'],
             'ativa' => ['boolean'],
         ];
     }
