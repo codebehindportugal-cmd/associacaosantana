@@ -71,9 +71,16 @@ class PosLoginController extends Controller
 
         $data = $request->validate([
             'terminal_id' => ['required', 'exists:pos_sessions,id'],
-            'operador_nome' => ['required', 'string', 'max:255'],
+            // Em modo comissão o nome já foi dado na validação do PIN da comissão
+            'operador_nome' => [$comissao ? 'nullable' : 'required', 'string', 'max:255'],
             'pin' => [$comissao ? 'nullable' : 'required', 'string'],
         ]);
+
+        $operador = trim((string) ($data['operador_nome'] ?? '')) ?: ($comissao ? (string) session('pos_comissao_nome') : '');
+
+        if ($operador === '') {
+            return back()->withErrors(['operador_nome' => 'Indica o nome de quem atende.']);
+        }
 
         $terminal = PosSession::where('ativo', true)->findOrFail($data['terminal_id']);
 
@@ -83,7 +90,7 @@ class PosLoginController extends Controller
         }
 
         $terminal->forceFill([
-            'ultimo_operador' => $data['operador_nome'],
+            'ultimo_operador' => $operador,
             'ultimo_login_em' => now(),
         ])->save();
 
@@ -92,11 +99,11 @@ class PosLoginController extends Controller
             'pos_nome'        => $terminal->nome,
             'pos_tipo'        => $terminal->tipo,
             'pos_localizacao' => $terminal->localizacao,
-            'pos_operador'    => $data['operador_nome'],
+            'pos_operador'    => $operador,
         ]);
 
         // Cookie persistente de 30 dias — mantém sessão mesmo que o PHP expire
-        cookie()->queue(EnsurePosSession::criarCookie($terminal->id, $data['operador_nome']));
+        cookie()->queue(EnsurePosSession::criarCookie($terminal->id, $operador));
 
         return redirect($this->urlPorTipo($terminal->tipo));
     }

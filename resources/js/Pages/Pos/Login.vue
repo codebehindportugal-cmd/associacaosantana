@@ -61,7 +61,16 @@ const secoes = [
 
 const tituloTipo = (tipo) => ({ bar: 'Bar', cafe: 'Café', restaurante: 'Restaurante', reservas: 'Reservas', cotas: 'Cotas' }[tipo] || tipo);
 const terminal = computed(() => (props.terminais ?? []).find((item) => item.id === escolhido.value));
-const escolher = (item) => { escolhido.value = item.id; form.terminal_id = item.id; form.pin = ''; };
+const outroNome = ref(false);
+
+const escolher = (item) => {
+    escolhido.value = item.id;
+    form.terminal_id = item.id;
+    form.pin = '';
+
+    // Modo comissão: já se identificou no início, entra logo com 1 clique
+    if (props.comissao && !outroNome.value) entrar();
+};
 const entrar = () => form.post(route('pos.login.store'));
 </script>
 
@@ -87,7 +96,7 @@ const entrar = () => form.post(route('pos.login.store'));
                     <div>
                         <div class="text-sm font-black uppercase tracking-wide text-amber-400">Modo Comissão</div>
                         <div class="text-lg font-black">{{ comissaoNome }}</div>
-                        <div class="text-xs text-white/50">Podes entrar em qualquer terminal sem PIN — escolhe abaixo.</div>
+                        <div class="text-xs text-white/50">Entras em qualquer terminal com 1 clique, sem PIN e sem voltar a escrever o nome.</div>
                     </div>
                     <button type="button" class="rounded-lg bg-white/10 px-4 py-2 text-sm font-bold hover:bg-white/20" @click="sairComissao">Sair do modo comissão</button>
                 </div>
@@ -108,7 +117,13 @@ const entrar = () => form.post(route('pos.login.store'));
 
             <!-- Comissão: todos os terminais agrupados por tipo -->
             <section v-if="comissao">
-                <h2 class="section-label">Todos os terminais — 1 clique para entrar</h2>
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h2 class="section-label !mb-0">Todos os terminais — 1 clique para entrar</h2>
+                    <label class="flex items-center gap-2 text-xs font-bold text-white/50">
+                        <input v-model="outroNome" type="checkbox" class="rounded border-white/20 bg-white/10">
+                        Entrar com outro nome
+                    </label>
+                </div>
                 <div v-for="(grupo, tipo) in terminaisPorTipo" :key="tipo" class="mb-5">
                     <div class="mb-2 text-xs font-black uppercase tracking-widest text-white/40">{{ tituloTipo(tipo) }}</div>
                     <div class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
@@ -126,13 +141,15 @@ const entrar = () => form.post(route('pos.login.store'));
                         </button>
                     </div>
                 </div>
-                <form v-if="terminal" class="mx-auto mt-2 max-w-sm rounded-xl bg-white/5 p-6" @submit.prevent="entrar">
+                <form v-if="terminal && outroNome" class="mx-auto mt-2 max-w-sm rounded-xl bg-white/5 p-6" @submit.prevent="entrar">
                     <h3 class="mb-4 text-center text-xl font-black">{{ terminal.nome }}</h3>
                     <input v-model="form.operador_nome" type="text" autocomplete="name" class="w-full rounded-lg border-white/10 bg-white/5 p-4 text-center text-xl font-black text-white placeholder-white/30" placeholder="Nome de quem atende">
                     <div v-if="form.errors.operador_nome" class="mt-3 rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.operador_nome }}</div>
                     <div v-if="form.errors.pin" class="mt-3 rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.pin }}</div>
                     <button class="mt-4 w-full rounded-xl bg-emerald-600 p-4 text-lg font-black disabled:opacity-50" :disabled="form.processing">ENTRAR SEM PIN</button>
                 </form>
+                <p v-else-if="form.processing" class="mt-2 text-center text-sm font-bold text-white/60">A entrar em {{ terminal?.nome }}…</p>
+                <div v-if="!outroNome && form.errors.operador_nome" class="mx-auto mt-2 max-w-sm rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.operador_nome }}</div>
             </section>
 
             <!-- POS Terminais -->

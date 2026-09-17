@@ -54,7 +54,9 @@ const secaoClasse = (produto) => ({
 const btnStyle = (produto) => {
     if (!produto.imagem) return {};
     return {
-        backgroundImage: 'linear-gradient(rgba(0,0,0,0.42),rgba(0,0,0,0.58)),url(/storage/' + produto.imagem + ')',
+        backgroundImage:
+            'linear-gradient(90deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.62) 45%, rgba(0,0,0,0.12) 100%),' +
+            'url(/storage/' + produto.imagem + ')',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
     };
@@ -148,8 +150,8 @@ onBeforeUnmount(() => {
                                 @click="adicionar(produto)"
                             >
                                 <span v-if="cartQty[produto.id]" class="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-gray-900 z-10">{{ cartQty[produto.id] }}</span>
-                                <span class="pos-product-name block text-lg relative z-10">{{ produto.nome }}</span>
-                                <span class="pos-product-price mt-1 block text-xl sm:text-2xl relative z-10">{{ euros(produto.preco) }}</span>
+                                <span class="pos-product-name block text-lg relative z-10" :style="produto.imagem ? { textShadow: '0 1px 4px rgba(0,0,0,0.9)' } : null">{{ produto.nome }}</span>
+                                <span class="pos-product-price mt-1 block text-xl sm:text-2xl relative z-10" :style="produto.imagem ? { textShadow: '0 1px 4px rgba(0,0,0,0.9)' } : null">{{ euros(produto.preco) }}</span>
                             </button>
                         </div>
                     </section>

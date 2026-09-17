@@ -53,7 +53,8 @@ const verificar = async () => {
 };
 
 const atender = async (chamada) => {
-    const nome = window.prompt('Quem vai atender? (opcional)', nomeMembro.value) ?? '';
+    // Já se identificou ao entrar em modo comissão — não se volta a pedir o nome
+    const nome = nomeMembro.value;
     chamadas.value = chamadas.value.filter((c) => c.id !== chamada.id);
     try {
         await fetch(route('pos.comum.comissao.atender', chamada.id), {

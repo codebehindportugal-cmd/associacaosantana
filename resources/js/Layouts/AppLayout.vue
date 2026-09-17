@@ -69,7 +69,8 @@ watch(chamadas, (novas) => {
 });
 
 const atenderChamada = async (id) => {
-    const nome = window.prompt('Quem vai atender? (opcional)', page.props.auth?.user?.name ?? '') ?? '';
+    // O utilizador já está autenticado — usa-se o nome dele, sem perguntar
+    const nome = page.props.auth?.user?.name ?? '';
     try {
         const res = await fetch(route('comissao.atender', id), {
             method: 'POST',
