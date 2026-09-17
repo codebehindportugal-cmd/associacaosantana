@@ -1,10 +1,31 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({
     evento: Object,
+    fotosPendentes: { type: Array, default: () => [] },
 });
+
+const linkCopiado = ref(false);
+const copiarLink = async () => {
+    try {
+        await navigator.clipboard.writeText(props.evento.url_envio_fotos);
+        linkCopiado.value = true;
+        setTimeout(() => { linkCopiado.value = false; }, 2000);
+    } catch { window.prompt('Copia o link:', props.evento.url_envio_fotos); }
+};
+const fotoAberta = ref(null);
+const aprovarFoto = (foto) => router.post(route('eventos.media.aprovar', foto.id), {}, { preserveScroll: true });
+const rejeitarFoto = (foto) => {
+    if (!confirm('Rejeitar e apagar esta foto?')) return;
+    router.delete(route('eventos.media.destroy', foto.id), { preserveScroll: true });
+};
+const aprovarTodas = () => {
+    if (!confirm(`Aprovar e publicar as ${props.fotosPendentes.length} fotos pendentes?`)) return;
+    router.post(route('eventos.fotos-publico.aprovar-todas', props.evento.id), {}, { preserveScroll: true });
+};
 
 const linhasPrograma = (evento) => (evento.programa ?? [])
     .flatMap((grupo) => grupo.items ?? [])
@@ -20,8 +41,11 @@ const form = useForm({
     badge: props.evento.badge ?? '',
     descricao: props.evento.descricao ?? '',
     facebook_post_url: props.evento.facebook_post_url ?? '',
+    link_externo_url: props.evento.link_externo_url ?? '',
+    link_externo_texto: props.evento.link_externo_texto ?? '',
     estado: props.evento.estado ?? 'publicado',
     destaque: Boolean(props.evento.destaque),
+    fotos_publico_ativo: Boolean(props.evento.fotos_publico_ativo),
     ordem: props.evento.ordem ?? 0,
     programa_texto: linhasPrograma(props.evento),
     cartaz: null,
@@ -42,6 +66,7 @@ const guardar = () => {
         .transform((data) => ({
             ...data,
             destaque: data.destaque ? 1 : 0,
+            fotos_publico_ativo: data.fotos_publico_ativo ? 1 : 0,
             inscricoes_ativas: data.inscricoes_ativas ? 1 : 0,
             inscricoes_pede_idades: data.inscricoes_pede_idades ? 1 : 0,
             inscricoes_limite: data.inscricoes_limite === '' ? null : data.inscricoes_limite,
@@ -125,6 +150,34 @@ const apagarMedia = (media) => {
                     <textarea v-model="form.descricao" placeholder="Descricao" rows="5" class="rounded-md border-slate-300 md:col-span-4"></textarea>
                     <textarea v-model="form.programa_texto" placeholder="Programa: uma linha por item" rows="5" class="rounded-md border-slate-300 md:col-span-4"></textarea>
 
+                    <!-- Fotos do público -->
+                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 md:col-span-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <label class="flex items-center gap-2 font-black text-stone-800">
+                                <input v-model="form.fotos_publico_ativo" type="checkbox" class="rounded border-slate-300">
+                                📷 Aceitar fotos enviadas pelo público
+                            </label>
+                            <a v-if="fotosPendentes.length" href="#fotos-pendentes" class="rounded bg-rose-600 px-2 py-1 text-xs font-black text-white">{{ fotosPendentes.length }} por aprovar</a>
+                        </div>
+                        <p class="mt-1 text-xs text-slate-500">As pessoas enviam as fotos por este link. Só aparecem no site depois de aprovadas aqui em baixo. (Guarda o evento para ativar.)</p>
+                        <div v-if="evento.fotos_publico_ativo" class="mt-3 flex flex-wrap items-center gap-2">
+                            <input :value="evento.url_envio_fotos" readonly class="min-w-0 flex-1 rounded-md border-emerald-300 bg-white text-sm" @focus="$event.target.select()">
+                            <button type="button" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-black text-white" @click="copiarLink">{{ linkCopiado ? 'Copiado ✓' : 'Copiar link' }}</button>
+                            <a :href="evento.url_envio_fotos" target="_blank" rel="noopener" class="rounded-md border border-emerald-300 bg-white px-4 py-2 text-sm font-black text-emerald-800">Abrir</a>
+                        </div>
+                        <p v-else-if="evento.estado !== 'publicado'" class="mt-2 text-xs font-bold text-amber-700">Atenção: o evento tem de estar publicado para o link funcionar.</p>
+                    </div>
+
+                    <!-- Link externo -->
+                    <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 md:col-span-4">
+                        <h3 class="font-black text-stone-800">🔗 Botão com link externo</h3>
+                        <p class="mb-3 text-xs text-slate-500">Opcional. Ex.: quando as inscrições são feitas noutro site. Aparece como botão na página do evento e no destaque da homepage (abre num separador novo).</p>
+                        <div class="grid gap-3 md:grid-cols-3">
+                            <input v-model="form.link_externo_url" type="url" placeholder="https://… (vazio = sem botão)" class="rounded-md border-sky-300 md:col-span-2">
+                            <input v-model="form.link_externo_texto" maxlength="80" placeholder="Texto do botão (ex.: Inscrições)" class="rounded-md border-sky-300">
+                        </div>
+                    </div>
+
                     <!-- Inscrições -->
                     <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 md:col-span-4">
                         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -163,6 +216,43 @@ const apagarMedia = (media) => {
                     <Link :href="route('eventos.index')" class="rounded-md border border-slate-300 px-5 py-3 font-black hover:bg-slate-50">Cancelar</Link>
                 </div>
             </form>
+        </div>
+
+        <section v-if="fotosPendentes.length" id="fotos-pendentes" class="mt-6 rounded-lg border-2 border-rose-200 bg-white p-5 shadow-sm">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-black">📷 Fotos do público por aprovar ({{ fotosPendentes.length }})</h2>
+                    <p class="text-sm text-slate-500">Ainda não estão visíveis no site. Aprova as que queres publicar; as rejeitadas são apagadas.</p>
+                </div>
+                <button type="button" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-black text-white" @click="aprovarTodas">Aprovar todas</button>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div v-for="foto in fotosPendentes" :key="foto.id" class="rounded-md border border-slate-200 p-2">
+                    <button type="button" class="block w-full" @click="fotoAberta = foto">
+                        <img :src="foto.url" :alt="`Foto de ${foto.enviado_nome}`" loading="lazy" class="aspect-video w-full rounded bg-slate-100 object-cover">
+                    </button>
+                    <div class="mt-2 text-xs">
+                        <p class="truncate font-bold">{{ foto.enviado_nome }}</p>
+                        <p class="truncate text-slate-500">{{ foto.enviado_contacto || 'sem contacto' }} · {{ foto.enviado_em }}</p>
+                    </div>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                        <button type="button" class="rounded-md bg-emerald-700 px-2 py-1.5 text-xs font-black text-white" @click="aprovarFoto(foto)">✓ Aprovar</button>
+                        <button type="button" class="rounded-md border border-rose-300 px-2 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-50" @click="rejeitarFoto(foto)">✕ Rejeitar</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div v-if="fotoAberta" class="fixed inset-0 z-50 grid place-items-center bg-black/85 p-4" @click.self="fotoAberta = null">
+            <div class="w-full max-w-5xl">
+                <img :src="fotoAberta.url" alt="" class="mx-auto max-h-[78vh] rounded-lg object-contain">
+                <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <span class="mr-2 text-sm font-bold text-white">{{ fotoAberta.enviado_nome }}</span>
+                    <button type="button" class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-black text-white" @click="aprovarFoto(fotoAberta); fotoAberta = null">✓ Aprovar</button>
+                    <button type="button" class="rounded-md bg-rose-600 px-4 py-2 text-sm font-black text-white" @click="rejeitarFoto(fotoAberta); fotoAberta = null">✕ Rejeitar</button>
+                    <button type="button" class="rounded-md border border-white/30 px-4 py-2 text-sm font-black text-white" @click="fotoAberta = null">Fechar</button>
+                </div>
+            </div>
         </div>
 
         <section class="mt-6 rounded-lg bg-white p-5 shadow-sm">

@@ -21,6 +21,9 @@ const novo = useForm({
     ordem: 0,
     programa_texto: '',
     cartaz: null,
+    link_externo_url: '',
+    link_externo_texto: '',
+    fotos_publico_ativo: false,
     inscricoes_ativas: false,
     inscricoes_limite: '',
     inscricoes_opcoes_texto: '',
@@ -38,6 +41,7 @@ const guardarNovo = () => {
     novo.transform((data) => ({
         ...data,
         destaque: data.destaque ? 1 : 0,
+        fotos_publico_ativo: data.fotos_publico_ativo ? 1 : 0,
         inscricoes_ativas: data.inscricoes_ativas ? 1 : 0,
         inscricoes_pede_idades: data.inscricoes_pede_idades ? 1 : 0,
         inscricoes_limite: data.inscricoes_limite === '' ? null : data.inscricoes_limite,
@@ -99,10 +103,24 @@ const dataEvento = (evento) => {
                     <input v-model="novo.destaque" type="checkbox" class="rounded border-slate-300">
                     Destaque
                 </label>
+                <label class="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold">
+                    <input v-model="novo.fotos_publico_ativo" type="checkbox" class="rounded border-slate-300">
+                    📷 Aceitar fotos do público
+                </label>
                 <input v-model.number="novo.ordem" type="number" min="0" placeholder="Ordem" class="rounded-md border-slate-300">
                 <input ref="cartazNovo" type="file" accept="image/*" class="rounded-md border border-slate-300 p-2 text-sm" @change="novo.cartaz = $event.target.files[0]">
                 <textarea v-model="novo.descricao" placeholder="Descricao" rows="3" class="rounded-md border-slate-300 md:col-span-2"></textarea>
                 <textarea v-model="novo.programa_texto" placeholder="Programa: uma linha por item" rows="3" class="rounded-md border-slate-300 md:col-span-2"></textarea>
+
+                <!-- Link externo -->
+                <div class="rounded-lg border border-sky-200 bg-sky-50 p-4 md:col-span-4">
+                    <h3 class="font-black text-stone-800">🔗 Botão com link externo</h3>
+                    <p class="mb-3 text-xs text-slate-500">Opcional. Ex.: quando as inscrições são feitas noutro site. Aparece como botão na página do evento e no destaque da homepage (abre num separador novo).</p>
+                    <div class="grid gap-3 md:grid-cols-3">
+                        <input v-model="novo.link_externo_url" type="url" placeholder="https://… (vazio = sem botão)" class="rounded-md border-sky-300 md:col-span-2">
+                        <input v-model="novo.link_externo_texto" maxlength="80" placeholder="Texto do botão (ex.: Inscrições)" class="rounded-md border-sky-300">
+                    </div>
+                </div>
 
                 <!-- Inscrições -->
                 <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 md:col-span-4">
@@ -155,6 +173,7 @@ const dataEvento = (evento) => {
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="rounded bg-slate-900 px-2 py-1 text-xs font-black uppercase text-white">{{ evento.estado }}</span>
                         <span v-if="evento.destaque" class="rounded bg-amber-100 px-2 py-1 text-xs font-black uppercase text-amber-800">Destaque</span>
+                        <Link v-if="evento.fotos_pendentes_total" :href="`${route('eventos.edit', evento.id)}#fotos-pendentes`" class="rounded bg-rose-600 px-2 py-1 text-xs font-black uppercase text-white">📷 {{ evento.fotos_pendentes_total }} por aprovar</Link>
                         <span class="text-sm font-bold text-slate-500">{{ dataEvento(evento) }}</span>
                     </div>
 

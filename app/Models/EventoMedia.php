@@ -19,11 +19,15 @@ class EventoMedia extends Model
         'titulo',
         'origem',
         'url_origem',
+        'aprovado',
+        'enviado_nome',
+        'enviado_contacto',
         'ordem',
     ];
 
     protected $casts = [
         'ordem' => 'integer',
+        'aprovado' => 'boolean',
     ];
 
     public function evento(): BelongsTo

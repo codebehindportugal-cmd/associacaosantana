@@ -14,6 +14,7 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CotaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventoController;
+use App\Http\Controllers\EventoFotoPublicaController;
 use App\Http\Controllers\FaturaCompraController;
 use App\Http\Controllers\FestaContaController;
 use App\Http\Controllers\HomeController;
@@ -77,6 +78,9 @@ Route::post('/contacto', ContactController::class)->middleware('throttle:8,1')->
 Route::get('/reserva-salao', [SalaoController::class, 'show'])->name('salao.pre-reserva');
 Route::post('/reserva-salao', [SalaoController::class, 'store'])->middleware('throttle:5,1')->name('salao.pre-reserva.store');
 Route::get('/evento/{evento}', [EventoController::class, 'publicShow'])->name('eventos.public.show');
+// Envio de fotos pelo público (ficam pendentes até aprovação no backoffice)
+Route::get('/evento/{evento}/enviar-fotos', [EventoFotoPublicaController::class, 'show'])->name('eventos.fotos-publico');
+Route::post('/evento/{evento}/enviar-fotos', [EventoFotoPublicaController::class, 'store'])->middleware('throttle:30,1')->name('eventos.fotos-publico.store');
 // URL fixa para o QR dos cartazes — nunca muda
 Route::get('/inscricoes', [InscricaoController::class, 'index'])->name('inscricoes.index');
 Route::get('/inscricoes/pagamento/retorno', [InscricaoController::class, 'pagamentoRetorno'])->name('inscricoes.pagamento.retorno');
@@ -201,6 +205,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('eventos/{evento}/media', [EventoController::class, 'storeMedia'])->name('eventos.media.store');
     Route::post('eventos/{evento}/media-url', [EventoController::class, 'storeMediaUrl'])->name('eventos.media-url.store');
     Route::delete('eventos/media/{media}', [EventoController::class, 'destroyMedia'])->name('eventos.media.destroy');
+    Route::get('eventos/media/{media}/ver', [EventoFotoPublicaController::class, 'ver'])->name('eventos.media.ver');
+    Route::post('eventos/media/{media}/aprovar', [EventoFotoPublicaController::class, 'aprovar'])->name('eventos.media.aprovar');
+    Route::post('eventos/{evento}/fotos-publico/aprovar-todas', [EventoFotoPublicaController::class, 'aprovarTodas'])->name('eventos.fotos-publico.aprovar-todas');
     Route::resource('paginas', SitePageController::class)->only(['index', 'edit', 'update']);
     Route::resource('patrocinadores', SponsorAdminController::class)
         ->parameters(['patrocinadores' => 'patrocinadore'])

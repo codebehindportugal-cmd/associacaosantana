@@ -155,10 +155,10 @@ async function submitForm() {
         <!-- EVENTOS -->
         <section class="section feat-ev" id="eventos"><div class="wrap">
             <div class="sec-head reveal"><p class="eyebrow">Em destaque</p><h2>Próximos eventos</h2></div>
-            <a v-if="featured" class="fe reveal" :href="eventHref(featured)">
-                <div class="fe-img" :style="{ backgroundImage: `url(${featured.poster || groupImage})` }"><span v-if="featured.date" class="ribbon">{{ featured.date }}</span></div>
-                <div class="fe-body"><span class="badge">{{ featured.badge || 'Evento' }}</span><h3>{{ featured.title }}</h3><p>{{ featured.description || featured.subtitle || 'Junta-te a nós na próxima iniciativa da associação.' }}</p><span class="btn btn-primary">Ver evento →</span></div>
-            </a>
+            <div v-if="featured" class="fe reveal">
+                <a class="fe-img" :href="eventHref(featured)" :aria-label="featured.title" :style="{ backgroundImage: `url(${featured.poster || groupImage})` }"><span v-if="featured.date" class="ribbon">{{ featured.date }}</span></a>
+                <div class="fe-body"><span class="badge">{{ featured.badge || 'Evento' }}</span><h3>{{ featured.title }}</h3><p>{{ featured.description || featured.subtitle || 'Junta-te a nós na próxima iniciativa da associação.' }}</p><div class="fe-cta"><a class="btn btn-primary" :href="eventHref(featured)">Ver evento →</a><a v-if="featured.externalUrl" class="btn btn-outline" :href="featured.externalUrl" target="_blank" rel="noopener noreferrer">{{ featured.externalLabel || 'Inscrições' }} ↗</a></div></div>
+            </div>
             <div v-if="gridEvents.length" class="ev-grid">
                 <a v-for="(event, i) in gridEvents" :key="event.id || event.title" class="ev reveal" :href="eventHref(event)">
                     <div class="poster" :style="{ backgroundImage: `url(${posterFor(event, i)})` }"><span v-if="event.date" class="rib">{{ event.date }}</span></div>
@@ -354,6 +354,8 @@ async function submitForm() {
 .fe .fe-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(30,50,36,.15), rgba(20,32,24,.35)); }
 .fe .fe-img .ribbon { position: absolute; top: 22px; left: 22px; z-index: 2; background: var(--terra); color: #fff; padding: 8px 16px; border-radius: 10px; font-weight: 700; }
 .fe .fe-body { padding: 46px; }
+.fe-cta { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.btn-outline { border-color: var(--green); color: var(--green) !important; background: transparent; } .btn-outline:hover { background: var(--green); color: #fff !important; }
 .fe .fe-body .badge { font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ochre-d); font-weight: 700; }
 .fe h3 { font-size: 2.3rem; color: var(--ink); margin: 0.4rem 0 0.6rem; } .fe p { color: var(--stone); margin: 0 0 22px; }
 .ev-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 26px; }

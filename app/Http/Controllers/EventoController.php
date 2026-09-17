@@ -8,6 +8,7 @@ use App\Models\EventoMedia;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -45,6 +46,13 @@ class EventoController extends Controller
     {
         return Inertia::render('Eventos/Edit', [
             'evento' => $this->eventoData($evento->load('media')),
+            'fotosPendentes' => $evento->mediaPendente()->get()->map(fn (EventoMedia $media) => [
+                'id' => $media->id,
+                'url' => route('eventos.media.ver', $media->id),
+                'enviado_nome' => $media->enviado_nome,
+                'enviado_contacto' => $media->enviado_contacto,
+                'enviado_em' => $media->created_at?->format('d/m/Y H:i'),
+            ])->values(),
         ]);
     }
 
@@ -57,6 +65,7 @@ class EventoController extends Controller
         $data['cartaz'] = $this->guardarFicheiro($request, 'cartaz') ?? null;
         $data['programa'] = $this->programaFromText($request->string('programa_texto')->toString(), $data);
         $data = $this->aplicarInscricoes($data);
+        $data['fotos_publico_ativo'] ??= false;
 
         Evento::create($data);
 
@@ -71,6 +80,7 @@ class EventoController extends Controller
         $data['destaque'] ??= false;
         $data['programa'] = $this->programaFromText($request->string('programa_texto')->toString(), $data);
         $data = $this->aplicarInscricoes($data);
+        $data['fotos_publico_ativo'] ??= false;
 
         if ($cartaz = $this->guardarFicheiro($request, 'cartaz')) {
             $this->apagarFicheiroPublico($evento->cartaz);
@@ -85,7 +95,7 @@ class EventoController extends Controller
     public function destroy(Evento $evento): RedirectResponse
     {
         $this->apagarFicheiroPublico($evento->cartaz);
-        $evento->media->each(fn (EventoMedia $media) => $this->apagarFicheiroPublico($media->caminho));
+        $evento->todaMedia->each(fn (EventoMedia $media) => $this->apagarFicheiroMedia($media));
         $evento->delete();
 
         return back()->with('success', 'Evento apagado.');
@@ -136,10 +146,10 @@ class EventoController extends Controller
 
     public function destroyMedia(EventoMedia $media): RedirectResponse
     {
-        $this->apagarFicheiroPublico($media->caminho);
+        $this->apagarFicheiroMedia($media);
         $media->delete();
 
-        return back()->with('success', 'Ficheiro removido.');
+        return back()->with('success', $media->aprovado ? 'Ficheiro removido.' : 'Foto rejeitada e apagada.');
     }
 
     private function validatedData(Request $request): array
@@ -155,8 +165,11 @@ class EventoController extends Controller
             'descricao' => ['nullable', 'string'],
             'cartaz' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'facebook_post_url' => ['nullable', 'url', 'max:2048'],
+            'link_externo_url' => ['nullable', 'url', 'max:2048'],
+            'link_externo_texto' => ['nullable', 'string', 'max:80'],
             'estado' => ['required', 'in:rascunho,publicado'],
             'destaque' => ['boolean'],
+            'fotos_publico_ativo' => ['boolean'],
             'ordem' => ['nullable', 'integer', 'min:0'],
             'programa_texto' => ['nullable', 'string'],
             'inscricoes_ativas' => ['boolean'],
@@ -275,9 +288,14 @@ class EventoController extends Controller
             'descricao' => $evento->descricao,
             'cartaz' => $evento->cartaz,
             'facebook_post_url' => $evento->facebook_post_url,
+            'link_externo_url' => $evento->link_externo_url,
+            'link_externo_texto' => $evento->link_externo_texto,
             'programa' => $evento->programa ?? [],
             'estado' => $evento->estado,
             'destaque' => $evento->destaque,
+            'fotos_publico_ativo' => (bool) $evento->fotos_publico_ativo,
+            'url_envio_fotos' => route('eventos.fotos-publico', $evento->id),
+            'fotos_pendentes_total' => $evento->mediaPendente()->count(),
             'ordem' => $evento->ordem,
             'inscricoes_ativas' => (bool) $evento->inscricoes_ativas,
             'inscricoes_limite' => $evento->inscricoes_limite,
@@ -339,6 +357,17 @@ class EventoController extends Controller
         $ficheiro->move($destino, $nome);
 
         return "/images/{$pasta}/{$nome}";
+    }
+
+    private function apagarFicheiroMedia(EventoMedia $media): void
+    {
+        if (! $media->aprovado) {
+            Storage::disk('local')->delete($media->caminho);
+
+            return;
+        }
+
+        $this->apagarFicheiroPublico($media->caminho);
     }
 
     private function apagarFicheiroPublico(?string $caminho): void

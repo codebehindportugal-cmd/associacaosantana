@@ -64,6 +64,8 @@ class HomeController extends Controller
             'location' => $evento->localizacao,
             'poster' => $evento->cartaz ?: '/images/santana-logo.png',
             'facebookPostUrl' => $evento->facebook_post_url,
+            'externalUrl' => $evento->link_externo_url,
+            'externalLabel' => $evento->link_externo_texto ?: 'Inscrições',
             'badge' => $evento->badge ?: ($this->jaPassou([
                 'data_inicio' => optional($evento->data_inicio)->toDateString(),
                 'data_fim' => optional($evento->data_fim)->toDateString(),

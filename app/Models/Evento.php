@@ -22,9 +22,12 @@ class Evento extends Model
         'descricao',
         'cartaz',
         'facebook_post_url',
+        'link_externo_url',
+        'link_externo_texto',
         'programa',
         'estado',
         'destaque',
+        'fotos_publico_ativo',
         'ordem',
         'inscricoes_ativas',
         'inscricoes_limite',
@@ -41,6 +44,7 @@ class Evento extends Model
         'data_fim' => 'date',
         'programa' => 'array',
         'destaque' => 'boolean',
+        'fotos_publico_ativo' => 'boolean',
         'ordem' => 'integer',
         'inscricoes_ativas' => 'boolean',
         'inscricoes_limite' => 'integer',
@@ -52,9 +56,22 @@ class Evento extends Model
         'inscricoes_pagamento_online' => 'boolean',
     ];
 
+    /** Só fotos/vídeos aprovados — é o que aparece no site. */
     public function media(): HasMany
     {
-        return $this->hasMany(EventoMedia::class)->orderBy('ordem')->orderBy('id');
+        return $this->hasMany(EventoMedia::class)->where('aprovado', true)->orderBy('ordem')->orderBy('id');
+    }
+
+    /** Fotos enviadas pelo público à espera de aprovação. */
+    public function mediaPendente(): HasMany
+    {
+        return $this->hasMany(EventoMedia::class)->where('aprovado', false)->orderBy('created_at');
+    }
+
+    /** Toda a media (aprovada e pendente). */
+    public function todaMedia(): HasMany
+    {
+        return $this->hasMany(EventoMedia::class);
     }
 
     public function inscricoes(): HasMany

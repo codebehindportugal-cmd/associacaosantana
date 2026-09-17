@@ -68,6 +68,22 @@ const nextSlide = () => selectSlide(activeIndex.value + 1);
                     >
                         📝 INSCREVER-ME
                     </a>
+                    <a
+                        v-if="evento.link_externo_url"
+                        :href="evento.link_externo_url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="mt-6 inline-flex items-center gap-2 rounded-xl px-8 py-4 text-lg font-black text-stone-900 shadow-lg transition"
+                        :class="evento.inscricoes_ativas ? 'ml-3 bg-white hover:bg-amber-100' : 'bg-amber-500 hover:bg-amber-400'"
+                    >
+                        {{ evento.link_externo_texto || 'Inscrições' }} <span aria-hidden="true">↗</span>
+                    </a>
+
+                    <p v-if="evento.fotos_publico_ativo" class="mt-5">
+                        <Link :href="route('eventos.fotos-publico', evento.id)" class="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/10 px-5 py-3 font-bold text-white transition hover:bg-white/20">
+                            📷 Enviar as minhas fotos
+                        </Link>
+                    </p>
 
                     <div class="mt-8 grid gap-3 sm:grid-cols-3">
                         <div class="rounded-lg border border-white/15 bg-white/10 p-4">
