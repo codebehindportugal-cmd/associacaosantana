@@ -118,6 +118,22 @@ const secaoClasse = (produto) => ({
     acompanhamentos: 'bg-emerald-700',
     sobremesas: 'bg-purple-600',
 }[produto.categoria?.secao] || 'bg-gray-700');
+
+// Foto do produto (igual ao POS de pre-pagamento): inteira a direita,
+// fundo escuro a esquerda para o nome e o preco se lerem bem.
+const btnStyle = (produto) => {
+    if (!produto.imagem) return null;
+    return {
+        backgroundColor: '#ffffff',
+        backgroundImage:
+            'linear-gradient(90deg, #111827 0%, #111827 48%, rgba(17,24,39,0.55) 62%, rgba(17,24,39,0) 74%),' +
+            'url(/storage/' + produto.imagem + ')',
+        backgroundSize: '100% 100%, contain',
+        backgroundPosition: 'left center, right center',
+        backgroundRepeat: 'no-repeat, no-repeat',
+    };
+};
+const nomeStyle = (produto) => (produto.imagem ? { maxWidth: '62%', textShadow: '0 1px 4px rgba(0,0,0,0.9)' } : null);
 const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
     if (!podeAbrirPedido.value) return;
     novoForm.lugares_ocupados = lugares;
@@ -337,8 +353,8 @@ onBeforeUnmount(() => {
                     <button v-for="cat in categorias" :key="cat" class="min-h-12 shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="secaoClasse(produto)" @click="addProduto(produto)">
-                        <span class="block text-lg">{{ produto.nome }}</span><span class="mt-2 block text-2xl">{{ euros(produto.preco) }}</span>
+                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="produto.imagem ? 'bg-gray-900' : secaoClasse(produto)" :style="btnStyle(produto)" @click="addProduto(produto)">
+                        <span class="block text-lg" :style="nomeStyle(produto)">{{ produto.nome }}</span><span class="mt-2 block text-2xl" :style="nomeStyle(produto)">{{ euros(produto.preco) }}</span>
                     </button>
                 </div>
             </section>
@@ -368,8 +384,8 @@ onBeforeUnmount(() => {
                     <button v-for="cat in categorias" :key="cat" class="min-h-12 shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
                 </div>
                 <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="secaoClasse(produto)" @click="addProduto(produto)">
-                        <span class="block break-words text-lg">{{ produto.nome }}</span><span class="mt-2 block text-2xl">{{ euros(produto.preco) }}</span>
+                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="produto.imagem ? 'bg-gray-900' : secaoClasse(produto)" :style="btnStyle(produto)" @click="addProduto(produto)">
+                        <span class="block break-words text-lg" :style="nomeStyle(produto)">{{ produto.nome }}</span><span class="mt-2 block text-2xl" :style="nomeStyle(produto)">{{ euros(produto.preco) }}</span>
                     </button>
                 </div>
             </section>
