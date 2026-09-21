@@ -53,12 +53,16 @@ const secaoClasse = (produto) => ({
 // Estilo com imagem de fundo quando disponível
 const btnStyle = (produto) => {
     if (!produto.imagem) return {};
+    // A foto (quadrada, fundo branco) fica inteira do lado direito do botão;
+    // à esquerda, fundo escuro para o nome e o preço se lerem bem.
     return {
+        backgroundColor: '#ffffff',
         backgroundImage:
-            'linear-gradient(90deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.62) 45%, rgba(0,0,0,0.12) 100%),' +
+            'linear-gradient(90deg, #111827 0%, #111827 48%, rgba(17,24,39,0.55) 62%, rgba(17,24,39,0) 74%),' +
             'url(/storage/' + produto.imagem + ')',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundSize: '100% 100%, contain',
+        backgroundPosition: 'left center, right center',
+        backgroundRepeat: 'no-repeat, no-repeat',
     };
 };
 
