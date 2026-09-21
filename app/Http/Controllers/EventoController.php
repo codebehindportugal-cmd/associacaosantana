@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Evento;
 use App\Models\EventoInscricao;
 use App\Models\EventoMedia;
+use App\Support\OtimizadorImagem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -116,9 +117,12 @@ class EventoController extends Controller
         $origem = $request->input('origem', 'evento');
 
         foreach ($request->file('ficheiros', []) as $index => $ficheiro) {
+            $caminho = $this->moverUpload($ficheiro, 'events/uploads');
+
             $evento->media()->create([
                 'tipo' => str_starts_with((string) $ficheiro->getMimeType(), 'video/') ? 'video' : 'foto',
-                'caminho' => $this->moverUpload($ficheiro, 'events/uploads'),
+                'caminho' => $caminho,
+                'miniatura' => OtimizadorImagem::miniaturaPublica($caminho),
                 'titulo' => pathinfo($ficheiro->getClientOriginalName(), PATHINFO_FILENAME),
                 'origem' => $origem,
                 'ordem' => $ordemInicial + $index,
@@ -322,6 +326,7 @@ class EventoController extends Controller
                 'id' => $media->id,
                 'tipo' => $media->tipo,
                 'caminho' => $media->caminho,
+                'miniatura' => $media->miniatura,
                 'titulo' => $media->titulo,
                 'origem' => $media->origem,
                 'url_origem' => $media->url_origem,
@@ -354,10 +359,11 @@ class EventoController extends Controller
             return null;
         }
 
-        return $this->moverUpload($request->file($campo), 'events/uploads');
+        // O cartaz nunca precisa de mais do que isto
+        return $this->moverUpload($request->file($campo), 'events/uploads', 1400);
     }
 
-    private function moverUpload($ficheiro, string $pasta): string
+    private function moverUpload($ficheiro, string $pasta, int $maxLado = OtimizadorImagem::MAX_LADO): string
     {
         $destino = public_path("images/{$pasta}");
         File::ensureDirectoryExists($destino);
@@ -365,7 +371,8 @@ class EventoController extends Controller
         $nome = Str::uuid().'.'.$ficheiro->getClientOriginalExtension();
         $ficheiro->move($destino, $nome);
 
-        return "/images/{$pasta}/{$nome}";
+        // Fotos: redimensiona e converte para WebP (os vídeos ficam como estão)
+        return OtimizadorImagem::otimizarPublico("/images/{$pasta}/{$nome}", $maxLado);
     }
 
     private function apagarFicheiroMedia(EventoMedia $media): void
@@ -390,5 +397,6 @@ class EventoController extends Controller
         }
 
         File::delete(public_path(ltrim($caminho, '/')));
+        File::delete(public_path(ltrim(OtimizadorImagem::caminhoMiniatura($caminho), '/')));
     }
 }

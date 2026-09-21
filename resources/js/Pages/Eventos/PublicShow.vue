@@ -22,10 +22,10 @@ const facebookEmbedUrl = computed(() => {
     return url.toString();
 });
 const slides = computed(() => {
-    const eventMedia = media.value.map((item) => ({ ...item, source: item.caminho }));
+    const eventMedia = media.value.map((item) => ({ ...item, source: item.caminho, thumb: item.miniatura || item.caminho }));
     if (eventMedia.length) return eventMedia;
     return props.evento.cartaz
-        ? [{ id: 'cartaz', tipo: 'foto', source: props.evento.cartaz, caminho: props.evento.cartaz, titulo: props.evento.titulo }]
+        ? [{ id: 'cartaz', tipo: 'foto', source: props.evento.cartaz, thumb: props.evento.cartaz, caminho: props.evento.cartaz, titulo: props.evento.titulo }]
         : [];
 });
 const activeSlide = computed(() => slides.value[activeIndex.value] ?? null);
@@ -132,7 +132,7 @@ const nextSlide = () => selectSlide(activeIndex.value + 1);
                     :class="activeIndex === index ? 'border-amber-500 opacity-100' : 'border-transparent opacity-60 hover:opacity-90'"
                     @click="selectSlide(index)"
                 >
-                    <img v-if="slide.tipo === 'foto'" :src="slide.source" :alt="slide.titulo || evento.titulo" class="h-full w-full object-cover">
+                    <img v-if="slide.tipo === 'foto'" :src="slide.thumb || slide.source" :alt="slide.titulo || evento.titulo" loading="lazy" class="h-full w-full object-cover">
                     <video v-else :src="slide.source" class="h-full w-full object-cover" />
                 </button>
             </div>
@@ -181,7 +181,7 @@ const nextSlide = () => selectSlide(activeIndex.value + 1);
                         class="group relative overflow-hidden rounded-xl border border-amber-200 shadow-sm"
                         @click="activeLightbox = photo"
                     >
-                        <img :src="photo.caminho" :alt="photo.titulo || evento.titulo" class="aspect-square w-full object-cover transition duration-500 group-hover:scale-105">
+                        <img :src="photo.miniatura || photo.caminho" :alt="photo.titulo || evento.titulo" loading="lazy" decoding="async" class="aspect-square w-full object-cover transition duration-500 group-hover:scale-105">
                         <div class="absolute inset-0 bg-amber-900/0 transition group-hover:bg-amber-900/30" />
                         <span class="absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-t from-stone-900/80 p-3 pt-8 text-left text-sm font-semibold text-white transition group-hover:translate-y-0">
                             {{ photo.titulo || evento.titulo }}
@@ -204,7 +204,7 @@ const nextSlide = () => selectSlide(activeIndex.value + 1);
 
                 <div v-if="videos.length" class="grid gap-5 lg:grid-cols-2">
                     <figure v-for="video in videos" :key="video.id" class="overflow-hidden rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
-                        <video :src="video.caminho" controls class="aspect-video w-full bg-stone-900 object-contain" />
+                        <video :src="video.caminho" controls preload="none" :poster="video.miniatura || undefined" class="aspect-video w-full bg-stone-900 object-contain" />
                         <figcaption class="p-4 font-semibold text-amber-800">{{ video.titulo || evento.titulo }}</figcaption>
                     </figure>
                 </div>

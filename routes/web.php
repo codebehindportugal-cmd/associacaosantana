@@ -160,7 +160,7 @@ Route::middleware('pos.auth')->prefix('pos-cotas')->name('pos.cotas.')->group(fu
     Route::get('/socio/{socio}', [PosCotasController::class, 'socio'])->name('socio');
     Route::post('/socio/{socio}/pagar', [PosCotasController::class, 'registarPagamento'])->name('pagar');
     Route::get('/recibo/{cota}', [PosCotasController::class, 'recibo'])->name('recibo');
-    Route::get('/recibo/{cota}/pdf', [PosCotasController::class, 'reciboPdf'])->name('recibo.pdf');
+    Route::get('/recibo/{cota}/papel', [PosCotasController::class, 'reciboPapel'])->name('recibo.papel');
     Route::get('/em-atraso', [PosCotasController::class, 'emAtraso'])->name('em-atraso');
     Route::get('/resumo-dia', [PosCotasController::class, 'resumoDia'])->name('resumo-dia');
 });

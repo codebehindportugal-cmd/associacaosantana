@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use App\Support\OtimizadorImagem;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -89,7 +90,8 @@ class SponsorAdminController extends Controller
         $nome = Str::uuid().'.'.$ficheiro->getClientOriginalExtension();
         $ficheiro->move($destino, $nome);
 
-        return "/images/sponsors/{$nome}";
+        // Logótipos: 800px chegam e sobra para o slider
+        return OtimizadorImagem::otimizarPublico("/images/sponsors/{$nome}", 800);
     }
 
     private function apagarLogo(?string $caminho): void

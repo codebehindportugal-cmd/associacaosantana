@@ -1,9 +1,32 @@
 import net from 'node:net';
 import fs from 'node:fs/promises';
+import { readFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+
+// Node 18+ (fetch). O --env-file so existe a partir do Node 20.6, por isso o
+// .env ao lado deste ficheiro e lido aqui — funciona em qualquer versao.
+const [nodeMaior] = process.versions.node.split('.').map(Number);
+if (nodeMaior < 18) {
+    console.error(`[!] Node ${process.versions.node} e demasiado antigo. Instala o Node.js LTS (20 ou superior).`);
+    process.exit(1);
+}
+
+const ficheiroEnv = path.join(path.dirname(fileURLToPath(import.meta.url)), '.env');
+if (existsSync(ficheiroEnv)) {
+    for (const linha of readFileSync(ficheiroEnv, 'utf8').split(/\r?\n/)) {
+        const m = linha.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/i);
+        if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+}
+
+// Modo de teste: node agent.mjs --teste 192.168.1.50[:9100]
+// Imprime um talao directamente na impressora de rede, sem passar pelo site.
+const argTeste = process.argv.indexOf('--teste');
+const MODO_TESTE = argTeste !== -1 ? (process.argv[argTeste + 1] ?? '') : null;
 
 const APP_URL = process.env.APP_URL;
 const PRINT_AGENT_TOKEN = process.env.PRINT_AGENT_TOKEN;
@@ -14,8 +37,8 @@ const PRINT_CODEPAGE = (process.env.PRINT_CODEPAGE ?? 'cp860').toLowerCase();
 // os trabalhos das impressoras que lhe estao atribuidas no backoffice.
 const AGENTE = (process.env.AGENTE ?? '').trim();
 
-if (!APP_URL || !PRINT_AGENT_TOKEN) {
-    console.error('Configura APP_URL e PRINT_AGENT_TOKEN antes de iniciar o agente.');
+if (MODO_TESTE === null && (!APP_URL || !PRINT_AGENT_TOKEN)) {
+    console.error('Configura APP_URL e PRINT_AGENT_TOKEN antes de iniciar o agente (corre windows\\instalar-agente.bat).');
     process.exit(1);
 }
 
@@ -37,7 +60,12 @@ const api = async (caminho, options = {}) => {
     });
 
     if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText}`);
+        const dicas = {
+            401: 'token errado — o PRINT_AGENT_TOKEN do .env tem de ser igual ao do servidor',
+            503: 'o servidor nao tem PRINT_AGENT_TOKEN configurado no .env dele',
+            404: 'endereco errado — confirma o APP_URL',
+        };
+        throw new Error(`${response.status} ${response.statusText}${dicas[response.status] ? ` (${dicas[response.status]})` : ''}`);
     }
 
     return response.json();
@@ -306,9 +334,21 @@ const imprimir = async (job) => {
     await imprimirRede(job, dados);
 };
 
+let ultimoErro = '';
+let semTrabalhos = 0;
+
 const ciclo = async () => {
     try {
         const { jobs } = await api('jobs');
+        if (ultimoErro) {
+            console.log('[ok] Ligacao ao site restabelecida.');
+            ultimoErro = '';
+        }
+        // De minuto a minuto sem trabalhos, lembra o que o agente esta a filtrar
+        semTrabalhos = (jobs ?? []).length ? 0 : semTrabalhos + 1;
+        if (semTrabalhos && semTrabalhos % Math.max(1, Math.round(60 / POLL_SECONDS)) === 0) {
+            console.log(`... sem trabalhos para ${AGENTE ? `o posto "${AGENTE}"` : 'impressoras sem posto atribuido'}.`);
+        }
 
         for (const job of jobs ?? []) {
             try {
@@ -322,13 +362,57 @@ const ciclo = async () => {
             }
         }
     } catch (error) {
-        console.error(`Erro no agente: ${error.message}`);
+        const codigo = error.cause?.code ?? error.cause?.errors?.[0]?.code;
+        const msg = codigo ? `${error.message} (${codigo} — sem ligacao ao site: internet ou APP_URL)` : (error.cause?.message ? `${error.message} (${error.cause.message})` : error.message);
+        // Nao repetir a mesma mensagem a cada 3 segundos
+        if (msg !== ultimoErro) {
+            console.error(`[!] Erro a falar com ${APP_URL}: ${msg}`);
+            ultimoErro = msg;
+        }
     }
 };
 
-console.log(AGENTE
-    ? `Agente "${AGENTE}" a arrancar. So trata das impressoras atribuidas a este posto.`
-    : 'Agente sem AGENTE definido. Trata das impressoras sem posto atribuido.');
+const testarImpressora = async (alvo) => {
+    const [host, porta = '9100'] = alvo.split(':');
+    if (!host) {
+        console.error('Uso: node agent.mjs --teste IP[:porta]   (ex: --teste 192.168.1.50)');
+        process.exit(1);
+    }
 
-setInterval(ciclo, POLL_SECONDS * 1000);
-ciclo();
+    console.log(`A enviar talao de teste para ${host}:${porta}...`);
+    const job = {
+        printer: { tipo: 'rede', host, porta: Number(porta), nome: 'teste' },
+        payload: {
+            titulo: 'TESTE DE IMPRESSAO',
+            subtitulo: 'ARDC Santana',
+            linhas: [`Computador: ${os.hostname()}`, `Impressora: ${host}:${porta}`, new Date().toLocaleString('pt-PT'), 'Acentos: ção ãõ é à', 'Se isto saiu, a rede esta OK.'],
+        },
+    };
+
+    try {
+        await imprimirRede(job, escpos(job));
+        console.log('[ok] Enviado. Se nao saiu papel, a porta 9100 aceitou mas a impressora nao e ESC/POS.');
+    } catch (error) {
+        const dicas = {
+            ETIMEDOUT: 'nada responde nesse IP — o PC e a impressora estao na mesma rede (ex: 192.168.1.x)?',
+            ECONNREFUSED: 'o IP responde mas a porta esta fechada — confirma a porta (normalmente 9100)',
+            EHOSTUNREACH: 'rede inacessivel — o PC e a impressora estao em redes diferentes',
+            ENETUNREACH: 'rede inacessivel — o PC e a impressora estao em redes diferentes',
+        };
+        const codigo = error.code ?? (error.message.includes('Timeout') ? 'ETIMEDOUT' : '');
+        console.error(`[!] Falhou: ${error.message}${dicas[codigo] ? ` — ${dicas[codigo]}` : ''}`);
+        process.exitCode = 1;
+    }
+};
+
+if (MODO_TESTE !== null) {
+    await testarImpressora(MODO_TESTE);
+} else {
+    console.log(`Site: ${APP_URL}`);
+    console.log(AGENTE
+        ? `Agente "${AGENTE}" a arrancar. So trata das impressoras com "Posto (agente)" = ${AGENTE} no backoffice.`
+        : 'Agente sem AGENTE definido. So trata das impressoras SEM "Posto (agente)" no backoffice.');
+
+    setInterval(ciclo, POLL_SECONDS * 1000);
+    ciclo();
+}

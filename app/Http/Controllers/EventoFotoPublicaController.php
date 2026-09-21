@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Evento;
 use App\Models\EventoMedia;
 use App\Rules\Recaptcha;
+use App\Support\OtimizadorImagem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -76,6 +77,10 @@ class EventoFotoPublicaController extends Controller
         if (! $caminho) {
             return response()->json(['message' => 'Não foi possível guardar a fotografia. Tenta novamente.'], 500);
         }
+
+        // Reduz já aqui: as fotos pendentes também ocupam espaço
+        $otimizado = OtimizadorImagem::otimizarFicheiro(Storage::disk('local')->path($caminho));
+        $caminho = self::PASTA_PENDENTES.'/'.basename($otimizado);
 
         $media = $evento->todaMedia()->create([
             'tipo' => 'foto',
@@ -193,8 +198,11 @@ class EventoFotoPublicaController extends Controller
         $nome = basename($media->caminho);
         File::move($disco->path($media->caminho), $destino.'/'.$nome);
 
+        $caminhoWeb = OtimizadorImagem::otimizarPublico('/images/events/uploads/'.$nome);
+
         $media->update([
-            'caminho' => '/images/events/uploads/'.$nome,
+            'caminho' => $caminhoWeb,
+            'miniatura' => OtimizadorImagem::miniaturaPublica($caminhoWeb),
             'aprovado' => true,
             'ordem' => EventoMedia::where('evento_id', $media->evento_id)->where('aprovado', true)->max('ordem') + 1,
         ]);

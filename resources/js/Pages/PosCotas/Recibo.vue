@@ -6,7 +6,7 @@ const props = defineProps({
     cota: Object,
     anos: { type: Array, default: () => [] },
     total: { type: Number, default: 0 },
-    pdfUrl: String,
+    papelUrl: String,
 });
 
 const euros = (v) => Number(v ?? 0).toFixed(2).replace('.', ',') + ' €';
@@ -14,10 +14,10 @@ const iframe = ref(null);
 const blobUrl = ref(null);
 const estado = ref('a-preparar'); // a-preparar | pronto | erro
 
-// Carrega o PDF num iframe (blob) para o poder imprimir diretamente
+// Carrega o PDF (recibo DL) num iframe (blob) para o poder imprimir diretamente
 const carregar = async () => {
     try {
-        const res = await fetch(props.pdfUrl, { credentials: 'same-origin' });
+        const res = await fetch(props.papelUrl, { credentials: 'same-origin' });
         if (!res.ok) throw new Error(res.status);
         blobUrl.value = URL.createObjectURL(await res.blob());
         estado.value = 'pronto';
@@ -31,15 +31,8 @@ const imprimir = () => {
         iframe.value.contentWindow.focus();
         iframe.value.contentWindow.print();
     } catch {
-        window.open(props.pdfUrl, '_blank');
+        window.open(props.papelUrl, '_blank');
     }
-};
-
-let impressoAuto = false;
-const aoCarregarIframe = () => {
-    if (impressoAuto || !blobUrl.value) return;
-    impressoAuto = true;
-    setTimeout(imprimir, 400);
 };
 
 onMounted(carregar);
@@ -56,11 +49,10 @@ onBeforeUnmount(() => blobUrl.value && URL.revokeObjectURL(blobUrl.value));
                     :src="blobUrl"
                     title="Recibo em PDF"
                     class="h-[75vh] w-full bg-white"
-                    @load="aoCarregarIframe"
                 />
                 <div v-else class="grid h-[75vh] place-items-center p-6 text-center font-bold text-gray-300">
                     <span v-if="estado === 'a-preparar'">A preparar o recibo…</span>
-                    <span v-else>Não foi possível gerar o PDF. <a :href="pdfUrl" target="_blank" class="underline">Abrir diretamente</a></span>
+                    <span v-else>Não foi possível gerar o PDF. <a :href="papelUrl" target="_blank" class="underline">Abrir diretamente</a></span>
                 </div>
             </section>
 
@@ -74,7 +66,8 @@ onBeforeUnmount(() => blobUrl.value && URL.revokeObjectURL(blobUrl.value));
                 </div>
 
                 <button type="button" class="w-full rounded-lg bg-white p-4 text-lg font-black text-gray-900 disabled:opacity-40" :disabled="estado !== 'pronto'" @click="imprimir">🖨️ IMPRIMIR RECIBO</button>
-                <a :href="pdfUrl" target="_blank" class="block rounded-lg bg-gray-700 p-3 text-center font-black">📄 ABRIR PDF</a>
+                <p v-if="anos.length > 1" class="text-center text-xs font-bold text-gray-400">{{ anos.length }} anos → {{ anos.length }} recibos (um por ano)</p>
+                <a :href="papelUrl" target="_blank" class="block rounded-lg bg-gray-700 p-3 text-center font-black">📄 ABRIR PDF</a>
                 <Link :href="route('pos.cotas.socio', cota.socio_id)" class="block rounded-lg bg-emerald-600 p-4 text-center font-black">MESMO SÓCIO</Link>
                 <Link :href="route('pos.cotas.index')" class="block rounded-lg bg-blue-600 p-4 text-center font-black">OUTRO SÓCIO</Link>
             </aside>

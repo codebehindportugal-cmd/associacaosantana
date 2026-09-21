@@ -10,12 +10,19 @@ echo.
 
 set "NODE=node"
 if exist "node\node.exe" set "NODE=%~dp0..\node\node.exe"
-"%NODE%" -v >/dev/null 2>nul
+"%NODE%" -v >nul 2>nul
 if errorlevel 1 (
   echo [!] Node.js nao encontrado neste computador.
   echo     Instala em https://nodejs.org ^(versao LTS^) ou copia uma pasta
   echo     "node" com o node.exe para dentro de local-printer-agent.
   echo.
+  pause
+  exit /b 1
+)
+
+"%NODE%" -e "process.exit(+process.versions.node.split('.')[0]>=18?0:1)"
+if errorlevel 1 (
+  echo [!] A versao do Node.js e demasiado antiga. Instala a versao LTS de https://nodejs.org
   pause
   exit /b 1
 )

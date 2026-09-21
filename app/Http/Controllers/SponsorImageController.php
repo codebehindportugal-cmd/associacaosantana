@@ -7,6 +7,7 @@ use App\Models\SponsorImage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use App\Support\OtimizadorImagem;
 use Illuminate\Support\Str;
 
 class SponsorImageController extends Controller
@@ -26,7 +27,7 @@ class SponsorImageController extends Controller
         $ficheiro->move($destino, $nome);
 
         $patrocinadore->images()->create([
-            'path' => "/images/sponsors/{$nome}",
+            'path' => OtimizadorImagem::otimizarPublico("/images/sponsors/{$nome}", 1200),
             'ordem' => $request->integer('ordem', 0),
         ]);
 

@@ -39,7 +39,7 @@ const gridEvents = computed(() => {
 const temPatrocinios = computed(() => (props.patrocinadores ?? []).length > 0);
 
 const galeria = computed(() => {
-    const fromMedia = allEvents.value.flatMap((e) => (e.media ?? []).filter((m) => m.tipo === 'foto').map((m) => m.caminho));
+    const fromMedia = allEvents.value.flatMap((e) => (e.media ?? []).filter((m) => m.tipo === 'foto').map((m) => m.miniatura || m.caminho));
     const fromPosters = allEvents.value.filter((e) => e.poster).map((e) => e.poster);
     const imgs = [...new Set([...fromMedia, ...fromPosters])];
     const base = imgs.length ? imgs : [];

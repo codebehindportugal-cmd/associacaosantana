@@ -16,6 +16,7 @@ class EventoMedia extends Model
         'evento_id',
         'tipo',
         'caminho',
+        'miniatura',
         'titulo',
         'origem',
         'url_origem',

@@ -296,8 +296,8 @@ const apagarMedia = (media) => {
 
             <div v-if="evento.media?.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div v-for="media in evento.media" :key="media.id" class="rounded-md border border-slate-200 p-2">
-                    <img v-if="media.tipo === 'foto'" :src="media.caminho" :alt="media.titulo" class="aspect-video w-full rounded object-cover">
-                    <video v-else :src="media.caminho" controls class="aspect-video w-full rounded bg-black object-cover"></video>
+                    <img v-if="media.tipo === 'foto'" :src="media.miniatura || media.caminho" :alt="media.titulo" loading="lazy" class="aspect-video w-full rounded object-cover">
+                    <video v-else :src="media.caminho" controls preload="none" class="aspect-video w-full rounded bg-black object-cover"></video>
                     <div class="mt-2 flex items-center justify-between gap-2 text-xs">
                         <span class="truncate font-bold">{{ media.titulo }}</span>
                         <button type="button" class="text-rose-700 underline" @click="apagarMedia(media)">Remover</button>

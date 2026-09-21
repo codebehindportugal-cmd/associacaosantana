@@ -143,8 +143,8 @@ const mediaSeguinte = () => {
             <div v-if="evento.media?.length" class="grid gap-5 lg:grid-cols-2">
                 <figure v-for="media in evento.media" :key="media.id" class="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm">
                     <button type="button" class="block w-full bg-slate-950 text-left" @click="abrirMedia(media)">
-                        <img v-if="media.tipo === 'foto'" :src="media.caminho" :alt="media.titulo" class="aspect-[16/10] w-full object-cover transition duration-500 hover:scale-[1.02]">
-                        <video v-else :src="media.caminho" class="aspect-[16/10] w-full bg-black object-cover"></video>
+                        <img v-if="media.tipo === 'foto'" :src="media.miniatura || media.caminho" :alt="media.titulo" loading="lazy" class="aspect-[16/10] w-full object-cover transition duration-500 hover:scale-[1.02]">
+                        <video v-else :src="media.caminho" preload="none" class="aspect-[16/10] w-full bg-black object-cover"></video>
                     </button>
                     <figcaption class="flex items-center justify-between gap-2 p-3 text-sm">
                         <span class="truncate font-bold">{{ media.titulo || 'Ficheiro do evento' }}</span>

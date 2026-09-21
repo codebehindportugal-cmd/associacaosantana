@@ -76,6 +76,7 @@ class HomeController extends Controller
             'media' => $evento->media->map(fn ($media) => [
                 'tipo' => $media->tipo,
                 'caminho' => $media->caminho,
+                'miniatura' => $media->miniatura,
                 'titulo' => $media->titulo,
                 'origem' => $media->origem,
                 'url_origem' => $media->url_origem,

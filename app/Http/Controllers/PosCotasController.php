@@ -113,28 +113,50 @@ class PosCotasController extends Controller
             'cota' => $cota->load('socio'),
             'anos' => $cotas->pluck('ano')->map(fn ($a) => (int) $a)->values(),
             'total' => (float) $cotas->sum('valor'),
-            'pdfUrl' => route('pos.cotas.recibo.pdf', $cota),
+            'papelUrl' => route('pos.cotas.recibo.papel', $cota),
         ]);
     }
 
-    /** PDF do recibo com os dados do socio (A5), para imprimir. */
-    public function reciboPdf(Cota $cota): HttpResponse
+    /**
+     * Recibo de quota em formato DL (220 × 110 mm), réplica do recibo em papel da
+     * associação: formulário completo + dados (ou só os dados, ver config/recibos.php).
+     * Uma folha por cada ano pago.
+     * ?grelha=1 → folha de teste com grelha em mm para acertar posições.
+     */
+    public function reciboPapel(Request $request, Cota $cota): HttpResponse
     {
         $cota->load('socio');
-        $cotas = $this->cotasDoRecibo($cota);
-        $logo = public_path('images/santana-logo.png');
+        $socio = $cota->socio;
 
-        $pdf = Pdf::loadView('pdf.recibo-cota', [
-            'socio' => $cota->socio,
-            'cotas' => $cotas,
-            'total' => (float) $cotas->sum('valor'),
-            'numero' => str_pad((string) $cota->id, 5, '0', STR_PAD_LEFT),
-            'dataPagamento' => optional($cota->data_pagamento)->format('d/m/Y'),
-            'metodo' => ['dinheiro' => 'Numerário', 'mbway' => 'MB WAY', 'transferencia' => 'Transferência bancária'][$cota->metodo_pagamento] ?? ($cota->metodo_pagamento ?: '—'),
+        $recibos = $this->cotasDoRecibo($cota)->map(function (Cota $c) use ($socio) {
+            [$euros, $centimos] = explode(',', number_format((float) $c->valor, 2, ',', ''));
+            $ano = substr((string) $c->ano, -2);
+
+            return [
+                'socio_cima' => (string) $socio->numero_socio,
+                'nome' => (string) $socio->nome,
+                'euros_cima' => $euros,
+                'centimos_cima' => $centimos,
+                'ano_cima' => $ano,
+                'socio_baixo' => (string) $socio->numero_socio,
+                'ano_baixo' => $ano,
+                'euros_baixo' => $euros,
+                'centimos_baixo' => $centimos,
+            ];
+        })->values();
+
+        $p = config('recibos.papel');
+        $logo = public_path('images/santana-logo-recibo.png');
+        // 1 mm = 72/25,4 pt
+        $tamanho = [0, 0, $p['largura'] * 72 / 25.4, $p['altura'] * 72 / 25.4];
+
+        $pdf = Pdf::loadView('pdf.recibo-cota-papel', [
+            'recibos' => $recibos,
+            'grelha' => $request->boolean('grelha'),
             'logo' => is_file($logo) ? 'data:image/png;base64,'.base64_encode(file_get_contents($logo)) : null,
-        ])->setPaper('a5', 'portrait');
+        ])->setPaper($tamanho);
 
-        return $pdf->stream("recibo-quota-{$cota->socio->numero_socio}-{$cota->id}.pdf");
+        return $pdf->stream("recibo-papel-{$socio->numero_socio}-{$cota->id}.pdf");
     }
 
     /**
