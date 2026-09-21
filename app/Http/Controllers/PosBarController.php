@@ -156,6 +156,12 @@ class PosBarController extends Controller
                 }
             }
 
+            // Pelo agente, o talao sai sozinho na impressora: volta-se logo ao
+            // ecra de venda. WebUSB/navegador imprimem na pagina do talao.
+            if ($viaAgente) {
+                return to_route('pos.index')->with('success', 'Senha #'.$pedido->numero_senha.' enviada para a impressora.');
+            }
+
             return to_route('pos.pedido.talao', $pedido);
         });
     }

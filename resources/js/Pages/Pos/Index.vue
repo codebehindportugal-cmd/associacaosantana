@@ -1,6 +1,6 @@
 <script setup>
-import { router, useForm } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { router, useForm, usePage } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
@@ -86,8 +86,26 @@ const cobrar = () => {
     form.items = carrinho.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
     form.valor_recebido = recebido.value || total.value;
     form.troco = trocoRegistado.value;
-    form.post(route('pos.prepago.store'));
+    form.post(route('pos.prepago.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            carrinho.value = [];
+            recebido.value = '';
+            trocoEntregue.value = '';
+        },
+    });
 };
+
+// Confirmacao curta depois de cobrar (o talao sai sozinho na impressora)
+const page = usePage();
+const aviso = ref('');
+let avisoTimer = null;
+watch(() => page.props.flash?.success, (msg) => {
+    if (!msg) return;
+    aviso.value = msg;
+    clearTimeout(avisoTimer);
+    avisoTimer = setTimeout(() => (aviso.value = ''), 4000);
+}, { immediate: true });
 
 onMounted(() => {
     relogio = setInterval(() => (agora.value = new Date()), 1000);
@@ -97,6 +115,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     clearInterval(relogio);
     clearInterval(refresh);
+    clearTimeout(avisoTimer);
 });
 </script>
 
@@ -115,6 +134,10 @@ onBeforeUnmount(() => {
                     <button class="pos-logout rounded-lg bg-red-600 px-4 py-2 font-black sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
                 </div>
             </header>
+
+            <div v-if="aviso" class="mb-3 shrink-0 rounded-lg bg-emerald-600 p-3 text-center text-lg font-black">
+                ✅ {{ aviso }}
+            </div>
 
             <div v-if="!caixaAberta" class="pos-alert mb-3 shrink-0 rounded-lg bg-red-700 p-3 text-center text-lg font-black sm:p-4">
                 Caixa fechada para {{ pontoBar }}. Abre a caixa no backoffice antes de vender.

@@ -245,7 +245,7 @@ class PrintJobService
      * Payload do talao unitario que o cliente leva para levantar.
      *
      * Curto de proposito, para gastar pouco papel: nome do evento, senha e
-     * produto — mais nada. (A conta com o total e o troco sai a parte.)
+     * quantidade + produto — mais nada. (A conta com o total e o troco sai a parte.)
      * Os parametros de indice/seccao mantem-se por compatibilidade.
      */
     public function payloadTalaoUnitario(Pedido $pedido, string $nomeProduto, int $indice = 1, int $totalTaloes = 1, ?string $secaoLevantamento = null): array
@@ -259,7 +259,7 @@ class PrintJobService
                     'tamanho' => 'grande',
                 ]] : []),
                 [
-                    'texto' => $nomeProduto,
+                    'texto' => '1x '.$nomeProduto,
                     'alinhamento' => 'centro',
                     'tamanho' => 'grande',
                 ],
