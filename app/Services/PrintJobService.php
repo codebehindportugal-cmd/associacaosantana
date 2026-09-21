@@ -243,43 +243,29 @@ class PrintJobService
 
     /**
      * Payload do talao unitario que o cliente leva para levantar.
+     *
+     * Curto de proposito, para gastar pouco papel: nome do evento, senha e
+     * produto — mais nada. (A conta com o total e o troco sai a parte.)
+     * Os parametros de indice/seccao mantem-se por compatibilidade.
      */
     public function payloadTalaoUnitario(Pedido $pedido, string $nomeProduto, int $indice = 1, int $totalTaloes = 1, ?string $secaoLevantamento = null): array
     {
-        $talao = TalaoConfig::atual();
-
         return [
-            'titulo' => $talao->tituloImpresso(),
-            'subtitulo' => 'SENHA',
+            'titulo' => TalaoConfig::atual()->tituloImpresso(),
             'linhas' => [
-                ...$talao->linhasCabecalho(),
-                'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
-                'Hora: '.now()->format('H:i'),
                 ...($pedido->numero_senha ? [[
                     'texto' => 'SENHA #'.$pedido->numero_senha,
                     'alinhamento' => 'centro',
                     'tamanho' => 'grande',
                 ]] : []),
-                '------------------------------',
                 [
-                    'texto' => '1x '.$nomeProduto,
+                    'texto' => $nomeProduto,
                     'alinhamento' => 'centro',
                     'tamanho' => 'grande',
                 ],
-                // Onde o cliente vai levantar este talao, em destaque
-                ...($secaoLevantamento ? [[
-                    'texto' => mb_strtoupper($this->nomeSecao($secaoLevantamento), 'UTF-8'),
-                    'alinhamento' => 'centro',
-                    'tamanho' => 'grande',
-                ]] : []),
-                ...($totalTaloes > 1 ? [[
-                    'texto' => 'Talao '.$indice.' de '.$totalTaloes,
-                    'alinhamento' => 'centro',
-                ]] : []),
-                '------------------------------',
-                ...$talao->linhasInstrucoes(),
             ],
             'cortar' => true,
+            'compacto' => true,
         ];
     }
 

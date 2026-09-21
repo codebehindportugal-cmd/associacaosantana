@@ -39,6 +39,27 @@ class PosSession extends Model
         return $this->belongsTo(Impressora::class);
     }
 
+    /**
+     * Nomes dos pontos de venda do bar/café, tirados dos postos POS ativos
+     * (localização, ou o nome se não tiver). Mudar os postos no backoffice
+     * (Impressoras > Postos POS) muda estes nomes em todo o lado — caixa
+     * diária incluída — sem mexer no código de evento para evento.
+     */
+    public static function pontosBar(): array
+    {
+        return static::query()
+            ->where('ativo', true)
+            ->whereIn('tipo', ['bar', 'cafe'])
+            ->orderBy('tipo')
+            ->orderBy('nome')
+            ->get(['nome', 'localizacao'])
+            ->map(fn (self $posto) => trim((string) ($posto->localizacao ?: $posto->nome)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function setPinAttribute(string $value): void
     {
         $this->attributes['pin'] = Hash::needsRehash($value) ? Hash::make($value) : $value;

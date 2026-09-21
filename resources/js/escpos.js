@@ -105,7 +105,8 @@ export const escpos = (payload = {}, codepage = 'cp860') => {
         bytes(0x1b, 0x21, 0x00),
         payload.subtitulo ? textoLinha(payload.subtitulo, codepage) : new Uint8Array(0),
         bytes(0x1b, 0x61, 0x00),
-        bytes(0x0a),
+        // Talao compacto (senha individual): sem linha em branco a seguir ao titulo
+        payload.compacto ? new Uint8Array(0) : bytes(0x0a),
         ...((payload.linhas ?? []).map(linhaEscpos)),
         bytes(0x0a, 0x0a, 0x0a, 0x0a, 0x0a),
         // GS V 0 — corte do papel

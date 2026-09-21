@@ -44,8 +44,21 @@ termicas: vai pelo driver, que usa papel de tamanho fixo e nao envia o comando
 de corte (`0x1D 0x56 0x00`). Sai desalinhado e nao corta. Fica disponivel como
 tipo **Impressao normal do browser** apenas para impressoras comuns.
 
-A pasta `windows/` tem scripts para correr este agente em Windows. Nao sao
-usados nesta montagem — ficam apenas para o caso de um dia ser preciso.
+## Agente em Windows (em vez do Raspberry)
+
+A pasta `windows/` corre este mesmo agente num PC Windows (Node.js 18+):
+
+1. `instalar-agente.bat` — cria o `.env` (site, token, nome do posto).
+2. `testar-impressora.bat` — pede o IP e imprime um talao de teste directo
+   na impressora (porta 9100), sem passar pelo site. Se falhar aqui, o
+   problema e de rede entre o PC e a impressora, nao do site.
+3. `iniciar-agente.bat` — poe o agente a trabalhar (reinicia se parar).
+4. `arranque-automatico.bat` (como administrador) — arranca ao iniciar sessao.
+
+No backoffice, a impressora fica com tipo **Rede**, IP + porta 9100 e
+*Posto (agente)* igual ao `AGENTE` do `.env`. A janela do agente diz, ao
+arrancar, que posto esta a tratar, e de minuto a minuto avisa se nao ha
+trabalhos para esse posto.
 
 ## Varios agentes
 

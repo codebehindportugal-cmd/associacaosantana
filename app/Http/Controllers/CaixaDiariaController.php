@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CaixaDiaria;
 use App\Models\Configuracao;
 use App\Models\Pedido;
+use App\Models\PosSession;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -172,6 +173,7 @@ class CaixaDiariaController extends Controller
 
     private function pontosPadrao(): array
     {
-        return ['Restaurante', 'Cafe', 'Bar 1'];
+        // Os pontos do bar vêm dos postos POS ativos, para cada evento ter os seus
+        return ['Restaurante', ...PosSession::pontosBar()];
     }
 }

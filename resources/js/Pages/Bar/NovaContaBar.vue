@@ -2,8 +2,9 @@
 import { Link, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, ref } from 'vue';
 
-const props = defineProps({ produtos: Array });
-const pontosPadrao = ['Cafe', 'Bar 1', 'Bar 2'];
+const props = defineProps({ produtos: Array, pontos: { type: Array, default: () => [] } });
+// Nomes dos postos POS ativos (Impressoras > Postos POS)
+const pontosPadrao = computed(() => props.pontos ?? []);
 const carrinho = ref([]);
 const pontoBar = ref('');
 const form = useForm({ observacoes: '', items: [], ponto_bar: '' });
@@ -27,7 +28,7 @@ onMounted(() => {
                 <h1 class="text-3xl font-black">Nova Conta Bar</h1>
                 <p class="font-semibold text-slate-500">Modo conta: paga no final.</p>
                 <label class="mt-3 block text-sm font-black text-slate-700">Ponto de venda
-                    <input v-model="pontoBar" list="pontos-bar-conta" class="mt-1 w-full rounded-xl border-slate-300 font-black" placeholder="Cafe, Bar 1, Bar 2..." @change="guardarPonto">
+                    <input v-model="pontoBar" list="pontos-bar-conta" class="mt-1 w-full rounded-xl border-slate-300 font-black" placeholder="Nome do ponto (ex: Café, Bar 1)" @change="guardarPonto">
                 </label>
                 <datalist id="pontos-bar-conta"><option v-for="ponto in pontosPadrao" :key="ponto" :value="ponto" /></datalist>
             </div>

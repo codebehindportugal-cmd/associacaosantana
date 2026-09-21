@@ -2,8 +2,9 @@
 import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const props = defineProps({ pedidos: Array, caixas: Array });
-const pontosPadrao = ['Cafe', 'Bar 1', 'Bar 2'];
+const props = defineProps({ pedidos: Array, caixas: Array, pontos: { type: Array, default: () => [] } });
+// Nomes dos postos POS ativos (Impressoras > Postos POS)
+const pontosPadrao = computed(() => props.pontos ?? []);
 const pontoBar = ref('');
 let intervalo = null;
 const contas = computed(() => (props.pedidos ?? []).filter((p) => p.tipo === 'bar_conta' && !['entregue', 'cancelado'].includes(p.estado)));
@@ -38,7 +39,7 @@ onBeforeUnmount(() => clearInterval(intervalo));
             </div>
             <div class="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-3 md:grid-cols-[1fr_auto] md:items-end">
                 <label class="block font-black">Nome deste ponto de venda
-                    <input v-model="pontoBar" list="pontos-bar" class="mt-1 w-full rounded-xl border-slate-300 text-lg font-black" placeholder="Ex: Café Dia, Café Noite, Bar 1, Bar 2">
+                    <input v-model="pontoBar" list="pontos-bar" class="mt-1 w-full rounded-xl border-slate-300 text-lg font-black" placeholder="Nome do ponto (ex: Café, Bar 1)">
                 </label>
                 <div class="rounded-xl bg-white px-4 py-3 text-sm font-bold" :class="pontoBar && caixaAberta ? 'text-emerald-700' : 'text-amber-700'">
                     <span v-if="pontoBar && caixaAberta">Caixa aberta · fundo {{ euros(caixasPorPonto[pontoBar]?.fundo_maneio) }}</span>

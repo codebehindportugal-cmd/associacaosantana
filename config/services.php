@@ -37,6 +37,9 @@ return [
 
     'print_agent' => [
         'token' => env('PRINT_AGENT_TOKEN'),
+        // Talões mais antigos do que isto já não saem (ex: agente/Raspberry
+        // desligado durante o evento) — ficam marcados como expirados.
+        'validade_minutos' => (int) env('PRINT_JOB_VALIDADE_MINUTOS', 10),
     ],
 
     'recaptcha' => [

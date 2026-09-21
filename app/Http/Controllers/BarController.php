@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Configuracao;
 use App\Models\CaixaDiaria;
 use App\Models\Pedido;
+use App\Models\PosSession;
 use App\Models\Produto;
 use App\Models\TalaoConfig;
 use App\Services\PrintJobService;
@@ -37,17 +38,18 @@ class BarController extends Controller
                 ->orWhere('estado', 'aberta')
                 ->get(['ponto', 'fundo_maneio', 'estado', 'created_at']),
             'filters' => $request->only('tipo', 'estado'),
+            'pontos' => PosSession::pontosBar(),
         ]);
     }
 
     public function novaContaBar(): Response
     {
-        return Inertia::render('Bar/NovaContaBar', ['produtos' => $this->produtos()]);
+        return Inertia::render('Bar/NovaContaBar', ['produtos' => $this->produtos(), 'pontos' => PosSession::pontosBar()]);
     }
 
     public function novoPrepago(): Response
     {
-        return Inertia::render('Bar/NovoPrepago', ['produtos' => $this->produtos()]);
+        return Inertia::render('Bar/NovoPrepago', ['produtos' => $this->produtos(), 'pontos' => PosSession::pontosBar()]);
     }
 
     public function storePrepago(Request $request, PrintJobService $printJobs): RedirectResponse

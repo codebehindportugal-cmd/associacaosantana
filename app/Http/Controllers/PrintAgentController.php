@@ -17,7 +17,14 @@ class PrintAgentController extends Controller
         // atribuidas a nenhum — mantem a instalacao antiga a funcionar.
         $agente = trim((string) $request->query('agente'));
 
+        // Talões antigos nunca saem: ao ligar o agente (ex: Raspberry desligado
+        // durante horas) imprimia tudo o que ficou na fila. Passam a falhado
+        // com tentativas esgotadas, para ficar registo sem voltarem à fila.
+        $limite = now()->subMinutes(max(1, (int) config('services.print_agent.validade_minutos', 10)));
+        $this->expirarAntigos($limite);
+
         $jobs = PrintJob::with('impressora')
+            ->where('created_at', '>=', $limite)
             ->whereHas('impressora', fn ($query) => $agente !== ''
                 ? $query->where('agente', $agente)
                 : $query->whereNull('agente'))
@@ -97,6 +104,19 @@ class PrintAgentController extends Controller
         ]);
 
         return response()->json(['ok' => true]);
+    }
+
+    private function expirarAntigos(\DateTimeInterface $limite): void
+    {
+        PrintJob::where('created_at', '<', $limite)
+            ->whereIn('estado', ['pendente', 'processando', 'falhado'])
+            ->where(fn ($q) => $q->where('estado', '!=', 'falhado')->orWhere('tentativas', '<', 10))
+            ->update([
+                'estado' => 'falhado',
+                'tentativas' => 10,
+                'reservado_ate' => null,
+                'ultimo_erro' => 'Expirado: nao foi impresso a tempo (agente desligado?).',
+            ]);
     }
 
     private function autorizarAgente(Request $request): void
