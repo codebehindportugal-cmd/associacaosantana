@@ -115,6 +115,7 @@ class PosBarController extends Controller
             // cortado, agrupados por seccao para saírem pela ordem das
             // tasquinhas. A conta sai no fim.
             $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
+            $jobs = [];
 
             if ($viaAgente && $porSeccao) {
                 $grupos = $printJobs->unidadesPorSeccao($pedidoFull);
@@ -124,12 +125,12 @@ class PosBarController extends Controller
                 foreach ($grupos as $secao => $unidades) {
                     foreach ($unidades as $nome) {
                         $numero++;
-                        $printJobs->criarTalaoBarUnitario($pedidoFull, $nome, $secaoImp, $numero, $totalTaloes, $secao);
+                        $jobs[] = $printJobs->criarTalaoBarUnitario($pedidoFull, $nome, $secaoImp, $numero, $totalTaloes, $secao);
                     }
                 }
 
                 // A conta sai no fim, para quem esta na caixa conferir
-                $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
+                $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
             } elseif ($viaAgente) {
                 $itensIndividuais = $pedidoFull->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
                 $itensOutros = $pedidoFull->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
@@ -140,7 +141,7 @@ class PosBarController extends Controller
                 foreach ($itensIndividuais as $item) {
                     for ($u = 0; $u < $item->quantidade; $u++) {
                         $numero++;
-                        $printJobs->criarTalaoBarUnitario(
+                        $jobs[] = $printJobs->criarTalaoBarUnitario(
                             $pedidoFull,
                             $item->produto->nome,
                             $secaoImp,
@@ -152,17 +153,44 @@ class PosBarController extends Controller
                 }
 
                 if ($itensOutros->isNotEmpty()) {
-                    $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+                    $jobs[] = $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
                 }
             }
 
-            // Pelo agente, o talao sai sozinho na impressora: volta-se logo ao
-            // ecra de venda. WebUSB/navegador imprimem na pagina do talao.
-            if ($viaAgente) {
-                return to_route('pos.index')->with('success', 'Senha #'.$pedido->numero_senha.' enviada para a impressora.');
+            // Venda a dinheiro: a gaveta abre com o primeiro talao que sai
+            // (ESC p no inicio dos bytes), para nao ficar a espera do resto.
+            if ($primeiro = collect($jobs)->filter()->first()) {
+                $primeiro->update(['payload' => [...$primeiro->payload, 'abrir_caixa' => true]]);
             }
 
-            return to_route('pos.pedido.talao', $pedido);
+            $sucesso = 'Senha #'.$pedido->numero_senha.' enviada para a impressora.';
+
+            // Pelo agente, o talao sai sozinho na impressora.
+            if ($viaAgente) {
+                return to_route('pos.index')->with('success', $sucesso);
+            }
+
+            // WebUSB/navegador: fica-se no ecra de venda e e o proprio POS
+            // que imprime (e abre a gaveta), sem passar pela pagina do talao.
+            $modo = $impressora->tipo;
+            $escpos = [];
+
+            if ($modo === 'webusb') {
+                [, $escpos] = $this->taloesDoPedido($pedidoFull, $printJobs, $modo);
+
+                if ($escpos !== []) {
+                    $escpos[0]['abrir_caixa'] = true;
+                }
+            }
+
+            return to_route('pos.index')
+                ->with('success', $sucesso)
+                ->with('imprimir', [
+                    'pedido_id' => $pedido->id,
+                    'modo' => $modo,
+                    'url' => route('pos.pedido.talao', $pedido),
+                    'escpos' => $escpos,
+                ]);
         });
     }
 
@@ -173,10 +201,36 @@ class PosBarController extends Controller
         $pedido->load('items.produto.categoria', 'pos');
 
         $talao = TalaoConfig::atual();
-        $porSeccao = $talao->taloesPorSeccao();
         $terminal = PosSession::find(session('pos_id'));
         $impressora = $terminal?->impressora;
         $modo = $impressora?->tipo ?? 'agente';
+
+        [$taloesCliente, $taloesEscpos] = $this->taloesDoPedido($pedido, $printJobs, $modo);
+
+        return Inertia::render('Pos/TalaoSenha', [
+            'pedido' => $pedido,
+            'talao' => [
+                'titulo' => $talao->tituloImpresso(),
+                'cabecalho' => array_column($talao->linhasCabecalho(), 'texto'),
+                'rodape' => $talao->linhasRodape(),
+                'instrucoes' => array_column($talao->linhasInstrucoes(), 'texto'),
+            ],
+            'taloesCliente' => $taloesCliente,
+            'modoImpressao' => $modo,
+            'taloesEscpos' => $taloesEscpos,
+        ]);
+    }
+
+    /**
+     * Taloes de um pedido pre-pago: os do cliente (um por unidade) para o
+     * HTML e, em webusb/navegador, os mesmos em ESC/POS com a conta no fim.
+     *
+     * @return array{0: array, 1: array}
+     */
+    private function taloesDoPedido(Pedido $pedido, PrintJobService $printJobs, string $modo): array
+    {
+        $pedido->loadMissing('items.produto.categoria', 'pos');
+        $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
 
         // O cliente leva um talao por unidade. No pre-pagamento leva tudo;
         // fora dele, so os produtos marcados como talao individual.
@@ -220,18 +274,7 @@ class PosBarController extends Controller
             $taloesEscpos[] = $printJobs->payloadTalaoBar($pedido, 'CONTA');
         }
 
-        return Inertia::render('Pos/TalaoSenha', [
-            'pedido' => $pedido,
-            'talao' => [
-                'titulo' => $talao->tituloImpresso(),
-                'cabecalho' => array_column($talao->linhasCabecalho(), 'texto'),
-                'rodape' => $talao->linhasRodape(),
-                'instrucoes' => array_column($talao->linhasInstrucoes(), 'texto'),
-            ],
-            'taloesCliente' => $taloesCliente,
-            'modoImpressao' => $modo,
-            'taloesEscpos' => $taloesEscpos,
-        ]);
+        return [$taloesCliente, $taloesEscpos];
     }
 
     private function caixaAberta(string $ponto): bool

@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
+import { ImpressoraUsb } from '@/escpos';
 
 const props = defineProps({
     posNome: String,
@@ -111,6 +112,63 @@ watch(() => page.props.flash?.success, (msg) => {
     avisoTimer = setTimeout(() => (aviso.value = ''), 4000);
 }, { immediate: true });
 
+// Impressao sem sair do POS (postos WebUSB/navegador).
+// WebUSB: manda os bytes ESC/POS daqui — o primeiro talao abre a gaveta.
+// Navegador: imprime a pagina do talao num iframe escondido; sem dialogo
+// so com o Chrome em --kiosk-printing.
+const usb = new ImpressoraUsb();
+const impressaoPendente = ref(null);
+const erroImpressao = ref('');
+const aImprimir = ref(false);
+let ultimoImpresso = null;
+let iframeTalao = null;
+
+const imprimirUsb = async (trabalho, { pedirSeNecessario = false } = {}) => {
+    erroImpressao.value = '';
+    aImprimir.value = true;
+
+    try {
+        if (!usb.ligada && !(await usb.reconectar())) {
+            if (!pedirSeNecessario) {
+                // O browser so deixa escolher a impressora depois de um clique
+                impressaoPendente.value = trabalho;
+                return;
+            }
+            await usb.escolher();
+        }
+
+        for (const payload of trabalho.escpos) {
+            await usb.imprimir(payload);
+        }
+        impressaoPendente.value = null;
+    } catch (e) {
+        if (e?.name === 'NotFoundError') return;
+        impressaoPendente.value = trabalho;
+        erroImpressao.value = e?.message || String(e);
+    } finally {
+        aImprimir.value = false;
+    }
+};
+
+const imprimirNavegador = (trabalho) => {
+    iframeTalao?.remove();
+    iframeTalao = document.createElement('iframe');
+    iframeTalao.setAttribute('aria-hidden', 'true');
+    iframeTalao.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    iframeTalao.src = trabalho.url;
+    document.body.appendChild(iframeTalao);
+};
+
+const imprimirTrabalho = (trabalho, opcoes) => (trabalho.modo === 'webusb'
+    ? imprimirUsb(trabalho, opcoes)
+    : imprimirNavegador(trabalho));
+
+watch(() => page.props.flash?.imprimir, (trabalho) => {
+    if (!trabalho || trabalho.pedido_id === ultimoImpresso) return;
+    ultimoImpresso = trabalho.pedido_id;
+    imprimirTrabalho(trabalho);
+}, { immediate: true });
+
 onMounted(() => {
     relogio = setInterval(() => (agora.value = new Date()), 1000);
     refresh = setInterval(() => router.reload({ only: ['caixaAberta', 'senhasHoje'], preserveScroll: true }), 20000);
@@ -120,6 +178,7 @@ onBeforeUnmount(() => {
     clearInterval(relogio);
     clearInterval(refresh);
     clearTimeout(avisoTimer);
+    iframeTalao?.remove();
 });
 </script>
 
@@ -141,6 +200,12 @@ onBeforeUnmount(() => {
 
             <div v-if="aviso" class="mb-3 shrink-0 rounded-lg bg-emerald-600 p-3 text-center text-lg font-black">
                 ✅ {{ aviso }}
+            </div>
+            <div v-if="impressaoPendente" class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-500 p-3 font-black text-black">
+                <span>{{ erroImpressao || 'Impressora por autorizar neste equipamento (só da primeira vez).' }}</span>
+                <button class="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50" :disabled="aImprimir" @click="imprimirTrabalho(impressaoPendente, { pedirSeNecessario: true })">
+                    {{ aImprimir ? 'A imprimir...' : 'Imprimir senha' }}
+                </button>
             </div>
 
             <div v-if="!caixaAberta" class="pos-alert mb-3 shrink-0 rounded-lg bg-red-700 p-3 text-center text-lg font-black sm:p-4">
