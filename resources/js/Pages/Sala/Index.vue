@@ -1,5 +1,5 @@
 <script setup>
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({ mesas: Array, zonas: Array });
@@ -8,30 +8,23 @@ const mesasMapa = ref([...(props.mesas ?? [])]);
 const zonasMapa = ref([...(props.zonas ?? [])]);
 let polling = null;
 
-const estadoDot = {
-    livre: 'bg-emerald-500',
-    por_receber: 'bg-orange-500',
-    grupo: 'bg-violet-600',
-    ocupada: 'bg-red-600',
-    reservada: 'bg-sky-500',
-};
-
 const segmentoClass = {
-    livre: 'bg-emerald-500/90',
-    por_receber: 'bg-orange-500/90',
-    grupo: 'bg-violet-600/95',
-    ocupada: 'bg-red-600/95',
-    reservada: 'bg-sky-500/90',
+    livre: 'bg-white text-tinta',
+    por_receber: 'bg-laranja text-white',
+    grupo: 'bg-roxo text-white',
+    ocupada: 'bg-verde text-white',
+    reservada: 'bg-azul text-white',
 };
+// Cada grupo (pedido de várias mesas) tem uma cor própria para se distinguir no mapa
 const coresGrupo = [
-    'bg-violet-600/95',
-    'bg-cyan-600/95',
-    'bg-fuchsia-600/95',
-    'bg-lime-500/95',
-    'bg-amber-500/95',
-    'bg-blue-600/95',
-    'bg-rose-600/95',
-    'bg-teal-600/95',
+    'bg-roxo text-white',
+    'bg-[#0E7490] text-white',
+    'bg-[#A21C7A] text-white',
+    'bg-[#4D7C0F] text-white',
+    'bg-[#9A6B00] text-white',
+    'bg-[#1E4592] text-white',
+    'bg-[#B4233C] text-white',
+    'bg-[#0F766E] text-white',
 ];
 
 const estadoLabel = {
@@ -149,15 +142,30 @@ const zonaStyle = (zona) => ({
     width: `${zona.mapa_largura}%`,
     height: `${zona.mapa_altura}%`,
 });
+const zonaFundo = (zona) => ({
+    palco: 'bg-[#FBF3E6]',
+    balcao: 'bg-[#EEF2FB]',
+    cozinha: 'bg-[#F1F3EF]',
+    wc: 'bg-[#EEF5FA]',
+    entrada: 'bg-white',
+    porta: 'bg-white',
+    texto: 'bg-transparent border-transparent',
+}[zona.tipo] ?? 'bg-fundo/70');
+const cartoesResumo = [
+    ['livre', 'border-2 border-[#8FA39A] bg-white text-tinta', 'text-suave'],
+    ['por_receber', 'bg-laranja text-white', ''],
+    ['ocupada', 'bg-verde text-white', ''],
+    ['grupo', 'bg-roxo text-white', ''],
+    ['reservada', 'bg-azul text-white', ''],
+];
+const rodapeMesa = (mesa) => {
+    if (mesa.submesas?.length) {
+        return `Mesa ${mesa.numero} · ${segmentosMesa(mesa).map((segmento) => segmento.label).join(' ')}`;
+    }
+    const pedido = pedidosAtivos(mesa)[0];
+    return pedido ? `#${pedido.id} - ${horaPedido(pedido)}` : estadoLabel[estadoMesa(mesa)];
+};
 const zonaVertical = (zona) => Number(zona.mapa_altura || 0) > Number(zona.mapa_largura || 0);
-const zonaClasse = (zona) => ['entrada', 'porta'].includes(zona.tipo)
-    ? 'border-transparent bg-white/95 text-slate-700 shadow-sm'
-    : zona.tipo === 'wc'
-        ? 'border-slate-700/80 bg-sky-50/70 text-slate-900'
-    : zona.tipo === 'palco'
-        ? 'border-slate-700/80 bg-amber-50/70 text-slate-900'
-    : 'border-slate-700/80 bg-white/40 text-slate-900';
-
 const letraSubmesa = (submesa) => submesa.designacao.replace(/^Mesa\s*/i, '');
 
 const pedidosMesa = (mesa) => [
@@ -201,62 +209,63 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <main class="h-screen overflow-hidden bg-slate-950 p-3">
-        <section class="h-full rounded-lg border border-slate-600 bg-slate-900 p-3 shadow-sm">
-            <div data-sala-mapa class="relative h-full w-full overflow-hidden rounded-lg bg-[#f7f5ef] shadow-inner ring-1 ring-slate-500">
-                <div class="absolute inset-x-[2%] inset-y-[4%] rounded-md border-[3px] border-slate-800/70"></div>
-                <div class="absolute left-[2%] top-[38%] h-[18%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute left-[2%] top-[63%] h-[14%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute right-[2%] top-[12%] h-[16%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute right-[2%] bottom-[8%] h-[12%] w-[2px] bg-[#f7f5ef]"></div>
-
-                <div
-                    v-for="zona in zonasMapa"
-                    :key="`zona-${zona.id}`"
-                    class="absolute flex items-center justify-center rounded-sm border-[3px] p-1 text-center text-xs font-black uppercase"
-                    :class="zonaClasse(zona)"
-                    :style="zonaStyle(zona)"
-                >
-                    <span :class="zonaVertical(zona) ? '[writing-mode:vertical-rl]' : ''">{{ zona.nome }}</span>
+    <main class="min-h-screen bg-fundo font-sans text-tinta tabular-nums">
+        <div class="mx-auto flex max-w-[1400px] flex-col gap-[18px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-col gap-1.5">
+                    <h1 class="text-[30px] font-extrabold leading-tight">Sala ao vivo</h1>
+                    <p class="flex items-center gap-2 text-[15px] text-suave">
+                        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-verde-ok"></span>
+                        Atualiza sozinho a cada 3 segundos. Passa por cima de uma mesa para ver os pedidos.
+                    </p>
                 </div>
+                <Link :href="route('mesas.index')" class="inline-flex h-12 items-center gap-2 rounded-[10px] border border-linha-forte bg-white px-[18px] text-[15px] font-bold text-tinta hover:bg-fundo">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" /></svg>
+                    Gerir mesas e mapa
+                </Link>
+            </div>
 
-                <div
-                    v-for="mesa in mesasMapa"
-                    :key="mesa.id"
-                    class="absolute overflow-hidden rounded-md border-2 border-slate-900 bg-white text-left shadow-sm"
-                    :style="mesaStyle(mesa)"
-                    :title="textoPedidos(mesa)"
-                >
-                    <div class="absolute inset-0 flex" :class="mesa.mapa_altura > mesa.mapa_largura ? 'flex-col' : 'flex-row'">
-                        <div
-                            v-for="segmento in segmentosMesa(mesa)"
-                            :key="segmento.id"
-                            class="min-h-0 min-w-0 border-white/70"
-                            :class="[segmentoClasse(segmento), mesa.mapa_altura > mesa.mapa_largura ? 'border-b last:border-b-0' : 'border-r last:border-r-0']"
-                            :style="{ flex: segmento.capacidade }"
-                        ></div>
-                    </div>
-
-                    <div class="relative z-10 flex h-full flex-col justify-between p-1 text-center text-white drop-shadow">
-                        <div class="flex items-start justify-between gap-1">
-                            <span class="rounded bg-slate-950/60 px-1 text-[10px] font-black">{{ mesa.numero }}</span>
-                            <span class="h-2.5 w-2.5 rounded-full ring-1 ring-white" :class="estadoDot[estadoMesa(mesa)]"></span>
-                        </div>
-
-                        <div v-if="mesa.submesas.length" class="grid gap-0.5" :class="mesa.submesas.length > 3 ? 'grid-cols-3' : 'grid-cols-2'">
-                            <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="rounded bg-slate-950/50 px-1 py-0.5 text-[9px] font-black">
-                                {{ segmento.label }}
-                            </span>
-                        </div>
-                        <div v-else class="grid gap-0.5">
-                            <span class="rounded bg-slate-950/50 px-1 py-0.5 text-[9px] font-black">{{ estadoLabel[estadoMesa(mesa)] }}</span>
-                            <span v-if="pedidosAtivos(mesa)[0]" class="rounded bg-slate-950/50 px-1 py-0.5 text-[9px] font-bold">
-                                #{{ pedidosAtivos(mesa)[0].id }} - {{ horaPedido(pedidosAtivos(mesa)[0]) }}
-                            </span>
-                        </div>
-                    </div>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <div v-for="[chave, classe, rotulo] in cartoesResumo" :key="chave" class="flex flex-col gap-0.5 rounded-[14px] px-4 py-3.5" :class="classe">
+                    <span class="text-sm font-bold" :class="rotulo">{{ estadoLabel[chave] }}</span>
+                    <span class="text-[30px] font-extrabold leading-tight">{{ resumo[chave] }}</span>
                 </div>
             </div>
-        </section>
+
+            <p class="text-sm text-suave-2 md:hidden">Desliza o mapa para o lado para ver a sala toda.</p>
+            <section aria-label="Mapa da sala" class="overflow-x-auto rounded-[14px] border border-linha bg-white p-3">
+                <div data-sala-mapa class="relative h-[72vh] min-h-[620px] w-full min-w-[760px] overflow-hidden rounded-[10px] border border-linha-fraca bg-[#FAFBF8]">
+                    <div
+                        v-for="zona in zonasMapa"
+                        :key="`zona-${zona.id}`"
+                        class="absolute flex items-center justify-center rounded-lg border border-[#C9CEC7] p-1 text-center text-[13px] font-extrabold uppercase tracking-[.06em] text-suave"
+                        :class="zonaFundo(zona)"
+                        :style="zonaStyle(zona)"
+                    >
+                        <span :class="zonaVertical(zona) ? '[writing-mode:vertical-rl]' : ''">{{ zona.nome }}</span>
+                    </div>
+
+                    <div
+                        v-for="mesa in mesasMapa"
+                        :key="mesa.id"
+                        class="absolute flex flex-col overflow-hidden rounded-lg bg-white"
+                        :class="estadoMesa(mesa) === 'livre' ? 'border-2 border-[#8FA39A]' : 'border-2 border-transparent'"
+                        :style="mesaStyle(mesa)"
+                        :title="textoPedidos(mesa)"
+                    >
+                        <div class="flex min-h-0 flex-grow" :class="mesa.mapa_altura > mesa.mapa_largura ? 'flex-col' : 'flex-row'">
+                            <span
+                                v-for="segmento in segmentosMesa(mesa)"
+                                :key="segmento.id"
+                                class="flex min-h-0 min-w-0 items-center justify-center text-base font-extrabold"
+                                :class="[segmentoClasse(segmento), mesa.mapa_altura > mesa.mapa_largura ? 'border-b-2 border-white last:border-b-0' : 'border-r-2 border-white last:border-r-0']"
+                                :style="{ flex: segmento.capacidade }"
+                            >{{ segmento.label }}</span>
+                        </div>
+                        <span class="truncate border-t border-linha-fraca bg-white px-1 py-0.5 text-center text-[11px] font-bold text-tinta">{{ rodapeMesa(mesa) }}</span>
+                    </div>
+                </div>
+            </section>
+        </div>
     </main>
 </template>

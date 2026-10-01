@@ -1,9 +1,5 @@
 <script setup>
 import GuestLayout from '@/Layouts/GuestLayout.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
 const form = useForm({
@@ -22,92 +18,97 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Register" />
+        <Head title="Criar conta" />
 
-        <form @submit.prevent="submit">
+        <h2 class="m-0 text-[26px] font-extrabold leading-tight text-tinta">Criar conta</h2>
+
+        <form class="mt-5 space-y-4" @submit.prevent="submit">
             <div>
-                <InputLabel for="name" value="Name" />
-
-                <TextInput
+                <label for="name" class="rotulo">Nome</label>
+                <input
                     id="name"
-                    type="text"
-                    class="mt-1 block w-full"
                     v-model="form.name"
+                    type="text"
+                    class="campo"
+                    :class="{ 'campo-erro': form.errors.name }"
                     required
                     autofocus
                     autocomplete="name"
                 />
-
-                <InputError class="mt-2" :message="form.errors.name" />
+                <p v-if="form.errors.name" class="erro">{{ form.errors.name }}</p>
             </div>
-
-            <div class="mt-4">
-                <InputLabel for="email" value="Email" />
-
-                <TextInput
+            <div>
+                <label for="email" class="rotulo">Email</label>
+                <input
                     id="email"
-                    type="email"
-                    class="mt-1 block w-full"
                     v-model="form.email"
+                    type="email"
+                    class="campo"
+                    :class="{ 'campo-erro': form.errors.email }"
                     required
                     autocomplete="username"
                 />
-
-                <InputError class="mt-2" :message="form.errors.email" />
+                <p v-if="form.errors.email" class="erro">{{ form.errors.email }}</p>
             </div>
-
-            <div class="mt-4">
-                <InputLabel for="password" value="Password" />
-
-                <TextInput
+            <div>
+                <label for="password" class="rotulo">Password</label>
+                <input
                     id="password"
-                    type="password"
-                    class="mt-1 block w-full"
                     v-model="form.password"
-                    required
-                    autocomplete="new-password"
-                />
-
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel
-                    for="password_confirmation"
-                    value="Confirm Password"
-                />
-
-                <TextInput
-                    id="password_confirmation"
                     type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password_confirmation"
+                    class="campo"
+                    :class="{ 'campo-erro': form.errors.password }"
                     required
                     autocomplete="new-password"
                 />
-
-                <InputError
-                    class="mt-2"
-                    :message="form.errors.password_confirmation"
+                <p v-if="form.errors.password" class="erro">{{ form.errors.password }}</p>
+            </div>
+            <div>
+                <label for="password_confirmation" class="rotulo">Confirmar password</label>
+                <input
+                    id="password_confirmation"
+                    v-model="form.password_confirmation"
+                    type="password"
+                    class="campo"
+                    :class="{ 'campo-erro': form.errors.password_confirmation }"
+                    required
+                    autocomplete="new-password"
                 />
+                <p v-if="form.errors.password_confirmation" class="erro">{{ form.errors.password_confirmation }}</p>
             </div>
 
-            <div class="mt-4 flex items-center justify-end">
-                <Link
-                    :href="route('login')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                >
-                    Already registered?
-                </Link>
+            <button type="submit" class="btn-primario" :disabled="form.processing">
+                {{ form.processing ? 'A criar...' : 'Criar conta' }}
+            </button>
 
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Register
-                </PrimaryButton>
-            </div>
+            <p class="m-0 text-center text-[15px] text-suave">
+                Já tem conta?
+                <Link :href="route('login')" class="font-bold text-verde underline transition hover:text-verde-escuro">Entrar</Link>
+            </p>
         </form>
     </GuestLayout>
 </template>
+
+<style scoped>
+.rotulo { display: block; margin-bottom: 6px; font-size: 15px; font-weight: 700; color: #16201C; }
+.campo {
+    width: 100%;
+    height: 50px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid #D5D9D3;
+    background: #FFFFFF;
+    color: #16201C;
+    font-size: 16px;
+}
+.campo:focus { border-color: #0F6B4F; box-shadow: 0 0 0 3px rgb(15 107 79 / 0.15); outline: none; }
+.campo-erro { border-color: #A3241A; }
+.erro { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: #A3241A; }
+.btn-primario {
+    display: flex; align-items: center; justify-content: center; width: 100%; height: 52px;
+    border-radius: 10px; background: #0F6B4F; color: #FFFFFF; font-size: 17px; font-weight: 700;
+    transition: background 150ms;
+}
+.btn-primario:hover { background: #0A4D39; }
+.btn-primario:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>

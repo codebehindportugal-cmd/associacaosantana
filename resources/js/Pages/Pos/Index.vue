@@ -180,119 +180,192 @@ onBeforeUnmount(() => {
     clearTimeout(avisoTimer);
     iframeTalao?.remove();
 });
+
+// ---------------------------------------------------------------------------
+// Apresentação (redesign) — só formatação e atalhos que escrevem nos mesmos campos
+// ---------------------------------------------------------------------------
+const eur = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const artigos = computed(() => carrinho.value.reduce((soma, item) => soma + item.quantidade, 0));
+const secoesInfo = {
+    cozinha: { label: 'Cozinha', dot: 'bg-secao-cozinha', text: 'text-secao-cozinha' },
+    comida: { label: 'Comida', dot: 'bg-secao-cozinha', text: 'text-secao-cozinha' },
+    frango: { label: 'Frango', dot: 'bg-secao-grelhados', text: 'text-secao-grelhados' },
+    bebidas: { label: 'Bebidas', dot: 'bg-secao-bar', text: 'text-secao-bar' },
+    acompanhamentos: { label: 'Acompanhamentos', dot: 'bg-secao-acompanhamentos', text: 'text-secao-acompanhamentos' },
+    sobremesas: { label: 'Sobremesas', dot: 'bg-secao-sobremesas', text: 'text-secao-sobremesas' },
+    servico: { label: 'Serviço', dot: 'bg-secao-servico', text: 'text-secao-servico' },
+};
+const secaoDe = (produto) => secoesInfo[produto?.categoria?.secao] ?? { label: produto?.categoria?.nome ?? 'Outros', dot: 'bg-suave', text: 'text-suave' };
+const notasRapidas = computed(() => [5, 10, 20, 50, 100].filter((v) => v > total.value).slice(0, 3));
+const escolherRecebido = (valor) => {
+    recebido.value = valor === '' ? '' : String(valor);
+    trocoEntregue.value = '';
+};
+const doouTroco = computed(() => trocoEntregue.value !== '' && Number(trocoEntregue.value) === 0 && troco.value > 0);
+const alternarDoacao = () => { trocoEntregue.value = doouTroco.value ? '' : 0; };
+const limparSenha = () => {
+    carrinho.value = [];
+    recebido.value = '';
+    trocoEntregue.value = '';
+};
+
 </script>
 
 <template>
     <ChamadaFuncionarioAlert />
     <ComissaoChamadasAlert />
-    <main class="pos-screen flex min-h-screen bg-gray-900 p-3 text-white sm:p-4 lg:h-screen lg:overflow-hidden">
-        <div class="flex min-h-0 w-full flex-col">
-            <header class="pos-header mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 class="pos-title text-2xl font-black sm:text-3xl">POS {{ pontoBar }}</h1>
-                    <p class="pos-subtitle font-bold text-gray-300">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p>
-                </div>
-                <div class="flex gap-2">
-                    <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
-                    <button class="pos-logout rounded-lg bg-red-600 px-4 py-2 font-black sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
-                </div>
-            </header>
-
-            <div v-if="aviso" class="mb-3 shrink-0 rounded-lg bg-emerald-600 p-3 text-center text-lg font-black">
-                ✅ {{ aviso }}
+    <main class="flex min-h-screen flex-col bg-fundo font-sans text-tinta tabular-nums lg:h-[100dvh] lg:overflow-hidden">
+        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:py-0">
+            <div class="flex min-w-0 items-baseline gap-4">
+                <h1 class="text-xl font-extrabold">POS {{ pontoBar }}</h1>
+                <span class="truncate text-sm text-escuro-inativo">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) }}</span>
             </div>
-            <div v-if="impressaoPendente" class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-500 p-3 font-black text-black">
-                <span>{{ erroImpressao || 'Impressora por autorizar neste equipamento (só da primeira vez).' }}</span>
-                <button class="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50" :disabled="aImprimir" @click="imprimirTrabalho(impressaoPendente, { pedirSeNecessario: true })">
-                    {{ aImprimir ? 'A imprimir...' : 'Imprimir senha' }}
+            <div class="flex gap-2.5">
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-laranja px-4 text-[15px] font-bold text-white" @click="chamandoComissao = true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                    Chamar comissão
+                </button>
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="logout">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
+                    Sair
                 </button>
             </div>
+        </header>
 
-            <div v-if="!caixaAberta" class="pos-alert mb-3 shrink-0 rounded-lg bg-red-700 p-3 text-center text-lg font-black sm:p-4">
-                Caixa fechada para {{ pontoBar }}. Abre a caixa no backoffice antes de vender.
-            </div>
+        <div v-if="aviso" role="status" class="flex shrink-0 items-center gap-2 bg-verde px-6 py-3 text-[17px] font-bold text-white">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5" /></svg>
+            {{ aviso }}
+        </div>
+        <div v-if="impressaoPendente" role="alert" class="flex shrink-0 flex-wrap items-center justify-between gap-3 bg-laranja-claro px-6 py-3 font-bold text-laranja-texto">
+            <span>{{ erroImpressao || 'Impressora por autorizar neste equipamento (só da primeira vez).' }}</span>
+            <button type="button" class="h-11 rounded-[10px] bg-laranja px-4 text-white disabled:opacity-45" :disabled="aImprimir" @click="imprimirTrabalho(impressaoPendente, { pedirSeNecessario: true })">
+                {{ aImprimir ? 'A imprimir...' : 'Imprimir senha' }}
+            </button>
+        </div>
+        <div v-if="!caixaAberta" role="alert" class="shrink-0 bg-perigo-claro px-6 py-3 text-center text-[17px] font-bold text-perigo-texto">
+            Caixa fechada para {{ pontoBar }}. Abre a caixa no backoffice antes de vender.
+        </div>
 
-            <div class="pos-layout grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_410px]">
-                <div class="pos-left flex min-h-0 flex-col gap-3">
-                    <section class="pos-panel flex min-h-0 flex-1 flex-col rounded-lg bg-gray-800 p-3 sm:p-4">
-                        <!-- Abas de categoria -->
-                        <div v-if="secoes.length > 1" class="pos-tabs mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1">
-                            <button
-                                v-for="s in secoes"
-                                :key="s.nome"
-                                class="pos-tab shrink-0 rounded-lg px-4 py-2 text-sm font-black uppercase tracking-wide transition"
-                                :class="secaoAtivaKey === s.nome ? 'bg-emerald-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
-                                @click="secaoAtiva = s.nome"
-                            >
-                                {{ s.nome }}
-                            </button>
-                        </div>
-                        <h2 class="pos-section-title mb-3 shrink-0 text-xl font-black sm:text-2xl">{{ tituloAtivo.toUpperCase() }}</h2>
-                        <div v-if="produtosVisiveis.length === 0" class="flex flex-1 items-center justify-center text-gray-400 font-bold">
-                            Sem produtos nesta secção.
-                        </div>
-                        <div v-else class="pos-product-grid grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                            <button
-                                v-for="produto in produtosVisiveis"
-                                :key="produto.id"
-                                class="pos-product-btn min-h-20 rounded-lg p-3 text-left font-black disabled:opacity-50 sm:min-h-24 relative overflow-hidden"
-                                :class="produto.imagem ? 'bg-gray-900' : secaoClasse(produto)"
-                                :style="btnStyle(produto)"
-                                :disabled="!caixaAberta"
-                                @click="adicionar(produto)"
-                            >
-                                <span v-if="cartQty[produto.id]" class="absolute top-1 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-gray-900 z-10">{{ cartQty[produto.id] }}</span>
-                                <span class="pos-product-name block text-lg relative z-10" :style="produto.imagem ? { textShadow: '0 1px 4px rgba(0,0,0,0.9)' } : null">{{ produto.nome }}</span>
-                                <span class="pos-product-price mt-1 block text-xl sm:text-2xl relative z-10" :style="produto.imagem ? { textShadow: '0 1px 4px rgba(0,0,0,0.9)' } : null">{{ euros(produto.preco) }}</span>
-                            </button>
-                        </div>
-                    </section>
-
-                    <section class="pos-sales-panel shrink-0 rounded-lg bg-gray-800 p-3">
-                        <h2 class="pos-sales-title mb-2 text-lg font-black">ÚLTIMAS SENHAS</h2>
-                        <div class="pos-sales-grid grid max-h-32 gap-2 overflow-y-auto md:grid-cols-3 xl:grid-cols-4">
-                            <div v-for="pedido in senhasHoje" :key="pedido.id" class="pos-sale-card rounded-lg bg-gray-900 p-2">
-                                <div class="pos-sale-number text-xl font-black">#{{ pedido.numero_senha }}</div>
-                                <div class="pos-sale-time text-xs text-gray-400">{{ hora(pedido.created_at) }}</div>
-                                <div class="pos-sale-items mt-1 truncate text-xs">{{ pedido.items.map((item) => `${item.quantidade}x ${item.produto?.nome}`).join(', ') }}</div>
-                            </div>
-                        </div>
-                    </section>
+        <div class="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_400px]">
+            <section class="flex min-h-0 min-w-0 flex-col gap-3 p-4 sm:p-6">
+                <nav v-if="secoes.length > 1" aria-label="Categorias" class="flex shrink-0 gap-2 overflow-x-auto pb-1">
+                    <button
+                        v-for="s in secoes"
+                        :key="s.nome"
+                        type="button"
+                        class="h-14 shrink-0 whitespace-nowrap rounded-[10px] border px-5 text-[17px] font-bold"
+                        :class="secaoAtivaKey === s.nome ? 'border-escuro bg-escuro text-white' : 'border-linha bg-white text-tinta'"
+                        :aria-pressed="secaoAtivaKey === s.nome"
+                        @click="secaoAtiva = s.nome"
+                    >{{ s.nome }}</button>
+                </nav>
+                <h2 class="sr-only">{{ tituloAtivo }}</h2>
+                <div v-if="produtosVisiveis.length === 0" class="flex flex-1 items-center justify-center font-semibold text-suave">
+                    Sem produtos nesta secção.
+                </div>
+                <div v-else class="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto pb-1 sm:grid-cols-3 xl:grid-cols-4">
+                    <button
+                        v-for="produto in produtosVisiveis"
+                        :key="produto.id"
+                        type="button"
+                        class="relative flex min-h-[124px] min-w-0 flex-col items-start overflow-hidden rounded-[14px] bg-white p-4 text-left disabled:cursor-not-allowed disabled:opacity-45"
+                        :class="cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha'"
+                        :disabled="!caixaAberta"
+                        @click="adicionar(produto)"
+                    >
+                        <img v-if="produto.imagem" :src="`/storage/${produto.imagem}`" alt="" class="pointer-events-none absolute bottom-2 right-2 h-14 w-14 rounded-lg object-contain opacity-90">
+                        <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" :class="secaoDe(produto).text">
+                            <span class="h-2 w-2 rounded-full" :class="secaoDe(produto).dot"></span>{{ secaoDe(produto).label }}
+                        </span>
+                        <span class="mt-2 block break-words pr-8 text-lg font-bold leading-tight" :class="produto.imagem ? 'pr-16' : ''">{{ produto.nome }}</span>
+                        <span class="mt-auto pt-3 text-base font-medium text-suave">{{ eur(produto.preco) }}</span>
+                        <span v-if="cartQty[produto.id]" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ cartQty[produto.id] }}</span>
+                    </button>
                 </div>
 
-                <aside class="pos-cart flex min-h-0 flex-col rounded-lg bg-gray-800 p-3 sm:p-4">
-                    <h2 class="pos-section-title mb-2 shrink-0 text-xl font-black sm:text-2xl">SENHA</h2>
-                    <div class="pos-cart-list min-h-0 flex-1 overflow-y-auto pr-1">
-                        <div v-if="!carrinho.length" class="pos-empty rounded-lg bg-gray-900 p-5 text-center font-bold text-gray-300">Escolhe os produtos.</div>
-                        <div v-for="item in carrinho" :key="item.produto_id" class="pos-cart-item mb-2 rounded-lg bg-gray-900 p-3">
-                            <div class="pos-cart-name font-black">{{ item.nome }}</div>
-                            <div class="pos-cart-row mt-2 flex items-center justify-between gap-3">
-                                <div class="flex items-center gap-2">
-                                    <button class="pos-qty-btn h-11 w-11 rounded bg-gray-700 text-xl font-black" @click="alterar(item, -1)">-</button>
-                                    <strong class="pos-qty text-xl">{{ item.quantidade }}</strong>
-                                    <button class="pos-qty-btn h-11 w-11 rounded bg-emerald-600 text-xl font-black" @click="alterar(item, 1)">+</button>
-                                </div>
-                                <strong class="pos-line-total font-mono text-xl">{{ euros(item.preco * item.quantidade) }}</strong>
+                <section aria-label="Últimas senhas" class="hidden shrink-0 rounded-[14px] border border-linha bg-white px-4 py-3 md:block">
+                    <h2 class="mb-2 text-sm font-extrabold uppercase tracking-wider text-suave">Últimas senhas</h2>
+                    <div class="grid max-h-32 gap-2 overflow-y-auto md:grid-cols-3 xl:grid-cols-4">
+                        <div v-for="pedido in senhasHoje" :key="pedido.id" class="rounded-[10px] bg-fundo px-2.5 py-2">
+                            <div class="flex items-baseline justify-between gap-2">
+                                <span class="text-lg font-extrabold">#{{ pedido.numero_senha }}</span>
+                                <span class="text-xs text-suave">{{ hora(pedido.created_at) }}</span>
                             </div>
+                            <span class="block truncate text-xs text-suave">{{ pedido.items.map((item) => `${item.quantidade}x ${item.produto?.nome}`).join(', ') }}</span>
                         </div>
                     </div>
-                    <div class="pos-total my-3 shrink-0 rounded-lg bg-emerald-700 p-3">
-                        <div class="pos-total-label font-bold">Total</div>
-                        <div class="pos-total-value text-3xl font-black sm:text-4xl">{{ euros(total) }}</div>
+                </section>
+            </section>
+
+            <aside aria-label="Senha" class="flex min-h-0 flex-col border-t border-linha bg-white lg:border-l lg:border-t-0">
+                <div class="flex shrink-0 items-center justify-between border-b border-linha px-5 py-3.5">
+                    <h2 class="text-xl font-extrabold">Senha</h2>
+                    <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-perigo disabled:opacity-45" :disabled="!carrinho.length" @click="limparSenha">Limpar</button>
+                </div>
+                <div class="min-h-[120px] flex-1 overflow-y-auto px-5">
+                    <p v-if="!carrinho.length" class="py-10 text-center text-[15px] text-suave">Escolhe os produtos.</p>
+                    <div v-for="item in carrinho" :key="item.produto_id" class="flex items-center gap-3 border-b border-linha-fraca py-3">
+                        <span class="min-w-0 flex-1 truncate text-[17px] font-bold">{{ item.nome }}</span>
+                        <div class="flex items-center gap-2">
+                            <button type="button" aria-label="Retirar um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterar(item, -1)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                            </button>
+                            <span class="w-7 text-center text-lg font-bold">{{ item.quantidade }}</span>
+                            <button type="button" aria-label="Adicionar mais um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterar(item, 1)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                            </button>
+                        </div>
+                        <span class="w-20 text-right text-base font-bold">{{ eur(item.preco * item.quantidade) }}</span>
                     </div>
-                    <input v-model="recebido" inputmode="decimal" class="pos-input w-full shrink-0 rounded-lg border-gray-700 bg-gray-900 p-3 text-xl font-black text-white" placeholder="Recebido">
-                    <input v-model="trocoEntregue" inputmode="decimal" class="pos-input mt-2 w-full shrink-0 rounded-lg border-gray-700 bg-gray-900 p-3 text-xl font-black text-white" :placeholder="`Troco entregue ${euros(troco)}`">
-                    <div class="pos-change-grid mt-2 grid shrink-0 grid-cols-2 gap-2 text-base font-black">
-                        <div class="rounded-lg bg-gray-900 p-2 text-emerald-400">Troco: {{ euros(trocoRegistado) }}</div>
-                        <div class="rounded-lg bg-gray-900 p-2 text-amber-300">Doação: {{ euros(doacao) }}</div>
+                </div>
+                <div class="shrink-0 space-y-3 border-t border-linha bg-fundo p-5">
+                    <div class="flex items-end justify-between gap-2">
+                        <span class="text-[15px] text-suave">Total · {{ artigos }} artigos</span>
+                        <span class="text-4xl font-extrabold">{{ eur(total) }}</span>
                     </div>
-                    <button type="button" class="pos-donate mt-2 w-full shrink-0 rounded-lg bg-amber-500 p-3 font-black text-gray-950" @click="trocoEntregue = 0">CLIENTE DOA O TROCO</button>
-                    <div v-if="form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco" class="pos-error mt-2 shrink-0 rounded bg-red-700 p-2 font-bold">{{ form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco }}</div>
-                    <button class="pos-pay mt-3 w-full shrink-0 rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-50" :disabled="!caixaAberta || !carrinho.length || form.processing" @click="cobrar">
-                        COBRAR E TIRAR SENHA
+                    <div>
+                        <span class="text-sm font-semibold text-suave">Recebido</span>
+                        <div role="group" aria-label="Valor recebido" class="mt-1 grid grid-cols-4 gap-2">
+                            <button type="button" class="h-14 rounded-[10px] text-base font-bold" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="escolherRecebido('')">Certo</button>
+                            <button
+                                v-for="v in notasRapidas"
+                                :key="v"
+                                type="button"
+                                class="h-14 rounded-[10px] text-base font-bold"
+                                :class="String(recebido) === String(v) ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                :aria-pressed="String(recebido) === String(v)"
+                                @click="escolherRecebido(v)"
+                            >{{ v }} €</button>
+                        </div>
+                        <div class="mt-2 grid grid-cols-2 gap-2">
+                            <input v-model="recebido" inputmode="decimal" aria-label="Recebido (outro valor)" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="Outro valor">
+                            <input v-model="trocoEntregue" inputmode="decimal" aria-label="Troco entregue" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" :placeholder="`Troco entregue ${eur(troco)}`">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="rounded-[10px] border border-laranja bg-laranja-claro px-3 py-2">
+                            <span class="block text-sm font-bold text-laranja-texto">Troco a dar</span>
+                            <span class="block text-2xl font-extrabold">{{ eur(trocoRegistado) }}</span>
+                        </div>
+                        <div class="rounded-[10px] border border-linha-forte bg-fundo px-3 py-2">
+                            <span class="block text-sm font-bold text-suave">Doação</span>
+                            <span class="block text-2xl font-extrabold">{{ eur(doacao) }}</span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="h-14 w-full rounded-[10px] border border-laranja text-base font-bold disabled:opacity-45"
+                        :class="doouTroco ? 'bg-laranja text-white' : 'bg-laranja-claro text-laranja-texto'"
+                        :aria-pressed="doouTroco"
+                        :disabled="troco <= 0"
+                        @click="alternarDoacao"
+                    >{{ doouTroco ? 'Cliente doou o troco — anular' : 'Cliente doa o troco' }}</button>
+                    <div v-if="form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-semibold text-perigo-texto">{{ form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco }}</div>
+                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || form.processing" @click="cobrar">
+                        Cobrar e tirar senha
                     </button>
-                </aside>
-            </div>
+                </div>
+            </aside>
         </div>
 
         <ChamarComissaoModal
@@ -302,200 +375,3 @@ onBeforeUnmount(() => {
         />
     </main>
 </template>
-
-<style scoped>
-.pos-screen {
-    height: 100dvh;
-    padding: clamp(0.45rem, 1.1vh, 1rem);
-}
-
-.pos-header,
-.pos-layout,
-.pos-left {
-    gap: clamp(0.4rem, 1vh, 0.75rem);
-}
-
-.pos-header {
-    margin-bottom: clamp(0.35rem, 1vh, 0.75rem);
-}
-
-.pos-title {
-    font-size: clamp(1.25rem, 2.6vw, 1.875rem);
-    line-height: 1.05;
-}
-
-.pos-subtitle,
-.pos-logout,
-.pos-alert,
-.pos-donate,
-.pos-error,
-.pos-pay {
-    font-size: clamp(0.78rem, 1.45vw, 1rem);
-}
-
-.pos-logout,
-.pos-donate,
-.pos-pay,
-.pos-input {
-    padding-block: clamp(0.45rem, 1.15vh, 0.9rem);
-}
-
-.pos-alert {
-    margin-bottom: clamp(0.35rem, 1vh, 0.75rem);
-    padding: clamp(0.45rem, 1.1vh, 1rem);
-}
-
-.pos-panel,
-.pos-sales-panel,
-.pos-cart {
-    padding: clamp(0.55rem, 1.3vh, 1rem);
-}
-
-.pos-section-title {
-    margin-bottom: clamp(0.35rem, 0.9vh, 0.75rem);
-    font-size: clamp(1rem, 1.9vw, 1.5rem);
-    line-height: 1.1;
-}
-
-.pos-product-grid {
-    gap: clamp(0.35rem, 0.9vh, 0.5rem);
-}
-
-.pos-product-btn {
-    min-height: clamp(3.5rem, 9vh, 6rem);
-    padding: clamp(0.35rem, 1vh, 0.75rem);
-}
-
-.pos-product-name {
-    font-size: clamp(0.9rem, 1.6vw, 1.125rem);
-    line-height: 1.1;
-}
-
-.pos-product-price {
-    font-size: clamp(1.05rem, 2vw, 1.5rem);
-    line-height: 1.05;
-}
-
-.pos-sales-panel {
-    max-height: clamp(5rem, 17vh, 8.5rem);
-}
-
-.pos-sales-title {
-    margin-bottom: clamp(0.25rem, 0.7vh, 0.5rem);
-    font-size: clamp(0.8rem, 1.4vw, 1.125rem);
-}
-
-.pos-sales-grid {
-    max-height: clamp(3.3rem, 11vh, 8rem);
-    gap: clamp(0.3rem, 0.8vh, 0.5rem);
-}
-
-.pos-sale-card {
-    padding: clamp(0.35rem, 0.9vh, 0.5rem);
-}
-
-.pos-sale-number {
-    font-size: clamp(1rem, 1.8vw, 1.25rem);
-    line-height: 1;
-}
-
-.pos-sale-time,
-.pos-sale-items {
-    font-size: clamp(0.65rem, 1.1vw, 0.75rem);
-}
-
-.pos-cart-item,
-.pos-empty {
-    padding: clamp(0.45rem, 1vh, 0.75rem);
-}
-
-.pos-cart-name,
-.pos-line-total,
-.pos-qty,
-.pos-input {
-    font-size: clamp(0.95rem, 1.65vw, 1.25rem);
-}
-
-.pos-cart-row {
-    margin-top: clamp(0.3rem, 0.8vh, 0.5rem);
-}
-
-.pos-qty-btn {
-    width: clamp(2.25rem, 5.8vh, 2.75rem);
-    height: clamp(2.25rem, 5.8vh, 2.75rem);
-    font-size: clamp(1rem, 2vw, 1.25rem);
-}
-
-.pos-total {
-    margin-block: clamp(0.4rem, 1vh, 0.75rem);
-    padding: clamp(0.5rem, 1.1vh, 0.75rem);
-}
-
-.pos-total-label,
-.pos-change-grid {
-    font-size: clamp(0.78rem, 1.35vw, 1rem);
-}
-
-.pos-total-value {
-    font-size: clamp(1.7rem, 4vw, 2.25rem);
-    line-height: 1;
-}
-
-.pos-input + .pos-input,
-.pos-change-grid,
-.pos-donate,
-.pos-error {
-    margin-top: clamp(0.35rem, 0.85vh, 0.5rem);
-}
-
-.pos-pay {
-    margin-top: clamp(0.45rem, 1vh, 0.75rem);}
-
-@media (max-height: 700px) {
-    .pos-screen {
-        padding: 0.4rem;
-    }
-
-    .pos-sales-panel {
-        max-height: 4.7rem;
-    }
-
-    .pos-sale-items {
-        display: none;
-    }
-
-    .pos-product-btn {
-        min-height: 3.2rem;
-    }
-}
-
-@media (max-height: 600px) {
-    .pos-subtitle,
-    .pos-sales-panel {
-        display: none;
-    }
-
-    .pos-product-btn {
-        min-height: 2.8rem;
-    }
-
-    .pos-total-label {
-        display: none;
-    }
-}
-
-@media (max-width: 1023px) {
-    .pos-layout {
-        grid-template-rows: minmax(0, 1fr) minmax(16rem, 38vh);
-    }
-
-    .pos-cart {
-        min-height: 0;
-    }
-
-    .pos-sales-panel {
-        display: none;
-    }
-}
-</style>
-

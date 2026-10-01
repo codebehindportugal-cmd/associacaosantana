@@ -38,25 +38,106 @@ const eliminarSocio = (socio) => {
 
 <template>
     <AppLayout>
-        <div class="mb-6 flex items-center justify-between"><h1 class="text-2xl font-bold">Sócios</h1><Link :href="route('socios.create')" class="rounded-md bg-slate-900 px-3 py-2 text-sm text-white">Novo sócio</Link></div>
-        <div class="mb-4 flex flex-wrap items-center gap-2">
-            <button
-                v-for="opcao in [['', 'Todos'], ['ativo', 'Ativos'], ['inativo', 'Inativos']]"
-                :key="opcao[0]"
-                type="button"
-                class="rounded-md border px-3 py-2 text-sm font-bold"
-                :class="estado === opcao[0] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'"
-                @click="escolherEstado(opcao[0])"
-            >
-                {{ opcao[1] }}
-            </button>
-            <input v-model="pesquisa" class="ml-auto w-full rounded-md border-slate-300 text-sm sm:w-64" placeholder="🔍 Nome, nº de sócio ou terra..." @input="pesquisar">
-        </div>
-        <div class="overflow-x-auto rounded-lg bg-white shadow-sm">
-            <table class="w-full min-w-[580px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-3">Número</th><th class="p-3">Nome</th><th class="p-3">Terra</th><th class="p-3">Telefone</th><th class="p-3">Cota</th><th></th></tr></thead>
-                <tbody><tr v-for="socio in socios.data" :key="socio.id" class="border-t"><td class="p-3 font-mono font-bold text-slate-700">{{ socio.numero_socio }}</td><td class="p-3">{{ socio.nome }}</td><td class="p-3 text-slate-600">{{ socio.morada || '—' }}</td><td class="p-3 text-slate-600">{{ socio.telefone || '—' }}</td><td class="p-3"><span class="rounded px-2 py-1 text-xs" :class="socio.cota_em_dia ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'">{{ socio.cota_em_dia ? 'Em dia' : 'Em atraso' }}</span></td><td class="space-x-3"><Link :href="route('socios.show', socio.id)" class="font-semibold text-emerald-700">Ver</Link><Link :href="route('socios.edit', socio.id)" class="font-semibold text-slate-700">Editar</Link><button type="button" class="font-semibold text-red-700" @click="eliminarSocio(socio)">Eliminar</button></td></tr></tbody>
-            </table>
-            <Paginacao :dados="socios" etiqueta="sócios" />
+        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 font-sans text-tinta tabular-nums">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-col gap-1.5">
+                    <h1 class="text-[30px] font-extrabold leading-tight">Sócios</h1>
+                    <p v-if="socios?.total !== undefined" class="text-[15px] text-suave">{{ socios.total }} {{ socios.total === 1 ? 'sócio' : 'sócios' }}</p>
+                </div>
+                <Link :href="route('socios.create')" class="inline-flex h-12 items-center gap-2 rounded-[10px] bg-verde px-5 text-[15px] font-bold text-white hover:bg-verde-escuro">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Novo sócio
+                </Link>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+                <label class="flex h-12 min-w-0 flex-[1_1_300px] items-center gap-2.5 rounded-[10px] border border-linha-forte bg-white px-3.5 text-suave-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
+                    <span class="sr-only">Procurar sócio</span>
+                    <input v-model="pesquisa" type="search" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-tinta placeholder:text-suave-2 focus:ring-0" placeholder="Nome, n.º de sócio ou terra…" @input="pesquisar">
+                </label>
+                <div role="group" aria-label="Filtrar por estado" class="flex flex-wrap gap-2">
+                    <button
+                        v-for="opcao in [['', 'Todos'], ['ativo', 'Ativos'], ['inativo', 'Inativos']]"
+                        :key="opcao[0]"
+                        type="button"
+                        :aria-pressed="estado === opcao[0]"
+                        class="h-11 rounded-full px-4 text-sm font-bold"
+                        :class="estado === opcao[0] ? 'bg-tinta text-white' : 'border border-linha-forte bg-white text-tinta hover:bg-fundo'"
+                        @click="escolherEstado(opcao[0])"
+                    >
+                        {{ opcao[1] }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                <!-- Ecrãs largos: tabela -->
+                <div class="hidden overflow-x-auto md:block">
+                    <table class="w-full border-collapse text-base">
+                        <thead>
+                            <tr class="text-left text-[13px] text-suave-2">
+                                <th scope="col" class="w-[70px] border-b border-linha-fraca px-5 py-3.5 font-semibold">N.º</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 font-semibold">Nome</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 font-semibold">Terra</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 font-semibold">Telefone</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 font-semibold">Cota</th>
+                                <th scope="col" class="border-b border-linha-fraca px-5 py-3.5 text-right font-semibold">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="socio in socios.data" :key="socio.id" class="border-b border-linha-fraca">
+                                <td class="px-5 py-2.5 font-extrabold text-suave">{{ socio.numero_socio }}</td>
+                                <td class="px-3 py-2.5"><Link :href="route('socios.show', socio.id)" class="font-bold text-tinta hover:text-verde">{{ socio.nome }}</Link></td>
+                                <td class="px-3 py-2.5 text-suave">{{ socio.morada || '—' }}</td>
+                                <td class="px-3 py-2.5 text-suave">{{ socio.telefone || '—' }}</td>
+                                <td class="px-3 py-2.5">
+                                    <span class="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[13px] font-extrabold" :class="socio.cota_em_dia ? 'bg-verde-claro text-verde-escuro' : 'bg-perigo-claro text-perigo-texto'">
+                                        <span class="h-[7px] w-[7px] rounded-full" :class="socio.cota_em_dia ? 'bg-verde-ok' : 'bg-perigo'" />
+                                        {{ socio.cota_em_dia ? 'Em dia' : 'Em atraso' }}
+                                    </span>
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-2.5 text-right">
+                                    <div class="inline-flex items-center gap-1.5">
+                                        <Link :href="route('socios.show', socio.id)" class="inline-flex h-10 items-center rounded-[10px] bg-verde-claro px-3.5 text-sm font-bold text-verde-escuro hover:bg-verde-claro2">Ver</Link>
+                                        <Link :href="route('socios.edit', socio.id)" class="inline-flex h-10 items-center rounded-[10px] border border-linha-forte px-3.5 text-sm font-semibold text-tinta hover:bg-fundo">Editar</Link>
+                                        <button type="button" :aria-label="`Eliminar ${socio.nome}`" class="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-[#F0D3CD] bg-white text-perigo hover:bg-perigo-claro" @click="eliminarSocio(socio)">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Ecrãs estreitos: cartões -->
+                <ul class="divide-y divide-linha-fraca md:hidden">
+                    <li v-for="socio in socios.data" :key="socio.id" class="flex flex-col gap-1 px-4 py-3">
+                        <div class="flex items-center gap-2.5">
+                            <span class="font-extrabold text-suave">{{ socio.numero_socio }}</span>
+                            <Link :href="route('socios.show', socio.id)" class="min-w-0 flex-1 truncate font-bold text-tinta">{{ socio.nome }}</Link>
+                            <span class="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-[13px] font-extrabold" :class="socio.cota_em_dia ? 'bg-verde-claro text-verde-escuro' : 'bg-perigo-claro text-perigo-texto'">
+                                <span class="h-[7px] w-[7px] rounded-full" :class="socio.cota_em_dia ? 'bg-verde-ok' : 'bg-perigo'" />
+                                {{ socio.cota_em_dia ? 'Em dia' : 'Em atraso' }}
+                            </span>
+                        </div>
+                        <div class="text-sm text-suave">{{ socio.morada || '—' }}</div>
+                        <div class="text-sm text-suave">{{ socio.telefone || '—' }}</div>
+                        <div class="mt-1.5 flex gap-2">
+                            <Link :href="route('socios.show', socio.id)" class="inline-flex h-11 flex-1 items-center justify-center rounded-[10px] bg-verde-claro text-sm font-bold text-verde-escuro">Ver</Link>
+                            <Link :href="route('socios.edit', socio.id)" class="inline-flex h-11 flex-1 items-center justify-center rounded-[10px] border border-linha-forte text-sm font-semibold text-tinta">Editar</Link>
+                            <button type="button" :aria-label="`Eliminar ${socio.nome}`" class="inline-flex h-11 w-11 items-center justify-center rounded-[10px] border border-[#F0D3CD] bg-white text-perigo" @click="eliminarSocio(socio)">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+                            </button>
+                        </div>
+                    </li>
+                </ul>
+
+                <div v-if="!socios.data?.length" class="p-8 text-center text-suave">Não há sócios para estes filtros.</div>
+
+                <Paginacao :dados="socios" etiqueta="sócios" />
+            </div>
         </div>
     </AppLayout>
 </template>

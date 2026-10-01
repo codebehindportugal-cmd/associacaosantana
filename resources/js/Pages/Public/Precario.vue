@@ -16,29 +16,42 @@ const produtosVisiveis = computed(() => {
 });
 
 const euros = (valor) => `${Number(valor ?? 0).toFixed(2)} €`;
+
+// Cor da secção (sempre acompanhada do nome escrito)
+const corSecao = (secao) => ({
+    grelhados: 'text-secao-grelhados',
+    cozinha: 'text-secao-cozinha',
+    bebidas: 'text-secao-bar',
+    bar: 'text-secao-bar',
+    sobremesas: 'text-secao-sobremesas',
+    acompanhamentos: 'text-secao-acompanhamentos',
+    servico: 'text-secao-servico',
+}[secao] || 'text-suave-2');
 </script>
 
 <template>
     <Head title="Preçário da Festa" />
     <PublicShell>
-        <main class="min-h-screen px-4 py-10">
-            <section class="mx-auto max-w-2xl">
+        <main class="min-h-screen pb-16 pt-10 sm:pt-14">
+            <section class="mx-auto w-full max-w-[760px] px-4 sm:px-6">
                 <header class="mb-6">
-                    <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">ARDC Santana</p>
-                    <h1 class="mt-1 text-3xl font-bold text-stone-800">Preçário da Festa</h1>
-                    <p class="mt-1 text-sm text-stone-500">Preços praticados no bar e restaurante durante a festa de Santana.</p>
+                    <p class="m-0 text-[13px] font-bold uppercase tracking-[0.12em] text-verde">ARDC Santana</p>
+                    <h1 class="m-0 mt-2 text-[clamp(32px,4vw,44px)] font-extrabold leading-[1.1] tracking-[-0.01em]">Preçário da Festa</h1>
+                    <p class="m-0 mt-2 text-[17px] text-suave">Preços praticados no bar e restaurante durante a festa de Santana.</p>
                 </header>
 
-                <div class="sticky top-[84px] z-10 -mx-4 mb-5 overflow-x-auto border-y border-amber-200/60 bg-amber-50/95 px-4 py-3 backdrop-blur">
-                    <div class="flex min-w-max gap-2">
+                <div class="sticky top-[72px] z-10 -mx-4 mb-5 overflow-x-auto border-y border-linha bg-fundo/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 max-[900px]:top-[128px]">
+                    <div class="flex min-w-max gap-2" role="tablist" aria-label="Categorias">
                         <button
                             v-for="secao in secoes"
                             :key="secao"
                             type="button"
-                            class="rounded-full px-4 py-2 text-sm font-bold transition"
+                            role="tab"
+                            :aria-selected="categoriaAtual === secao"
+                            class="flex h-11 items-center rounded-full border px-[18px] text-[15px] font-bold transition"
                             :class="categoriaAtual === secao
-                                ? 'bg-amber-600 text-white shadow-md'
-                                : 'border border-amber-300 bg-white text-stone-600 hover:bg-amber-100'"
+                                ? 'border-verde bg-verde text-white'
+                                : 'border-linha-forte bg-white text-tinta hover:border-verde hover:text-verde'"
                             @click="categoriaAtual = secao"
                         >
                             {{ secao === 'todos' ? 'Todos' : secao }}
@@ -46,36 +59,40 @@ const euros = (valor) => `${Number(valor ?? 0).toFixed(2)} €`;
                     </div>
                 </div>
 
-                <div v-if="!categorias.length" class="rounded-xl border border-amber-200 bg-white p-8 text-center font-semibold text-stone-500 shadow-sm">
+                <div v-if="!categorias.length" class="rounded-[14px] border border-linha bg-white p-8 text-center text-[17px] font-semibold text-suave">
                     Ainda não existem produtos disponíveis.
                 </div>
 
-                <div v-else class="space-y-4">
+                <TransitionGroup v-else tag="div" class="space-y-4" enter-active-class="transition duration-200" enter-from-class="opacity-0 translate-y-1">
                     <section
                         v-for="(items, categoria) in produtosVisiveis"
                         :key="categoria"
-                        class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm"
+                        class="overflow-hidden rounded-[14px] border border-linha bg-white"
                     >
-                        <div class="border-b border-amber-100 bg-amber-50 px-5 py-3">
-                            <h2 class="text-lg font-bold text-stone-800">{{ categoria }}</h2>
+                        <div class="flex items-center justify-between gap-3 border-b border-linha bg-fundo px-5 py-3.5">
+                            <h2 class="m-0 text-xl font-extrabold">{{ categoria }}</h2>
+                            <span class="text-sm text-suave-2">{{ items.length }} {{ items.length === 1 ? 'produto' : 'produtos' }}</span>
                         </div>
                         <div class="px-5">
                             <div
                                 v-for="produto in items"
                                 :key="produto.id"
-                                class="flex items-center justify-between gap-4 border-b border-amber-100/60 py-3.5 last:border-b-0"
+                                class="flex min-h-[72px] items-center justify-between gap-4 border-b border-linha-fraca py-3.5 last:border-b-0"
                             >
                                 <div class="min-w-0">
-                                    <div class="font-semibold text-stone-800">{{ produto.nome }}</div>
-                                    <div class="mt-0.5 text-xs font-medium uppercase tracking-wide text-stone-400">{{ produto.categoria?.secao || 'produto' }}</div>
+                                    <div class="text-[17px] font-bold">{{ produto.nome }}</div>
+                                    <div class="mt-0.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.08em]" :class="corSecao(produto.categoria?.secao)">
+                                        <span class="h-2 w-2 rounded-full bg-current" aria-hidden="true"></span>
+                                        {{ produto.categoria?.secao || 'produto' }}
+                                    </div>
                                 </div>
-                                <div class="shrink-0 rounded-full bg-amber-600 px-3 py-1 text-sm font-bold text-white">
+                                <div class="shrink-0 text-lg font-extrabold tabular-nums">
                                     {{ euros(produto.preco) }}
                                 </div>
                             </div>
                         </div>
                     </section>
-                </div>
+                </TransitionGroup>
             </section>
         </main>
     </PublicShell>

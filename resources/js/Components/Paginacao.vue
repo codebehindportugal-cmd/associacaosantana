@@ -22,13 +22,13 @@ const texto = (label) => String(label ?? '')
 </script>
 
 <template>
-    <div v-if="meta.total" class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 p-3 text-sm">
-        <div class="text-slate-500">
+    <div v-if="meta.total" class="flex flex-wrap items-center justify-between gap-3 border-t border-linha-fraca p-3 text-sm tabular-nums">
+        <div class="text-suave">
             <template v-if="temPaginas">
-                {{ meta.from }}–{{ meta.to }} de <strong class="text-slate-700">{{ meta.total }}</strong> {{ etiqueta }}
+                {{ meta.from }}–{{ meta.to }} de <strong class="text-tinta">{{ meta.total }}</strong> {{ etiqueta }}
             </template>
             <template v-else>
-                <strong class="text-slate-700">{{ meta.total }}</strong> {{ etiqueta }}
+                <strong class="text-tinta">{{ meta.total }}</strong> {{ etiqueta }}
             </template>
         </div>
 
@@ -39,16 +39,16 @@ const texto = (label) => String(label ?? '')
                     :href="link.url"
                     preserve-scroll
                     preserve-state
-                    class="rounded-md border px-3 py-1.5 font-bold transition"
+                    class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] border px-3 font-bold transition"
                     :class="link.active
-                        ? 'border-slate-900 bg-slate-900 text-white'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'"
+                        ? 'border-verde bg-verde text-white'
+                        : 'border-linha-forte bg-white text-tinta hover:bg-fundo'"
                 >
                     {{ texto(link.label) }}
                 </Link>
                 <span
                     v-else
-                    class="rounded-md border border-slate-200 px-3 py-1.5 font-bold text-slate-300"
+                    class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[10px] border border-linha px-3 font-bold text-linha-forte"
                 >
                     {{ texto(link.label) }}
                 </span>

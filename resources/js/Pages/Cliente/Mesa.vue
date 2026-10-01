@@ -26,6 +26,52 @@ const totalItens = computed(() => carrinho.value.reduce((soma, item) => soma + N
 const totalEnviados = computed(() => (props.itemsEnviados ?? []).reduce((soma, item) => soma + Number(item.quantidade), 0));
 const avisoFlash = computed(() => page.props.flash?.avisoCliente ?? '');
 
+// Preços só para mostrar (o servidor volta a ler o preço ao gravar o pedido)
+const precosPorProduto = computed(() => {
+    const mapa = {};
+    Object.values(props.produtos ?? {}).forEach((grupo) => {
+        (grupo ?? []).forEach((produto) => {
+            mapa[produto.id] = Number(produto.preco ?? 0);
+        });
+    });
+    return mapa;
+});
+const precoDe = (produtoId) => precosPorProduto.value[produtoId] ?? 0;
+const totalCarrinho = computed(() => carrinho.value.reduce((soma, item) => soma + precoDe(item.produto_id) * Number(item.quantidade), 0));
+const euros = (valor) => `${Number(valor ?? 0).toFixed(2).replace('.', ',')} €`;
+const textoArtigos = computed(() => (totalItens.value === 1 ? '1 artigo na lista' : `${totalItens.value} artigos na lista`));
+
+const linhaDoProduto = (produto) => carrinho.value.find((linha) => linha.produto_id === produto.id);
+const quantidadeNaLista = (produto) => carrinho.value
+    .filter((linha) => linha.produto_id === produto.id)
+    .reduce((soma, linha) => soma + Number(linha.quantidade), 0);
+const maisUm = (produto) => {
+    const linha = linhaDoProduto(produto);
+    if (!linha) {
+        quantidades.value[produto.id] = 1;
+        adicionar(produto);
+        return;
+    }
+    alterarQuantidadeCarrinho(linha, 1);
+};
+const menosUm = (produto) => {
+    const linha = linhaDoProduto(produto);
+    if (linha) alterarQuantidadeCarrinho(linha, -1);
+};
+
+const separadores = computed(() => [
+    { id: 'produtos', label: 'Produtos', badge: 0, badgeClass: '' },
+    { id: 'envio', label: 'Enviar', badge: totalItens.value, badgeClass: 'bg-verde text-white' },
+    { id: 'enviados', label: 'Enviados', badge: totalEnviados.value, badgeClass: 'bg-azul text-white' },
+]);
+
+const estadoItem = (estado) => {
+    if (estado === 'pronto') return { label: 'Pronto', classe: 'bg-verde-claro text-verde-escuro' };
+    if (estado === 'preparacao') return { label: 'Em preparação', classe: 'bg-laranja-claro text-laranja-texto' };
+    if (estado === 'pendente') return { label: 'Pendente', classe: 'bg-linha-fraca text-suave' };
+    return { label: estado, classe: 'bg-linha-fraca text-suave' };
+};
+
 const quantidade = (produto) => Number(quantidades.value[produto.id] ?? 1);
 const alterarQuantidade = (produto, delta) => {
     quantidades.value[produto.id] = Math.min(10, Math.max(1, quantidade(produto) + delta));
@@ -60,7 +106,7 @@ const adicionar = (produto) => {
 
     quantidades.value[produto.id] = 1;
     observacoes.value[produto.id] = '';
-    mostrarAviso('Produto registado. No fim, abre "Validar e enviar" para enviar o pedido ao funcionário.');
+    mostrarAviso('Adicionado. No fim, toque em "Ver pedido e enviar".');
 };
 
 const alterarQuantidadeCarrinho = (item, delta) => {
@@ -74,7 +120,7 @@ const chamarFuncionario = () => {
     if (chamarForm.processing) return;
     chamarForm.post(route('cliente.chamar', props.token), {
         preserveScroll: true,
-        onSuccess: () => mostrarAviso('Funcionário chamado! Aguarde um momento. 🔔'),
+        onSuccess: () => mostrarAviso('Funcionário chamado! Aguarde um momento.'),
         onError: () => mostrarAviso('Não foi possível chamar. Tente novamente.'),
     });
 };
@@ -95,204 +141,243 @@ const enviarPedido = () => {
 </script>
 
 <template>
-    <main class="min-h-screen bg-slate-950 text-white">
-        <header class="sticky top-0 z-20 border-b border-white/10 bg-slate-950/95 px-4 py-4 backdrop-blur">
-            <div class="mx-auto flex max-w-xl items-center justify-between gap-3">
-                <div>
-                    <div class="text-xs font-black uppercase tracking-wide text-emerald-300">ARDC Santana</div>
-                    <h1 class="text-2xl font-black">Mesa {{ pedido.mesa }}</h1>
+    <main class="flex min-h-screen flex-col bg-fundo font-sans tabular-nums text-tinta">
+        <header class="sticky top-0 z-20 bg-escuro text-white">
+            <div class="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-3.5">
+                <div class="flex min-w-0 flex-col gap-0.5">
+                    <span class="text-xs font-bold uppercase tracking-[.08em] text-[#8FD3B5]">ARDC Santana</span>
+                    <h1 class="truncate text-[26px] font-extrabold leading-none">{{ pedido.mesa }}</h1>
                 </div>
-                <div class="flex gap-2">
-                    <button
-                        v-if="pedido.disponivel"
-                        type="button"
-                        class="rounded-full px-3 py-2 text-xs font-black disabled:opacity-50"
-                        :class="chamarForm.processing ? 'bg-amber-600' : 'bg-amber-500 text-slate-950'"
-                        :disabled="chamarForm.processing"
-                        @click="chamarFuncionario"
-                    >
-                        🔔 Chamar
-                    </button>
-                    <button type="button" class="rounded-full bg-white/10 px-3 py-2 text-xs font-black" @click="separadorAtual = 'enviados'">Enviados</button>
-                </div>
+                <button
+                    v-if="pedido.disponivel"
+                    type="button"
+                    class="flex h-12 shrink-0 items-center gap-2 rounded-full bg-laranja px-4 text-base font-extrabold text-white disabled:opacity-50"
+                    :disabled="chamarForm.processing"
+                    @click="chamarFuncionario"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                    {{ chamarForm.processing ? 'A chamar...' : 'Chamar' }}
+                </button>
             </div>
         </header>
 
-        <section class="mx-auto max-w-xl px-4 py-5">
-            <div v-if="!pedido.disponivel" class="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-5 text-center">
-                <h2 class="text-xl font-black">Pedido indisponível</h2>
-                <p class="mt-2 text-sm text-amber-100">Este pedido já foi fechado ou cancelado. Chame um elemento da equipa.</p>
+        <section v-if="!pedido.disponivel" class="mx-auto w-full max-w-xl px-4 py-5">
+            <div class="rounded-[14px] border border-laranja/30 bg-laranja-claro p-5 text-center text-laranja-texto">
+                <h2 class="text-xl font-extrabold">Pedido indisponível</h2>
+                <p class="mt-2 text-[15px] font-semibold">Este pedido já foi fechado ou cancelado. Chame um elemento da equipa.</p>
             </div>
+        </section>
 
-            <template v-else>
-                <div class="mb-4 overflow-x-auto rounded-2xl bg-white/10 p-1">
-                    <div class="flex min-w-max gap-2">
+        <template v-else>
+            <nav aria-label="Separadores" class="border-b border-linha bg-white">
+                <div class="mx-auto grid max-w-xl grid-cols-3 gap-1.5 px-4 py-2.5">
                     <button
+                        v-for="tab in separadores"
+                        :key="tab.id"
                         type="button"
-                        class="min-h-12 shrink-0 rounded-xl px-4 py-3 text-sm font-black"
-                        :class="separadorAtual === 'produtos' ? 'bg-white text-slate-950' : 'text-white'"
-                        @click="separadorAtual = 'produtos'"
+                        class="flex h-12 items-center justify-center gap-1.5 rounded-[10px] border text-[15px] font-extrabold"
+                        :class="separadorAtual === tab.id ? 'border-escuro bg-escuro text-white' : 'border-linha-forte bg-white text-tinta'"
+                        :aria-current="separadorAtual === tab.id ? 'page' : 'false'"
+                        @click="separadorAtual = tab.id"
                     >
-                        Produtos
+                        {{ tab.label }}
+                        <span
+                            v-if="tab.badge"
+                            class="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-[13px]"
+                            :class="separadorAtual === tab.id ? 'bg-white text-tinta' : tab.badgeClass"
+                        >{{ tab.badge }}</span>
                     </button>
-                    <button
-                        type="button"
-                        class="min-h-12 shrink-0 rounded-xl px-4 py-3 text-sm font-black"
-                        :class="separadorAtual === 'envio' ? 'bg-white text-slate-950' : 'text-white'"
-                        @click="separadorAtual = 'envio'"
-                    >
-                        Validar e enviar
-                        <span v-if="totalItens" class="ml-1 rounded-full bg-emerald-500 px-2 py-0.5 text-xs text-slate-950">{{ totalItens }}</span>
-                    </button>
-                    <button
-                        type="button"
-                        class="min-h-12 shrink-0 rounded-xl px-4 py-3 text-sm font-black"
-                        :class="separadorAtual === 'enviados' ? 'bg-white text-slate-950' : 'text-white'"
-                        @click="separadorAtual = 'enviados'"
-                    >
-                        Enviados
-                        <span v-if="totalEnviados" class="ml-1 rounded-full bg-sky-400 px-2 py-0.5 text-xs text-slate-950">{{ totalEnviados }}</span>
-                    </button>
+                </div>
+            </nav>
+
+            <div class="mx-auto flex w-full max-w-xl flex-1 flex-col">
+                <div class="space-y-2 px-4 pt-3 empty:hidden">
+                    <div v-if="form.errors.pedido" role="alert" class="rounded-xl bg-perigo-claro px-3.5 py-3 text-[15px] font-bold text-perigo-texto">
+                        {{ form.errors.pedido }}
+                    </div>
+                    <div v-if="form.errors.items" role="alert" class="rounded-xl bg-perigo-claro px-3.5 py-3 text-[15px] font-bold text-perigo-texto">
+                        Não foi possível enviar esse pedido.
+                    </div>
+                    <div v-if="aviso" role="status" class="rounded-xl bg-verde-claro px-3.5 py-3 text-[15px] font-bold text-verde-escuro">
+                        {{ aviso }}
+                    </div>
+                    <div v-if="avisoFlash" role="status" class="rounded-xl bg-laranja-claro px-3.5 py-3 text-[15px] font-bold text-laranja-texto">
+                        {{ avisoFlash }}
                     </div>
                 </div>
 
-                <div v-if="form.errors.pedido" class="mb-4 rounded-xl bg-red-600 p-3 text-sm font-bold">
-                    {{ form.errors.pedido }}
-                </div>
-                <div v-if="form.errors.items" class="mb-4 rounded-xl bg-red-600 p-3 text-sm font-bold">
-                    Não foi possível enviar esse pedido.
-                </div>
-                <div v-if="aviso" class="mb-4 rounded-xl border border-emerald-400/40 bg-emerald-400/15 p-3 text-sm font-black text-emerald-100">
-                    {{ aviso }}
-                </div>
-                <div v-if="avisoFlash" class="mb-4 rounded-xl border border-amber-400/40 bg-amber-400/15 p-3 text-sm font-black text-amber-100">
-                    {{ avisoFlash }}
-                </div>
-
-                <div v-if="separadorAtual === 'produtos'" class="mb-4 overflow-x-auto pb-2">
-                    <div class="flex min-w-max gap-2">
+                <!-- Produtos -->
+                <template v-if="separadorAtual === 'produtos'">
+                    <div class="flex gap-2 overflow-x-auto px-4 pb-1 pt-3">
                         <button
                             v-for="categoria in categorias"
                             :key="categoria"
                             type="button"
-                            class="min-h-11 shrink-0 rounded-full px-4 py-2 text-sm font-black"
-                            :class="categoria === categoriaAtual ? 'bg-emerald-500 text-slate-950' : 'bg-white/10 text-white'"
+                            class="h-11 shrink-0 rounded-full border border-linha-forte px-[18px] text-base font-bold"
+                            :class="categoria === categoriaAtual ? 'border-verde bg-verde text-white' : 'bg-white text-tinta'"
                             @click="categoriaAtual = categoria"
                         >
                             {{ categoria }}
                         </button>
                     </div>
-                </div>
 
-                <div v-if="separadorAtual === 'produtos'" class="grid gap-3">
-                    <article v-for="produto in lista" :key="produto.id" class="rounded-2xl bg-white p-4 text-slate-950 shadow-sm">
-                        <div class="mb-4">
-                            <h2 class="text-lg font-black">{{ produto.nome }}</h2>
-                            <p class="mt-1 text-sm font-semibold text-slate-500">{{ produto.categoria?.nome || 'Produto' }}</p>
-                        </div>
-
-                        <label class="mb-4 block">
-                            <span class="text-xs font-black uppercase text-slate-500">Observações</span>
-                            <textarea
-                                v-model="observacoes[produto.id]"
-                                rows="2"
-                                maxlength="255"
-                                class="mt-1 w-full rounded-xl border-slate-200 text-sm"
-                                placeholder="Ex.: sem cebola, bem passado"
-                            ></textarea>
-                        </label>
-
-                        <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center overflow-hidden rounded-full border border-slate-200">
-                                <button type="button" class="h-11 w-12 bg-slate-100 text-xl font-black" @click="alterarQuantidade(produto, -1)">-</button>
-                                <span class="w-12 text-center text-lg font-black">{{ quantidade(produto) }}</span>
-                                <button type="button" class="h-11 w-12 bg-slate-100 text-xl font-black" @click="alterarQuantidade(produto, 1)">+</button>
+                    <div class="flex flex-col gap-2.5 px-4 pb-4 pt-2">
+                        <article
+                            v-for="produto in lista"
+                            :key="produto.id"
+                            class="flex flex-col gap-3 rounded-[14px] bg-white p-3.5"
+                            :class="quantidadeNaLista(produto) ? 'border-2 border-verde' : 'border border-linha'"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <h2 class="min-w-0 text-[19px] font-extrabold leading-tight">{{ produto.nome }}</h2>
+                                <span v-if="produto.preco != null" class="shrink-0 text-lg font-extrabold">{{ euros(produto.preco) }}</span>
                             </div>
-                            <button
-                                type="button"
-                                class="min-h-11 flex-1 rounded-full bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 disabled:opacity-60"
-                                @click="adicionar(produto)"
-                            >
-                                Adicionar à lista
+
+                            <template v-if="!quantidadeNaLista(produto)">
+                                <label class="flex flex-col gap-1.5">
+                                    <span class="text-[13px] font-bold text-suave">Observações (opcional)</span>
+                                    <input
+                                        v-model="observacoes[produto.id]"
+                                        type="text"
+                                        maxlength="255"
+                                        class="h-[46px] rounded-[10px] border-linha-forte px-3 text-base text-tinta"
+                                        placeholder="Ex.: sem cebola, bem passado"
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    class="flex h-[52px] items-center justify-center gap-2 rounded-[10px] bg-verde text-[17px] font-extrabold text-white hover:bg-verde-escuro"
+                                    @click="adicionar(produto)"
+                                >
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                                    Adicionar
+                                </button>
+                            </template>
+
+                            <template v-else>
+                                <div class="flex items-center justify-between gap-2.5">
+                                    <button type="button" aria-label="Retirar um" class="flex h-[52px] w-14 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo text-tinta" @click="menosUm(produto)">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                                    </button>
+                                    <span class="flex-1 text-center text-[22px] font-extrabold text-verde">{{ quantidadeNaLista(produto) }} na lista</span>
+                                    <button type="button" aria-label="Adicionar mais um" class="flex h-[52px] w-14 items-center justify-center rounded-[10px] bg-verde text-white hover:bg-verde-escuro" @click="maisUm(produto)">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                                    </button>
+                                </div>
+                                <label class="flex flex-col gap-1.5">
+                                    <span class="text-[13px] font-bold text-suave">Observações (opcional)</span>
+                                    <input
+                                        :value="linhaDoProduto(produto)?.observacoes ?? ''"
+                                        type="text"
+                                        maxlength="255"
+                                        class="h-[46px] rounded-[10px] border-linha-forte px-3 text-base text-tinta"
+                                        placeholder="Ex.: sem cebola, bem passado"
+                                        @input="linhaDoProduto(produto).observacoes = $event.target.value"
+                                    />
+                                </label>
+                            </template>
+                        </article>
+                    </div>
+                </template>
+
+                <!-- Validar e enviar -->
+                <div v-else-if="separadorAtual === 'envio'" class="flex flex-col gap-2.5 p-4">
+                    <div>
+                        <h2 class="text-[22px] font-extrabold">Confirmar pedido</h2>
+                        <p class="mt-1 text-[15px] text-suave">Revê as escolhas antes de enviar para a equipa.</p>
+                    </div>
+
+                    <div v-if="!carrinho.length" class="flex flex-col gap-3.5 rounded-[14px] border border-linha bg-white px-4 py-6 text-center">
+                        <span class="text-base font-semibold text-suave-2">Ainda não escolheste produtos.</span>
+                        <button type="button" class="h-[52px] rounded-[10px] bg-escuro text-base font-extrabold text-white" @click="separadorAtual = 'produtos'">
+                            Escolher produtos
+                        </button>
+                    </div>
+
+                    <article
+                        v-for="(item, index) in carrinho"
+                        :key="`${item.produto_id}-${index}`"
+                        class="flex flex-col gap-2.5 rounded-[14px] border border-linha bg-white px-3.5 py-3"
+                    >
+                        <div class="flex justify-between gap-2.5">
+                            <div class="min-w-0">
+                                <h3 class="text-lg font-extrabold">{{ item.nome }}</h3>
+                                <p v-if="item.observacoes" class="mt-0.5 text-[15px] font-semibold text-suave">{{ item.observacoes }}</p>
+                            </div>
+                            <span class="shrink-0 text-lg font-extrabold">{{ euros(precoDe(item.produto_id) * item.quantidade) }}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" aria-label="Retirar um" class="flex h-12 w-12 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo text-tinta" @click="alterarQuantidadeCarrinho(item, -1)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                            </button>
+                            <span class="w-9 text-center text-xl font-extrabold">{{ item.quantidade }}</span>
+                            <button type="button" aria-label="Adicionar mais um" class="flex h-12 w-12 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo text-tinta" @click="alterarQuantidadeCarrinho(item, 1)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                            </button>
+                            <button type="button" class="ml-auto h-12 rounded-[10px] border border-[#F0C9C2] bg-perigo-claro px-3.5 text-[15px] font-bold text-perigo-texto" @click="alterarQuantidadeCarrinho(item, -item.quantidade)">
+                                Remover
                             </button>
                         </div>
                     </article>
                 </div>
 
-                <div v-else-if="separadorAtual === 'envio'" class="rounded-2xl bg-white p-4 text-slate-950 shadow-sm">
-                    <div class="mb-4">
-                        <h2 class="text-xl font-black">Confirmar pedido</h2>
-                        <p class="mt-1 text-sm font-semibold text-slate-500">Revê as escolhas antes de enviar para a equipa.</p>
+                <!-- Enviados -->
+                <div v-else class="flex flex-col gap-2.5 p-4">
+                    <div>
+                        <h2 class="text-[22px] font-extrabold">Produtos enviados</h2>
+                        <p class="mt-1 text-[15px] text-suave">Aqui aparecem os produtos que já foram enviados para a equipa.</p>
                     </div>
 
-                    <div v-if="!carrinho.length" class="rounded-2xl bg-slate-100 p-5 text-center text-sm font-bold text-slate-500">
-                        Ainda não escolheste produtos.
-                        <button type="button" class="mt-3 block w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white" @click="separadorAtual = 'produtos'">
+                    <div v-if="!itemsEnviados?.length" class="flex flex-col gap-3.5 rounded-[14px] border border-linha bg-white px-4 py-6 text-center">
+                        <span class="text-base font-semibold text-suave-2">Ainda não foram enviados produtos.</span>
+                        <button type="button" class="h-[52px] rounded-[10px] bg-escuro text-base font-extrabold text-white" @click="separadorAtual = 'produtos'">
                             Escolher produtos
                         </button>
                     </div>
 
-                    <div v-else class="grid gap-3">
-                        <article v-for="(item, index) in carrinho" :key="`${item.produto_id}-${index}`" class="rounded-2xl bg-slate-100 p-3">
-                            <div class="flex items-start justify-between gap-3">
-                                <div>
-                                    <h3 class="font-black">{{ item.nome }}</h3>
-                                    <p v-if="item.observacoes" class="mt-1 text-sm font-semibold text-slate-600">{{ item.observacoes }}</p>
-                                </div>
-                                <button type="button" class="rounded-full bg-red-600 px-3 py-2 text-sm font-black text-white" @click="alterarQuantidadeCarrinho(item, -item.quantidade)">
-                                    Remover
-                                </button>
-                            </div>
-                            <div class="mt-3 flex items-center justify-between">
-                                <div class="flex items-center overflow-hidden rounded-full border border-slate-200 bg-white">
-                                    <button type="button" class="h-10 w-11 bg-slate-100 text-xl font-black" @click="alterarQuantidadeCarrinho(item, -1)">-</button>
-                                    <span class="w-12 text-center text-lg font-black">{{ item.quantidade }}</span>
-                                    <button type="button" class="h-10 w-11 bg-slate-100 text-xl font-black" @click="alterarQuantidadeCarrinho(item, 1)">+</button>
-                                </div>
-                                <span class="rounded-full bg-slate-950 px-3 py-1 text-sm font-black text-white">{{ item.quantidade }}x</span>
-                            </div>
-                        </article>
+                    <article
+                        v-for="item in itemsEnviados"
+                        :key="item.id"
+                        class="flex items-center justify-between gap-3 rounded-[14px] border border-linha bg-white px-3.5 py-3"
+                    >
+                        <div class="flex min-w-0 flex-col gap-1">
+                            <span class="text-lg font-extrabold">{{ item.nome }}</span>
+                            <span v-if="item.observacoes" class="text-[15px] font-semibold text-suave">{{ item.observacoes }}</span>
+                            <span v-if="item.estado" class="self-start rounded-full px-2.5 py-0.5 text-[13px] font-bold" :class="estadoItem(item.estado).classe">{{ estadoItem(item.estado).label }}</span>
+                        </div>
+                        <span class="flex h-9 min-w-12 shrink-0 items-center justify-center rounded-full bg-escuro px-2.5 text-base font-extrabold text-white">{{ item.quantidade }}x</span>
+                    </article>
 
-                        <button
-                            type="button"
-                            class="rounded-2xl bg-emerald-500 px-5 py-4 text-lg font-black text-slate-950 disabled:opacity-50"
-                            :disabled="!carrinho.length || form.processing"
-                            @click="enviarPedido"
-                        >
-                            {{ form.processing ? 'A enviar...' : 'Enviar pedido' }}
-                        </button>
-                    </div>
+                    <div class="rounded-xl bg-laranja-claro px-3.5 py-3 text-[15px] font-bold text-laranja-texto">Se se enganou no pedido, chame um funcionário para ajudar.</div>
                 </div>
+            </div>
 
-                <div v-else class="rounded-2xl bg-white p-4 text-slate-950 shadow-sm">
-                    <div class="mb-4">
-                        <h2 class="text-xl font-black">Produtos enviados</h2>
-                        <p class="mt-1 text-sm font-semibold text-slate-500">Aqui aparecem os produtos que já foram enviados para a equipa.</p>
+            <footer class="sticky bottom-0 z-20 border-t border-linha bg-white shadow-[0_-6px_18px_rgba(22,32,28,.08)]">
+                <div class="mx-auto flex max-w-xl flex-col gap-2.5 px-4 pb-5 pt-3">
+                    <div class="flex items-baseline justify-between">
+                        <span class="text-base font-semibold text-suave">{{ textoArtigos }}</span>
+                        <span class="text-[28px] font-extrabold">{{ euros(totalCarrinho) }}</span>
                     </div>
-
-                    <div v-if="!itemsEnviados?.length" class="rounded-2xl bg-slate-100 p-5 text-center text-sm font-bold text-slate-500">
-                        Ainda não foram enviados produtos.
-                        <button type="button" class="mt-3 block w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white" @click="separadorAtual = 'produtos'">
-                            Escolher produtos
-                        </button>
-                    </div>
-
-                    <div v-else class="grid gap-3">
-                        <article v-for="item in itemsEnviados" :key="item.id" class="rounded-2xl bg-slate-100 p-3">
-                            <div class="flex items-start justify-between gap-3">
-                                <div>
-                                    <h3 class="font-black">{{ item.nome }}</h3>
-                                    <p class="mt-1 text-xs font-semibold uppercase text-slate-500">
-                                        <span v-if="item.estado">{{ item.estado }}</span>
-                                    </p>
-                                    <p v-if="item.observacoes" class="mt-1 text-sm font-semibold text-slate-700">{{ item.observacoes }}</p>
-                                </div>
-                                <span class="shrink-0 rounded-full bg-slate-950 px-3 py-1 text-sm font-black text-white">{{ item.quantidade }}x</span>
-                            </div>
-                        </article>
-                    </div>
+                    <button
+                        v-if="separadorAtual !== 'envio'"
+                        type="button"
+                        class="h-[60px] rounded-xl bg-verde text-[19px] font-extrabold text-white hover:bg-verde-escuro disabled:cursor-not-allowed disabled:opacity-45"
+                        :disabled="!carrinho.length"
+                        @click="separadorAtual = 'envio'"
+                    >
+                        Ver pedido e enviar
+                    </button>
+                    <button
+                        v-else
+                        type="button"
+                        class="h-[60px] rounded-xl bg-verde text-[19px] font-extrabold text-white hover:bg-verde-escuro disabled:cursor-not-allowed disabled:bg-[#9DB8AC]"
+                        :disabled="!carrinho.length || form.processing"
+                        @click="enviarPedido"
+                    >
+                        {{ form.processing ? 'A enviar...' : 'Enviar pedido' }}
+                    </button>
                 </div>
-            </template>
-        </section>
+            </footer>
+        </template>
     </main>
 </template>

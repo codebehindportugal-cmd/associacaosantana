@@ -47,6 +47,28 @@ watch(selecionado, carregar, { immediate: true });
 watch(() => props.modelos, () => carregar(selecionado.value), { deep: true });
 
 const novoForm = useForm({ nome: '', evento_id: null });
+const novoAberto = ref(false);
+const previsaoTab = ref('conta');
+
+// Etiqueta de estado de cada modelo (sempre com texto)
+const estadoModelo = (modelo) => {
+    if (modelo.em_uso) return { texto: 'Em uso', cls: 'bg-verde-claro text-verde-escuro' };
+    if (!modelo.ativo) return { texto: 'Desligado', cls: 'bg-laranja-claro text-laranja-texto' };
+    return { texto: 'Pronto', cls: 'bg-fundo text-suave' };
+};
+
+// Cor por secção do produto (sempre com o nome escrito ao lado)
+const corSecao = (secao) => ({
+    frango: 'text-secao-grelhados',
+    grelhados: 'text-secao-grelhados',
+    comida: 'text-secao-cozinha',
+    cozinha: 'text-secao-cozinha',
+    bebidas: 'text-secao-bar',
+    bar: 'text-secao-bar',
+    cafe: 'text-secao-bar',
+    sobremesas: 'text-secao-sobremesas',
+    acompanhamentos: 'text-secao-acompanhamentos',
+}[secao] ?? 'text-secao-servico');
 const impressoraId = ref(props.impressoras?.[0]?.id ?? null);
 
 const linhas = (texto) => String(texto || '')
@@ -71,7 +93,7 @@ const guardar = () => form
 
 const criar = () => novoForm.post(route('talao.store'), {
     preserveScroll: true,
-    onSuccess: () => novoForm.reset(),
+    onSuccess: () => { novoForm.reset(); novoAberto.value = false; },
 });
 
 const usar = (modelo) => router.post(route('talao.usar', modelo.id), {}, { preserveScroll: true });
@@ -112,194 +134,178 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
 
 <template>
     <AppLayout>
-        <div class="mb-6">
-            <h1 class="text-2xl font-black">Talão</h1>
-            <p class="mt-1 text-sm text-slate-500">
-                Um modelo por evento. O que estiver em uso é o que sai em todos os talões.
-            </p>
-            <div class="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                <div class="rounded-lg bg-white p-4 shadow-sm">
-                    <div class="font-black text-slate-800">Restaurante e café</div>
-                    <p class="mt-1 text-xs text-slate-600">
-                        O funcionamento do costume, incluindo a festa anual: o pedido é encaminhado
-                        para a impressora de cada secção — cozinha, frango, bebidas — e a conta sai no
-                        balcão. Configura-se em Impressoras, por secção.
-                    </p>
-                </div>
-                <div class="rounded-lg bg-white p-4 shadow-sm">
-                    <div class="font-black text-slate-800">Evento com pré-pagamento</div>
-                    <p class="mt-1 text-xs text-slate-600">
-                        O cliente paga tudo à cabeça e leva <strong>um talão por unidade</strong>, cada um
-                        cortado, com a senha e a tasquinha onde levanta. Saem agrupados por secção e no
-                        fim vem a conta. Tudo na mesma impressora, a do posto. Liga-se no visto abaixo.
-                    </p>
-                </div>
+        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 font-sans text-tinta">
+            <div class="flex flex-col gap-1">
+                <h1 class="text-[30px] font-extrabold leading-tight">Talão</h1>
+                <p class="text-[15px] text-suave">Um modelo por evento. O que estiver em uso é o que sai em todos os talões.</p>
             </div>
-        </div>
 
-        <div class="grid gap-6 xl:grid-cols-[280px_1fr_320px]">
             <!-- Modelos -->
-            <section class="rounded-lg bg-white p-4 shadow-sm">
-                <h2 class="mb-3 text-sm font-black uppercase tracking-wide text-slate-500">Modelos</h2>
-
-                <div v-if="!modelos.length" class="rounded-md bg-slate-50 p-4 text-center text-xs font-bold text-slate-500">
-                    Ainda não há modelos.
-                </div>
-
-                <ul class="space-y-2">
-                    <li v-for="modelo in modelos" :key="modelo.id">
+            <section class="flex flex-col gap-2.5" aria-labelledby="t-modelos">
+                <h2 id="t-modelos" class="text-[13px] font-extrabold uppercase tracking-[0.06em] text-suave-2">Modelos</h2>
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div v-for="modelo in modelos" :key="modelo.id" class="flex flex-col">
                         <button
                             type="button"
-                            class="w-full rounded-md border p-3 text-left transition"
-                            :class="modelo.id === selecionadoId ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:bg-slate-50'"
+                            class="flex min-h-[84px] w-full flex-col gap-0.5 rounded-[14px] border-2 bg-white p-4 text-left transition"
+                            :class="modelo.id === selecionadoId ? 'border-verde bg-verde-claro/40' : 'border-linha hover:border-linha-forte'"
+                            :aria-pressed="modelo.id === selecionadoId"
                             @click="selecionadoId = modelo.id"
                         >
-                            <div class="flex items-start justify-between gap-2">
-                                <strong class="text-sm">{{ modelo.nome }}</strong>
-                                <span v-if="modelo.em_uso" class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Em uso</span>
+                            <span class="flex w-full items-start justify-between gap-2">
+                                <strong class="text-[16px] font-extrabold leading-tight">{{ modelo.nome }}</strong>
+                                <span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide" :class="estadoModelo(modelo).cls">{{ estadoModelo(modelo).texto }}</span>
+                            </span>
+                            <span class="text-[13px] text-suave">{{ modelo.evento ? modelo.evento.titulo : 'Sem evento associado' }}</span>
+                        </button>
+                        <div v-if="modelo.id === selecionadoId && !modelo.em_uso" class="mt-1.5 flex gap-2">
+                            <button type="button" class="btn-sec h-11 flex-1 text-sm text-verde" @click="usar(modelo)">Usar este</button>
+                            <button type="button" class="btn-sec h-11 text-sm text-perigo hover:bg-perigo-claro" @click="apagar(modelo)">Apagar</button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col">
+                        <button v-if="!novoAberto" type="button" class="flex min-h-[84px] items-center gap-2.5 rounded-[14px] border-2 border-dashed border-linha-forte px-4 text-[16px] font-extrabold text-verde hover:bg-white" @click="novoAberto = true">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                            Novo modelo
+                        </button>
+                        <form v-else class="flex flex-col gap-2 rounded-[14px] border-2 border-verde bg-white p-3" @submit.prevent="criar">
+                            <label class="rotulo">Nome do novo modelo<input v-model="novoForm.nome" required class="campo" placeholder="Nome (ex.: Carvalhal Fest)"></label>
+                            <label class="rotulo">Evento
+                                <select v-model="novoForm.evento_id" class="campo">
+                                    <option :value="null">Sem evento associado</option>
+                                    <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.titulo }}</option>
+                                </select>
+                            </label>
+                            <p class="text-xs text-suave">Se escolheres um evento, o título e as datas já vêm preenchidos.</p>
+                            <div v-if="novoForm.errors.nome" class="text-xs font-semibold text-perigo">{{ novoForm.errors.nome }}</div>
+                            <div class="flex gap-2">
+                                <button class="btn-pri h-11 flex-1" :disabled="novoForm.processing">Criar</button>
+                                <button type="button" class="btn-sec h-11" @click="novoAberto = false">Cancelar</button>
                             </div>
-                            <div v-if="modelo.evento" class="mt-0.5 text-xs text-slate-500">{{ modelo.evento.titulo }}</div>
-                            <div v-if="!modelo.ativo" class="mt-0.5 text-xs font-bold text-amber-700">Desligado</div>
-                        </button>
-                        <div v-if="modelo.id === selecionadoId" class="mt-1 flex gap-3 px-1 text-xs">
-                            <button v-if="!modelo.em_uso" type="button" class="font-bold text-emerald-700" @click="usar(modelo)">Usar este</button>
-                            <button v-if="!modelo.em_uso" type="button" class="font-bold text-red-700" @click="apagar(modelo)">Apagar</button>
-                        </div>
-                    </li>
-                </ul>
-
-                <form class="mt-4 space-y-2 border-t border-slate-100 pt-4" @submit.prevent="criar">
-                    <div class="text-xs font-black uppercase tracking-wide text-slate-500">Novo modelo</div>
-                    <input v-model="novoForm.nome" required class="w-full rounded-md border-slate-300 text-sm" placeholder="Nome (ex.: Carvalhal Fest)">
-                    <select v-model="novoForm.evento_id" class="w-full rounded-md border-slate-300 text-sm">
-                        <option :value="null">Sem evento associado</option>
-                        <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.titulo }}</option>
-                    </select>
-                    <p class="text-xs text-slate-500">Se escolheres um evento, o título e as datas já vêm preenchidos.</p>
-                    <button class="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-bold text-white" :disabled="novoForm.processing">Criar</button>
-                    <div v-if="novoForm.errors.nome" class="text-xs text-red-700">{{ novoForm.errors.nome }}</div>
-                </form>
-            </section>
-
-            <!-- Editor -->
-            <section class="rounded-lg bg-white p-5 shadow-sm">
-                <div v-if="!selecionado" class="rounded-md bg-slate-50 p-6 text-center text-sm font-bold text-slate-500">
-                    Cria um modelo para começar.
+                        </form>
+                    </div>
                 </div>
-
-                <form v-else class="space-y-4" @submit.prevent="guardar">
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700">Nome do modelo</label>
-                            <input v-model="form.nome" required maxlength="80" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700">Evento</label>
-                            <select v-model="form.evento_id" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                                <option :value="null">Sem evento associado</option>
-                                <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.titulo }}</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700">Título (linha grande no topo)</label>
-                        <input v-model="form.titulo" required maxlength="60" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700">Cabeçalho</label>
-                        <textarea v-model="form.cabecalho" rows="3" class="mt-1 w-full rounded-md border-slate-300 font-mono text-sm"></textarea>
-                        <p class="mt-1 text-xs text-slate-500">Uma linha por linha impressa. Datas, local, edição.</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700">Rodapé</label>
-                        <textarea v-model="form.rodape" rows="3" class="mt-1 w-full rounded-md border-slate-300 font-mono text-sm"></textarea>
-                        <p class="mt-1 text-xs text-slate-500">Se ficar vazio, imprime "Este documento nao serve de fatura".</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700">Instruções no talão individual</label>
-                        <textarea v-model="form.instrucoes_individual" rows="2" class="mt-1 w-full rounded-md border-slate-300 font-mono text-sm"></textarea>
-                        <p class="mt-1 text-xs text-slate-500">
-                            Impresso em cada talão que o cliente leva. Ex.: "Entregar no balcão" ou
-                            "Apresentar na partida da caminhada".
-                        </p>
-                    </div>
-
-                    <label class="flex items-start gap-2 text-sm">
-                        <input v-model="form.rodape_em_pedidos" type="checkbox" class="mt-0.5 rounded border-slate-300">
-                        <span>
-                            <strong>Rodapé também nos pedidos da cozinha e bar</strong>
-                            <span class="block text-xs text-slate-500">Normalmente não — gasta papel em talões que ninguém leva.</span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm">
-                        <input v-model="form.prepago_apenas_individuais" type="checkbox" class="mt-0.5 rounded border-slate-300">
-                        <span>
-                            <strong>Evento com pré-pagamento — um talão por unidade</strong>
-                            <span class="block text-xs text-slate-600">
-                                Cada unidade sai no seu talão, cortado, com a senha e a secção onde se
-                                levanta. Saem agrupados por secção e a conta vem no fim.
-                            </span>
-                            <span class="mt-2 block rounded bg-white p-2 font-mono text-[11px] leading-snug text-slate-700">
-                                SENHA #42 · 1x Imperial · BEBIDAS ✂<br>
-                                SENHA #42 · 1x Imperial · BEBIDAS ✂<br>
-                                SENHA #42 · 1x Sumo Ananás · BEBIDAS ✂<br>
-                                SENHA #42 · 1x Frango · FRANGO ✂<br>
-                                CONTA · total, recebido e troco ✂
-                            </span>
-                        </span>
-                    </label>
-
-                    <label class="flex items-start gap-2 text-sm">
-                        <input v-model="form.ativo" type="checkbox" class="mt-0.5 rounded border-slate-300">
-                        <span>
-                            <strong>Modelo ligado</strong>
-                            <span class="block text-xs text-slate-500">Se desligares, os talões voltam a "ARDC Santana" e à nota legal.</span>
-                        </span>
-                    </label>
-
-                    <div v-if="demasiadoLongas.length" class="rounded-md bg-amber-50 p-3 text-sm text-amber-800">
-                        <strong>Linhas com mais de {{ LARGURA }} caracteres</strong> — vão partir no papel:
-                        <ul class="mt-1 list-disc pl-5 text-xs">
-                            <li v-for="linha in demasiadoLongas" :key="linha">{{ linha }}</li>
-                        </ul>
-                    </div>
-
-                    <div v-if="Object.keys(form.errors).length" class="rounded-md bg-red-50 p-3 text-sm text-red-700">
-                        <div v-for="(erro, campo) in form.errors" :key="campo"><strong>{{ campo }}:</strong> {{ erro }}</div>
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
-                        <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" :disabled="form.processing">
-                            {{ form.processing ? 'A guardar...' : 'Guardar' }}
-                        </button>
-                        <select v-if="impressoras.length" v-model="impressoraId" class="rounded-md border-slate-300 text-sm">
-                            <option v-for="impressora in impressoras" :key="impressora.id" :value="impressora.id">{{ impressora.nome }}</option>
-                        </select>
-                        <button
-                            type="button"
-                            class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 disabled:opacity-40"
-                            :disabled="!impressoras.length"
-                            @click="imprimirTeste"
-                        >
-                            Imprimir teste
-                        </button>
-                        <span v-if="!impressoras.length" class="text-xs text-slate-500">Não há impressoras ativas.</span>
-                    </div>
-                </form>
+                <div v-if="!modelos.length" class="rounded-[10px] bg-white p-4 text-center text-sm font-bold text-suave-2">Ainda não há modelos.</div>
             </section>
 
-            <!-- Pre-visualizacao -->
-            <section>
-                <div class="sticky top-4 space-y-4">
-                    <div class="rounded-lg bg-white p-4 shadow-sm">
-                        <h2 class="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Conta</h2>
-                        <div class="bg-slate-50 p-3 font-mono text-[11px] leading-snug text-slate-800">
-                            <div class="text-center text-sm font-black">{{ form.ativo ? (form.titulo || 'ARDC Santana') : 'ARDC Santana' }}</div>
+            <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+                <!-- Editor -->
+                <section class="cartao p-4 sm:p-5">
+                    <div v-if="!selecionado" class="rounded-[10px] bg-fundo p-6 text-center text-sm font-bold text-suave-2">
+                        Cria um modelo para começar.
+                    </div>
+
+                    <form v-else class="flex flex-col gap-4" @submit.prevent="guardar">
+                        <h2 class="text-xl font-extrabold">A editar: {{ selecionado.nome }}</h2>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="rotulo">Nome do modelo<input v-model="form.nome" required maxlength="80" class="campo"></label>
+                            <label class="rotulo">Evento
+                                <select v-model="form.evento_id" class="campo">
+                                    <option :value="null">Sem evento associado</option>
+                                    <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.titulo }}</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <label class="rotulo">Título (linha grande no topo)
+                            <input v-model="form.titulo" required maxlength="60" class="campo font-bold">
+                        </label>
+
+                        <label class="rotulo">Cabeçalho
+                            <textarea v-model="form.cabecalho" rows="3" class="campo-area font-mono text-[15px]"></textarea>
+                            <span class="ajuda">Uma linha por linha impressa. Datas, local, edição.</span>
+                        </label>
+
+                        <label class="rotulo">Rodapé
+                            <textarea v-model="form.rodape" rows="3" class="campo-area font-mono text-[15px]"></textarea>
+                            <span class="ajuda">Se ficar vazio, imprime "Este documento nao serve de fatura".</span>
+                        </label>
+
+                        <label class="rotulo">Instruções no talão individual
+                            <textarea v-model="form.instrucoes_individual" rows="2" class="campo-area font-mono text-[15px]"></textarea>
+                            <span class="ajuda">Impresso em cada talão que o cliente leva. Ex.: "Entregar no balcão" ou "Apresentar na partida da caminhada".</span>
+                        </label>
+
+                        <div v-if="demasiadoLongas.length" class="flex items-start gap-2.5 rounded-[10px] bg-laranja-claro p-3 text-sm text-laranja-texto">
+                            <svg class="mt-0.5 shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z" /><path d="M12 10v4M12 17.5v.5" /></svg>
+                            <div>
+                                <strong class="font-extrabold">Linhas com mais de {{ LARGURA }} caracteres</strong> — vão partir no papel:
+                                <ul class="mt-1 list-disc pl-5 font-mono text-xs">
+                                    <li v-for="linha in demasiadoLongas" :key="linha">{{ linha }}</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <h3 class="mt-1 text-[13px] font-extrabold uppercase tracking-[0.06em] text-suave-2">Como funciona este evento</h3>
+
+                        <label class="flex cursor-pointer items-start gap-3 rounded-[14px] border-2 p-4" :class="form.prepago_apenas_individuais ? 'border-laranja bg-laranja-claro' : 'border-linha bg-white'">
+                            <input v-model="form.prepago_apenas_individuais" type="checkbox" role="switch" class="peer sr-only">
+                            <span class="relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition peer-focus-visible:ring-2 peer-focus-visible:ring-verde" :class="form.prepago_apenas_individuais ? 'bg-laranja' : 'bg-linha-forte'" aria-hidden="true">
+                                <span class="absolute top-1 h-5 w-5 rounded-full bg-white transition-all" :class="form.prepago_apenas_individuais ? 'left-6' : 'left-1'"></span>
+                            </span>
+                            <span class="text-sm">
+                                <strong class="block text-[15px] font-extrabold">Evento com pré-pagamento — um talão por unidade</strong>
+                                <span class="block text-suave">
+                                    O cliente paga tudo à cabeça e cada unidade sai no seu talão, cortado, com a senha e a
+                                    secção onde se levanta. Saem agrupados por secção e a conta vem no fim. Tudo na mesma impressora, a do posto.
+                                </span>
+                                <span class="mt-1 block text-suave">
+                                    <strong class="text-tinta">Desligado (restaurante e café):</strong> o funcionamento do costume, incluindo a festa anual — o pedido
+                                    é encaminhado para a impressora de cada secção (cozinha, frango, bebidas) e a conta sai no balcão. Configura-se em Impressoras, por secção.
+                                </span>
+                            </span>
+                        </label>
+
+                        <label class="opcao">
+                            <input v-model="form.rodape_em_pedidos" type="checkbox" class="chk mt-0.5">
+                            <span>
+                                <strong class="block font-extrabold">Rodapé também nos pedidos da cozinha e bar</strong>
+                                <span class="block text-suave">Normalmente não — gasta papel em talões que ninguém leva.</span>
+                            </span>
+                        </label>
+
+                        <label class="opcao">
+                            <input v-model="form.ativo" type="checkbox" class="chk mt-0.5">
+                            <span>
+                                <strong class="block font-extrabold">Modelo ligado</strong>
+                                <span class="block text-suave">Se desligares, os talões voltam a "ARDC Santana" e à nota legal.</span>
+                            </span>
+                        </label>
+
+                        <div v-if="Object.keys(form.errors).length" class="rounded-[10px] bg-perigo-claro p-3 text-sm text-perigo-texto">
+                            <div v-for="(erro, campo) in form.errors" :key="campo"><strong>{{ campo }}:</strong> {{ erro }}</div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2.5 border-t border-linha-fraca pt-4">
+                            <button class="btn-pri h-[52px] px-6 text-base" :disabled="form.processing">{{ form.processing ? 'A guardar...' : 'Guardar' }}</button>
+                            <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
+                                <label v-if="impressoras.length" class="flex items-center gap-2 text-sm font-semibold text-suave">
+                                    Testar em
+                                    <select v-model="impressoraId" class="h-11 rounded-[10px] border border-linha-forte bg-white px-3 text-[15px] text-tinta focus:border-verde focus:ring-verde">
+                                        <option v-for="impressora in impressoras" :key="impressora.id" :value="impressora.id">{{ impressora.nome }}</option>
+                                    </select>
+                                </label>
+                                <button type="button" class="btn-sec h-11 disabled:opacity-40" :disabled="!impressoras.length" @click="imprimirTeste">Imprimir teste</button>
+                                <span v-if="!impressoras.length" class="text-xs text-suave">Não há impressoras ativas.</span>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Pré-visualização -->
+                <aside class="flex flex-col gap-3 lg:sticky lg:top-4">
+                    <div class="flex items-center justify-between gap-2 rounded-[14px] bg-linha-fraca p-1 pl-3">
+                        <h2 class="text-[13px] font-extrabold uppercase tracking-[0.06em] text-suave-2">Pré-visualização</h2>
+                        <div class="flex gap-1" role="tablist">
+                            <button type="button" role="tab" class="h-10 rounded-[10px] px-3 text-[13px] font-bold" :class="previsaoTab === 'conta' ? 'bg-white text-tinta shadow-sm' : 'text-suave'" :aria-selected="previsaoTab === 'conta'" @click="previsaoTab = 'conta'">Conta</button>
+                            <button type="button" role="tab" class="h-10 rounded-[10px] px-3 text-[13px] font-bold" :class="previsaoTab === 'individual' ? 'bg-white text-tinta shadow-sm' : 'text-suave'" :aria-selected="previsaoTab === 'individual'" @click="previsaoTab = 'individual'">Talão individual</button>
+                        </div>
+                    </div>
+
+                    <div class="rounded-[14px] bg-linha-fraca p-3">
+                        <div v-if="previsaoTab === 'conta'" class="talao">
+                            <div class="text-center text-sm font-bold">{{ form.ativo ? (form.titulo || 'ARDC Santana') : 'ARDC Santana' }}</div>
                             <div class="text-center">CONTA</div>
                             <div>&nbsp;</div>
                             <template v-if="form.ativo">
@@ -309,18 +315,15 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
                             <div class="text-center font-bold">MESA 12</div>
                             <div>Hora: 20:15</div>
                             <div>------------------------------</div>
-                            <div>2x Frango assado&nbsp;&nbsp;20,00 EUR</div>
+                            <div class="flex justify-between gap-2"><span>2x Frango assado</span><span>20,00 EUR</span></div>
                             <div>------------------------------</div>
-                            <div>Total: 20,00 EUR</div>
+                            <div class="font-bold">Total: 20,00 EUR</div>
                             <div>&nbsp;</div>
                             <div v-for="linha in (form.ativo && linhasRodape.length ? linhasRodape : ['Este documento nao serve de fatura'])" :key="'r' + linha">{{ linha }}</div>
+                            <div class="mt-2 border-t border-dashed border-suave-2"></div>
                         </div>
-                    </div>
-
-                    <div class="rounded-lg bg-white p-4 shadow-sm">
-                        <h2 class="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Talão individual (cliente)</h2>
-                        <div class="bg-slate-50 p-3 font-mono text-[11px] leading-snug text-slate-800">
-                            <div class="text-center text-sm font-black">{{ form.ativo ? (form.titulo || 'ARDC Santana') : 'ARDC Santana' }}</div>
+                        <div v-else class="talao">
+                            <div class="text-center text-sm font-bold">{{ form.ativo ? (form.titulo || 'ARDC Santana') : 'ARDC Santana' }}</div>
                             <div class="text-center">SENHA</div>
                             <div>&nbsp;</div>
                             <template v-if="form.ativo">
@@ -336,53 +339,67 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
                             <template v-if="form.ativo">
                                 <div v-for="linha in linhasInstrucoes" :key="'n' + linha" class="text-center">{{ linha }}</div>
                             </template>
+                            <div class="mt-2 border-t border-dashed border-suave-2"></div>
                         </div>
-                        <p class="mt-2 text-xs text-slate-500">Sai um destes por unidade, para entregar ao cliente.</p>
+                    </div>
+                    <p class="text-[13px] text-suave">{{ previsaoTab === 'conta' ? 'A conta sai no fim, com total, recebido e troco.' : 'Sai um destes por unidade, para entregar ao cliente.' }}</p>
+
+                    <div class="cartao p-4">
+                        <p class="text-[13px] font-extrabold">No pré-pagamento sai assim</p>
+                        <p class="mt-1.5 font-mono text-[11px] leading-relaxed text-suave">
+                            SENHA #42 · 1x Imperial · BEBIDAS ✂<br>
+                            SENHA #42 · 1x Imperial · BEBIDAS ✂<br>
+                            SENHA #42 · 1x Sumo Ananás · BEBIDAS ✂<br>
+                            SENHA #42 · 1x Frango · FRANGO ✂<br>
+                            CONTA · total, recebido e troco ✂
+                        </p>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Produtos com talão individual -->
+            <section class="cartao flex flex-col gap-4 p-4 sm:p-5">
+                <div>
+                    <h2 class="text-xl font-extrabold">Produtos com talão individual</h2>
+                    <p class="mt-1 max-w-3xl text-sm text-suave">
+                        <strong class="text-tinta">Só se aplica fora do pré-pagamento</strong> — no restaurante e na festa anual.
+                        Marca os produtos que saem um talão por unidade, com o número da senha, para entregar
+                        ao cliente. Os restantes saem todos juntos num talão só.
+                    </p>
+                    <p v-if="form.prepago_apenas_individuais" class="mt-2 rounded-[10px] bg-laranja-claro p-3 text-[13px] text-laranja-texto">
+                        O modelo em uso está em pré-pagamento, por isso esta lista está a ser ignorada:
+                        ali os talões saem por secção, com tudo o que o cliente comprou.
+                    </p>
+                </div>
+
+                <div class="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div v-for="categoria in categoriasComProdutos" :key="categoria.id">
+                        <div class="mb-1 text-[13px] font-extrabold uppercase tracking-[0.06em]" :class="corSecao(categoria.secao)">
+                            {{ categoria.nome }}
+                            <span class="font-normal normal-case tracking-normal text-suave-2">· {{ categoria.secao }}</span>
+                        </div>
+                        <label v-for="produto in categoria.produtos" :key="produto.id" class="flex min-h-11 cursor-pointer items-center gap-3 border-t border-linha-fraca py-2 text-[15px]">
+                            <input type="checkbox" class="chk" :checked="individuais.includes(produto.id)" @change="alternar(produto.id)">
+                            <span :class="individuais.includes(produto.id) ? 'font-bold' : ''">{{ produto.nome }}</span>
+                        </label>
                     </div>
                 </div>
+
+                <button class="btn-pri h-12 w-fit" @click="guardarProdutos">Guardar talões individuais</button>
             </section>
         </div>
-
-        <!-- Produtos com talao individual -->
-        <section class="mt-6 rounded-lg bg-white p-5 shadow-sm">
-            <div class="mb-4">
-                <h2 class="text-lg font-black">Produtos com talão individual</h2>
-                <p class="mt-1 text-sm text-slate-500">
-                    <strong>Só se aplica fora do pré-pagamento</strong> — no restaurante e na festa anual.
-                    Marca os produtos que saem um talão por unidade, com o número da senha, para entregar
-                    ao cliente. Os restantes saem todos juntos num talão só.
-                </p>
-                <p v-if="form.prepago_apenas_individuais" class="mt-2 rounded-md bg-amber-50 p-3 text-xs text-amber-800">
-                    O modelo em uso está em pré-pagamento, por isso esta lista está a ser ignorada:
-                    ali os talões saem por secção, com tudo o que o cliente comprou.
-                </p>
-            </div>
-
-            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                <div v-for="categoria in categoriasComProdutos" :key="categoria.id">
-                    <div class="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">
-                        {{ categoria.nome }}
-                        <span class="font-normal normal-case text-slate-400">· {{ categoria.secao }}</span>
-                    </div>
-                    <label
-                        v-for="produto in categoria.produtos"
-                        :key="produto.id"
-                        class="flex items-center gap-2 border-t border-slate-100 py-2 text-sm"
-                    >
-                        <input
-                            type="checkbox"
-                            class="rounded border-slate-300"
-                            :checked="individuais.includes(produto.id)"
-                            @change="alternar(produto.id)"
-                        >
-                        <span>{{ produto.nome }}</span>
-                    </label>
-                </div>
-            </div>
-
-            <button class="mt-5 rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white" @click="guardarProdutos">
-                Guardar talões individuais
-            </button>
-        </section>
     </AppLayout>
 </template>
+
+<style scoped>
+.btn-pri { @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-verde px-5 text-[15px] font-bold text-white transition hover:bg-verde-escuro; }
+.btn-sec { @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta transition hover:bg-fundo; }
+.cartao { @apply rounded-[14px] border border-linha bg-white; }
+.rotulo { @apply flex min-w-0 flex-col gap-1.5 text-sm font-bold text-tinta; }
+.ajuda { @apply text-[13px] font-normal text-suave; }
+.campo { @apply h-12 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-base font-normal text-tinta focus:border-verde focus:ring-verde; }
+.campo-area { @apply w-full rounded-[10px] border border-linha-forte bg-white px-3.5 py-3 font-normal text-tinta focus:border-verde focus:ring-verde; }
+.opcao { @apply flex cursor-pointer items-start gap-3 rounded-[14px] border border-linha bg-white p-4 text-sm; }
+.chk { @apply h-5 w-5 shrink-0 rounded border-linha-forte text-verde focus:ring-verde; }
+.talao { @apply mx-auto w-full max-w-[302px] bg-white px-3 py-4 font-mono text-[11px] leading-[1.55] text-tinta shadow-[0_1px_4px_rgba(22,32,28,0.15)]; }
+</style>

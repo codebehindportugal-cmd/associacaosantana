@@ -18,13 +18,14 @@ const paragraphs = computed(() => (content.value.corpo || '')
     <Head :title="`${page?.titulo || 'Termos e Condições'} | ARDC Santana`" />
 
     <PublicShell>
-        <main class="py-20 bg-amber-50">
-            <article class="mx-auto max-w-4xl px-5 lg:px-8">
-                <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Legal</p>
-                <h1 class="mt-3 text-4xl font-bold text-stone-800">{{ content.hero_titulo || 'Termos e Condições' }}</h1>
-                <p class="mt-3 text-sm font-semibold text-stone-400">{{ content.hero_subtitulo || 'Última atualização: 15/06/2026' }}</p>
-                <div class="mt-8 space-y-5 leading-relaxed text-stone-600">
-                    <p v-for="paragraph in paragraphs" :key="paragraph">{{ paragraph }}</p>
+        <main class="bg-fundo pb-16 pt-10 sm:pb-20 sm:pt-14">
+            <article class="mx-auto w-full max-w-[808px] px-4 sm:px-6">
+                <p class="m-0 text-[13px] font-bold uppercase tracking-[0.12em] text-verde">Legal</p>
+                <h1 class="m-0 mt-3 text-[clamp(32px,4vw,44px)] font-extrabold leading-[1.1] tracking-[-0.01em]">{{ content.hero_titulo || 'Termos e Condições' }}</h1>
+                <p class="m-0 mt-3 text-sm font-semibold text-suave">{{ content.hero_subtitulo || 'Última atualização: 15/06/2026' }}</p>
+
+                <div v-if="paragraphs.length" class="mt-8 space-y-5 rounded-[14px] border border-linha bg-white p-5 text-[17px] leading-relaxed text-suave sm:p-9">
+                    <p v-for="paragraph in paragraphs" :key="paragraph" class="m-0">{{ paragraph }}</p>
                 </div>
             </article>
         </main>

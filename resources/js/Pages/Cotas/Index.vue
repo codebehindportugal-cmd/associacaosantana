@@ -1,11 +1,19 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Paginacao from '@/Components/Paginacao.vue';
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, reactive } from 'vue';
 const props = defineProps({ cotas: Object, totais: Object, socios: Array, filters: Object });
+
+// Vindo da ficha do sócio ("Registar cota"), o sócio já vem escolhido
+const socioPedido = (() => {
+    if (typeof window === 'undefined') return null;
+    const id = Number(new URLSearchParams(window.location.search).get('socio'));
+    return (props.socios ?? []).some((socio) => socio.id === id) ? id : null;
+})();
+
 // A cota e anual e simbolica: 5€ por ano
-const form = useForm({ socio_id: props.socios?.[0]?.id ?? '', ano: new Date().getFullYear(), mes: null, tipo: 'anual', valor: 5, data_vencimento: `${new Date().getFullYear()}-12-31`, estado: 'pago', metodo_pagamento: 'dinheiro' });
+const form = useForm({ socio_id: socioPedido ?? props.socios?.[0]?.id ?? '', ano: new Date().getFullYear(), mes: null, tipo: 'anual', valor: 5, data_vencimento: `${new Date().getFullYear()}-12-31`, estado: 'pago', metodo_pagamento: 'dinheiro' });
 
 const podeGerar = computed(
     () => (usePage().props.auth?.permissions ?? []).includes('cotas.gerar'),
@@ -32,88 +40,170 @@ const periodo = (cota) => cota.mes ? `${String(cota.mes).padStart(2, '0')}/${cot
 const rotuloEstado = { pago: 'Paga', pendente: 'Pendente', em_atraso: 'Em atraso' };
 
 const corEstado = {
-    pago: 'bg-emerald-100 text-emerald-800',
-    pendente: 'bg-amber-100 text-amber-800',
-    em_atraso: 'bg-red-100 text-red-800',
+    pago: 'bg-verde-claro text-verde-escuro',
+    pendente: 'bg-laranja-claro text-laranja-texto',
+    em_atraso: 'bg-perigo-claro text-perigo-texto',
 };
+
+const corFiltro = { '': 'text-tinta', pago: 'text-verde-escuro', pendente: 'text-laranja-texto', em_atraso: 'text-perigo-texto' };
+
+const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const filtrar = () => router.get(route('cotas.index'), {
     ano: filtros.ano || undefined,
     mes: filtros.mes || undefined,
     estado: filtros.estado || undefined,
 }, { preserveState: true, preserveScroll: true, replace: true });
+
+const campo = 'h-12 w-full min-w-0 rounded-[10px] border border-linha-forte bg-white px-3 text-base text-tinta focus:border-verde focus:ring-verde';
 </script>
 
 <template>
     <AppLayout>
-        <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <h1 class="text-2xl font-bold">Cotas</h1>
-            <button
-                v-if="podeGerar"
-                type="button"
-                class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white"
-                @click="gerarCotas"
-            >
-                Gerar cotas do ano
-            </button>
-        </div>
-        <div class="mb-6 grid gap-4 md:grid-cols-2"><div class="rounded-lg bg-white p-5 shadow-sm"><div class="text-sm text-slate-500">Cobrado</div><div class="text-3xl font-bold">{{ Number(totais?.cobrado ?? 0).toFixed(2) }}€</div></div><div class="rounded-lg bg-white p-5 shadow-sm"><div class="text-sm text-slate-500">Pendente</div><div class="text-3xl font-bold">{{ Number(totais?.pendente ?? 0).toFixed(2) }}€</div></div></div>
-        <form class="mb-6 grid gap-3 rounded-lg bg-white p-5 shadow-sm md:grid-cols-4" @submit.prevent="form.post(route('cotas.store'))">
-            <select v-model="form.socio_id" class="rounded-md border-slate-300"><option v-for="socio in socios" :key="socio.id" :value="socio.id">{{ socio.numero_socio }} · {{ socio.nome }}<template v-if="socio.morada"> · {{ socio.morada }}</template></option></select>
-            <input v-model="form.ano" type="number" class="rounded-md border-slate-300" placeholder="Ano">
-            <input v-model="form.valor" type="number" step="0.01" class="rounded-md border-slate-300" placeholder="Valor">
-            <input v-model="form.data_vencimento" type="date" class="rounded-md border-slate-300">
-            <select v-model="form.estado" class="rounded-md border-slate-300"><option>pago</option><option>pendente</option><option>em_atraso</option></select>
-            <button class="rounded-md bg-slate-900 px-4 py-2 text-white" :disabled="form.processing">{{ form.processing ? 'A registar...' : 'Registar' }}</button>
-            <div v-if="Object.keys(form.errors).length" class="col-span-full rounded-md bg-red-50 p-3 text-sm text-red-700">
-                <div v-for="(erro, campo) in form.errors" :key="campo">{{ erro }}</div>
+        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 font-sans text-tinta tabular-nums">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-col gap-1.5">
+                    <h1 class="text-[30px] font-extrabold leading-tight">Cotas</h1>
+                    <p class="text-[15px] text-suave">A cota é anual e simbólica: 5 € por ano.</p>
+                </div>
+                <div class="flex flex-wrap gap-2.5">
+                    <Link :href="route('socios.emAtraso')" class="inline-flex h-12 items-center gap-2 rounded-[10px] border border-linha-forte bg-white px-[18px] text-[15px] font-bold text-perigo hover:bg-perigo-claro">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                        Sócios em atraso
+                    </Link>
+                    <button
+                        v-if="podeGerar"
+                        type="button"
+                        class="inline-flex h-12 items-center gap-2 rounded-[10px] bg-escuro-2 px-[18px] text-[15px] font-bold text-white hover:bg-escuro"
+                        @click="gerarCotas"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v6h6M20 20v-6h-6" /><path d="M20 10a8 8 0 0 0-14-4L4 10M4 14a8 8 0 0 0 14 4l2-4" /></svg>
+                        Gerar cotas do ano
+                    </button>
+                </div>
             </div>
-        </form>
-        <div class="mb-4 flex flex-wrap items-center gap-2">
-            <select v-model="filtros.ano" class="rounded-md border-slate-300 text-sm" @change="filtrar"><option value="">Todos os anos</option><option v-for="ano in anos" :key="ano" :value="ano">{{ ano }}</option></select>
-            <select v-model="filtros.mes" class="rounded-md border-slate-300 text-sm" @change="filtrar"><option value="">Todos os meses</option><option v-for="mes in 12" :key="mes" :value="mes">{{ mes }}</option></select>
-            <button
-                v-for="opcao in [['', 'Todas'], ['pago', 'Pagas'], ['pendente', 'Pendentes'], ['em_atraso', 'Em atraso']]"
-                :key="opcao[0]"
-                type="button"
-                class="rounded-md border px-3 py-2 text-sm font-bold"
-                :class="filtros.estado === opcao[0] ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'"
-                @click="filtros.estado = opcao[0]; filtrar()"
-            >
-                {{ opcao[1] }}
-            </button>
-        </div>
-        <div class="overflow-x-auto rounded-lg bg-white shadow-sm">
-            <table class="w-full min-w-[560px] text-left text-sm">
-                <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
-                    <tr>
-                        <th class="p-3">N.º</th>
-                        <th class="p-3">Sócio</th>
-                        <th class="p-3">Terra</th>
-                        <th class="p-3">Período</th>
-                        <th class="p-3 text-right">Valor</th>
-                        <th class="p-3">Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="cota in cotas.data" :key="cota.id" class="border-t border-slate-100">
-                        <td class="p-3 font-mono font-bold text-slate-700">{{ cota.socio?.numero_socio ?? '—' }}</td>
-                        <td class="p-3">{{ cota.socio?.nome }}</td>
-                        <td class="p-3 text-slate-600">{{ cota.socio?.morada || '—' }}</td>
-                        <td class="p-3 whitespace-nowrap">{{ periodo(cota) }}</td>
-                        <td class="p-3 text-right font-bold">{{ Number(cota.valor).toFixed(2) }}€</td>
-                        <td class="p-3">
-                            <span class="rounded-full px-2 py-1 text-xs font-bold" :class="corEstado[cota.estado] ?? 'bg-slate-100 text-slate-700'">
-                                {{ rotuloEstado[cota.estado] ?? cota.estado }}
-                            </span>
-                        </td>
-                    </tr>
-                    <tr v-if="!cotas.data.length">
-                        <td colspan="6" class="p-6 text-center text-slate-500">Não há cotas para estes filtros.</td>
-                    </tr>
-                </tbody>
-            </table>
-            <Paginacao :dados="cotas" etiqueta="cotas" />
+
+            <section aria-label="Totais" class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-[14px] border border-l-[5px] border-linha border-l-verde-ok bg-white p-[18px]">
+                    <div class="text-sm font-bold text-suave-2">Cobrado</div>
+                    <strong class="text-[30px] font-extrabold">{{ euros(totais?.cobrado) }}</strong>
+                </div>
+                <div class="rounded-[14px] border border-l-[5px] border-linha border-l-laranja bg-white p-[18px]">
+                    <div class="text-sm font-bold text-suave-2">Pendente</div>
+                    <strong class="text-[30px] font-extrabold text-laranja-texto">{{ euros(totais?.pendente) }}</strong>
+                </div>
+            </section>
+
+            <section class="flex flex-col gap-3.5 rounded-[14px] border border-linha bg-white px-5 py-[18px]">
+                <div class="flex flex-col gap-0.5">
+                    <h2 class="text-[19px] font-extrabold">Registar cota</h2>
+                    <span class="text-sm text-suave-2">Escolhe o sócio, confirma o valor e carrega em Registar.</span>
+                </div>
+                <form class="grid grid-cols-2 items-end gap-2.5 sm:grid-cols-3 xl:grid-cols-[minmax(0,2.2fr)_110px_120px_170px_170px_auto]" @submit.prevent="form.post(route('cotas.store'))">
+                    <label class="col-span-full flex flex-col gap-1.5 text-sm font-semibold text-suave xl:col-span-1">
+                        Sócio
+                        <select v-model="form.socio_id" :class="campo"><option v-for="socio in socios" :key="socio.id" :value="socio.id">{{ socio.numero_socio }} · {{ socio.nome }}<template v-if="socio.morada"> · {{ socio.morada }}</template></option></select>
+                    </label>
+                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">
+                        Ano
+                        <input v-model="form.ano" type="number" inputmode="numeric" :class="[campo, 'font-bold']" placeholder="Ano">
+                    </label>
+                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">
+                        Valor (€)
+                        <input v-model="form.valor" type="number" step="0.01" inputmode="decimal" :class="[campo, 'font-bold']" placeholder="Valor">
+                    </label>
+                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">
+                        Vencimento
+                        <input v-model="form.data_vencimento" type="date" :class="[campo, 'px-2 text-[15px]']">
+                    </label>
+                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">
+                        Estado
+                        <select v-model="form.estado" :class="campo"><option value="pago">Paga</option><option value="pendente">Pendente</option><option value="em_atraso">Em atraso</option></select>
+                    </label>
+                    <button class="col-span-full h-12 rounded-[10px] bg-laranja px-6 text-base font-extrabold text-white hover:brightness-95 disabled:opacity-60 sm:col-span-1" :disabled="form.processing">{{ form.processing ? 'A registar...' : 'Registar' }}</button>
+                    <div v-if="Object.keys(form.errors).length" role="alert" class="col-span-full rounded-[10px] bg-perigo-claro px-4 py-3 text-sm font-semibold text-perigo-texto">
+                        <div v-for="(erro, campoErro) in form.errors" :key="campoErro">{{ erro }}</div>
+                    </div>
+                </form>
+            </section>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+                <label>
+                    <span class="sr-only">Ano</span>
+                    <select v-model="filtros.ano" class="h-11 rounded-[10px] border border-linha-forte bg-white pl-2.5 pr-8 text-[15px] text-tinta focus:border-verde focus:ring-verde" @change="filtrar"><option value="">Todos os anos</option><option v-for="ano in anos" :key="ano" :value="ano">{{ ano }}</option></select>
+                </label>
+                <label>
+                    <span class="sr-only">Mês</span>
+                    <select v-model="filtros.mes" class="h-11 rounded-[10px] border border-linha-forte bg-white pl-2.5 pr-8 text-[15px] text-tinta focus:border-verde focus:ring-verde" @change="filtrar"><option value="">Todos os meses</option><option v-for="mes in 12" :key="mes" :value="mes">{{ mes }}</option></select>
+                </label>
+                <div role="group" aria-label="Filtrar por estado" class="flex flex-wrap gap-2">
+                    <button
+                        v-for="opcao in [['', 'Todas'], ['pago', 'Pagas'], ['pendente', 'Pendentes'], ['em_atraso', 'Em atraso']]"
+                        :key="opcao[0]"
+                        type="button"
+                        :aria-pressed="filtros.estado === opcao[0]"
+                        class="h-11 rounded-full px-4 text-sm font-bold"
+                        :class="filtros.estado === opcao[0] ? 'bg-tinta text-white' : ['border border-linha-forte bg-white hover:bg-fundo', corFiltro[opcao[0]]]"
+                        @click="filtros.estado = opcao[0]; filtrar()"
+                    >
+                        {{ opcao[1] }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                <div class="hidden overflow-x-auto md:block">
+                    <table class="w-full border-collapse text-base">
+                        <thead>
+                            <tr class="text-left text-[13px] text-suave-2">
+                                <th scope="col" class="w-[70px] border-b border-linha-fraca px-5 py-3.5 font-semibold">N.º</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 font-semibold">Sócio</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 font-semibold">Terra</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 font-semibold">Período</th>
+                                <th scope="col" class="border-b border-linha-fraca px-3 py-3.5 text-right font-semibold">Valor</th>
+                                <th scope="col" class="border-b border-linha-fraca px-5 py-3.5 font-semibold">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="cota in cotas.data" :key="cota.id" class="border-b border-linha-fraca">
+                                <td class="px-5 py-3 font-extrabold text-suave">{{ cota.socio?.numero_socio ?? '—' }}</td>
+                                <td class="px-3 py-3 font-bold">
+                                    <Link v-if="cota.socio" :href="route('socios.show', cota.socio.id)" class="text-tinta hover:text-verde">{{ cota.socio.nome }}</Link>
+                                    <span v-else>—</span>
+                                </td>
+                                <td class="px-3 py-3 text-suave">{{ cota.socio?.morada || '—' }}</td>
+                                <td class="whitespace-nowrap px-3 py-3">{{ periodo(cota) }}</td>
+                                <td class="whitespace-nowrap px-3 py-3 text-right font-extrabold">{{ euros(cota.valor) }}</td>
+                                <td class="px-5 py-3">
+                                    <span class="inline-flex h-7 items-center whitespace-nowrap rounded-full px-3 text-[13px] font-extrabold" :class="corEstado[cota.estado] ?? 'bg-fundo text-suave'">
+                                        {{ rotuloEstado[cota.estado] ?? cota.estado }}
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <ul class="divide-y divide-linha-fraca md:hidden">
+                    <li v-for="cota in cotas.data" :key="cota.id" class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-2.5 gap-y-0.5 px-4 py-3">
+                        <span class="row-span-3 pt-0.5 font-extrabold text-suave">{{ cota.socio?.numero_socio ?? '—' }}</span>
+                        <span class="truncate font-bold">
+                            <Link v-if="cota.socio" :href="route('socios.show', cota.socio.id)" class="text-tinta">{{ cota.socio.nome }}</Link>
+                            <template v-else>—</template>
+                        </span>
+                        <span class="text-right">
+                            <span class="inline-flex h-7 items-center whitespace-nowrap rounded-full px-3 text-[13px] font-extrabold" :class="corEstado[cota.estado] ?? 'bg-fundo text-suave'">{{ rotuloEstado[cota.estado] ?? cota.estado }}</span>
+                        </span>
+                        <span class="truncate text-sm text-suave">{{ cota.socio?.morada || '—' }}</span>
+                        <span class="whitespace-nowrap text-right font-extrabold">{{ euros(cota.valor) }}</span>
+                        <span class="col-span-2 text-sm text-suave-2">{{ periodo(cota) }}</span>
+                    </li>
+                </ul>
+
+                <div v-if="!cotas.data.length" class="p-8 text-center text-suave">Não há cotas para estes filtros.</div>
+
+                <Paginacao :dados="cotas" etiqueta="cotas" />
+            </div>
         </div>
     </AppLayout>
 </template>

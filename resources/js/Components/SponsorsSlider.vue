@@ -45,14 +45,14 @@ onMounted(() => {
 </script>
 
 <template>
-    <section v-if="patrocinadores.length" class="border-t border-amber-200 bg-amber-50 py-14">
-        <div class="mx-auto max-w-6xl px-5 lg:px-8">
-            <p class="mb-8 text-center text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Os nossos patrocinadores</p>
+    <section v-if="patrocinadores.length" class="py-14 font-sans">
+        <div class="mx-auto w-full max-w-[1120px] px-4 sm:px-6">
+            <p class="mb-8 text-center text-xs font-bold uppercase tracking-[0.14em] text-suave-2">Os nossos patrocinadores</p>
             <div class="swiper sponsors-swiper">
                 <div class="swiper-wrapper items-center">
                     <div v-for="sponsor in patrocinadores" :key="sponsor.id || sponsor.empresa" class="swiper-slide flex justify-center">
-                        <a :href="sponsor.website || '#'" target="_blank" rel="noopener noreferrer" :title="sponsor.empresa" class="block rounded-lg border border-amber-200 bg-white p-4 grayscale shadow-sm transition hover:grayscale-0 hover:border-amber-400 hover:shadow-md">
-                            <img :src="sponsor.logo_url" :alt="sponsor.empresa" class="max-h-20 max-w-[200px] object-contain" loading="lazy">
+                        <a :href="sponsor.website || '#'" target="_blank" rel="noopener noreferrer" :title="sponsor.empresa" class="flex h-28 w-full items-center justify-center rounded-[14px] border border-linha bg-white p-4 grayscale transition hover:border-verde hover:grayscale-0">
+                            <img :src="sponsor.logo_url" :alt="sponsor.empresa" class="max-h-16 max-w-[80%] object-contain" loading="lazy">
                         </a>
                     </div>
                 </div>

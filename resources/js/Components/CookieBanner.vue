@@ -15,20 +15,23 @@ const setConsent = (value) => {
 </script>
 
 <template>
-    <div v-if="visible" class="public-theme fixed inset-x-0 bottom-0 z-50 bg-slate-950 p-4 text-white shadow-2xl">
-        <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 md:flex-row">
-            <p class="text-sm text-slate-200">
-                Utilizamos cookies para melhorar a sua experiência.
-                <Link :href="route('legal.cookies')" class="font-semibold underline">Saiba mais</Link>.
-            </p>
-            <div class="flex gap-3">
-                <button type="button" class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700" @click="setConsent('all')">
-                    Aceitar
-                </button>
-                <button type="button" class="rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600" @click="setConsent('essential')">
-                    Só essenciais
-                </button>
-            </div>
+    <div
+        v-if="visible"
+        role="region"
+        aria-label="Cookies"
+        class="fixed inset-x-4 bottom-4 z-50 mx-auto box-border flex max-w-[760px] flex-wrap items-center justify-between gap-x-5 gap-y-3 rounded-[14px] bg-escuro py-3.5 pl-5 pr-4 font-sans text-white shadow-[0_12px_32px_rgba(22,32,28,.28)]"
+    >
+        <p class="m-0 text-[15px] text-escuro-inativo">
+            Utilizamos cookies para melhorar a sua experiência.
+            <Link :href="route('legal.cookies')" class="font-bold text-white underline hover:text-verde-claro">Saiba mais</Link>.
+        </p>
+        <div class="flex gap-2">
+            <button type="button" class="h-11 rounded-[10px] bg-verde px-[18px] text-[15px] font-bold text-white transition hover:bg-verde-escuro" @click="setConsent('all')">
+                Aceitar
+            </button>
+            <button type="button" class="h-11 rounded-[10px] bg-escuro-2 px-[18px] text-[15px] font-bold text-white transition hover:bg-suave" @click="setConsent('essential')">
+                Só essenciais
+            </button>
         </div>
     </div>
 </template>

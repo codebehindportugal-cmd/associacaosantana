@@ -1,7 +1,7 @@
-﻿<script setup>
+<script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 
 const props = defineProps({
     data: String,
@@ -27,15 +27,25 @@ const totalFundo = computed(() => (props.caixas ?? []).reduce((total, caixa) => 
 const totalVendas = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.vendas || 0), 0));
 const totalEsperado = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.esperado_caixa || 0), 0));
 const totalContado = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.valor_contado || 0), 0));
-const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
+const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const hora = (data) => data ? new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
-const diferencaClass = (valor) => Number(valor || 0) === 0 ? 'text-slate-700' : Number(valor) > 0 ? 'text-emerald-700' : 'text-red-700';
+const diferencaClass = (valor) => Number(valor || 0) === 0 ? 'text-tinta' : Number(valor) > 0 ? 'text-verde' : 'text-perigo';
 const estadoLabel = (caixa) => !caixa ? 'FALTA ABRIR' : caixa.estado === 'fechada' ? 'FECHADA' : 'ABERTA';
-const estadoClasses = (caixa) => !caixa ? 'bg-amber-100 text-amber-800' : caixa.estado === 'fechada' ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800';
+const estadoClasses = (caixa) => !caixa ? 'bg-white text-laranja-texto' : caixa.estado === 'fechada' ? 'bg-linha-fraca text-suave' : 'bg-verde-claro2 text-verde-escuro';
+
+// Formulário de abertura: em ecrãs estreitos fica no fim da página
+const formAbertura = ref(null);
+const dataExtenso = computed(() => {
+    if (!props.data) return '';
+    const texto = new Date(`${String(props.data).split('T')[0]}T00:00:00`).toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+});
+const temFechadas = computed(() => (props.caixas ?? []).some((caixa) => caixa.estado === 'fechada'));
 
 const prepararAbertura = (ponto) => {
     form.ponto = ponto;
     form.fundo_maneio = caixasPorPonto.value[ponto]?.fundo_maneio ?? 0;
+    nextTick(() => formAbertura.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
 };
 
 const abrirCaixa = () => {
@@ -66,148 +76,209 @@ const fecharCaixa = (caixa) => {
 
 <template>
     <AppLayout>
-        <div class="mb-6 overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-sm lg:p-8">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <p class="text-sm font-black uppercase tracking-[0.3em] text-amber-300">{{ data }}</p>
-                    <h1 class="mt-3 text-4xl font-black tracking-tight">Caixas</h1>
-                    <p class="mt-2 max-w-2xl text-sm font-semibold text-slate-300">{{ pontosBar.length ? 'Abre o Restaurante para trabalhar contas de mesa. Abre os cafés/bares para vender por senha e controlar trocos.' : 'Abre o Restaurante para trabalhar contas de mesa e controlar o fecho de caixa.' }}</p>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-right text-sm md:grid-cols-4">
-                    <div class="rounded-2xl bg-white/10 p-3"><div class="text-slate-300">Fundo</div><strong class="text-lg">{{ euros(totalFundo) }}</strong></div>
-                    <div class="rounded-2xl bg-white/10 p-3"><div class="text-slate-300">Vendas</div><strong class="text-lg">{{ euros(totalVendas) }}</strong></div>
-                    <div class="rounded-2xl bg-emerald-400 p-3 text-emerald-950"><div>Esperado</div><strong class="text-lg">{{ euros(totalEsperado) }}</strong></div>
-                    <div class="rounded-2xl bg-white p-3 text-slate-950"><div>Contado</div><strong class="text-lg">{{ euros(totalContado) }}</strong></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid gap-6 xl:grid-cols-[1fr_360px]">
-            <div class="space-y-6">
-                <section class="overflow-hidden rounded-[2rem] bg-white shadow-sm ring-1 ring-slate-200">
-                    <div class="bg-gradient-to-r from-slate-900 to-slate-700 p-5 text-white">
-                        <div class="flex flex-wrap items-start justify-between gap-4">
-                            <div>
-                                <p class="text-xs font-black uppercase tracking-[0.25em] text-amber-300">Restaurante</p>
-                                <h2 class="mt-2 text-3xl font-black">Contas de mesa</h2>
-                                <p class="mt-1 text-sm text-slate-300">Usa esta caixa para abrir mesas, receber contas e fechar o dia do restaurante.</p>
-                            </div>
-                            <span class="rounded-full px-4 py-2 text-xs font-black" :class="estadoClasses(restaurante)">{{ estadoLabel(restaurante) }}</span>
-                        </div>
-                    </div>
-
-                    <div class="grid gap-4 p-5 lg:grid-cols-[1fr_280px]">
-                        <div v-if="restaurante" class="grid gap-3 sm:grid-cols-4">
-                            <div class="rounded-2xl bg-slate-50 p-4"><div class="text-xs font-bold uppercase text-slate-500">Fundo</div><strong class="text-2xl">{{ euros(restaurante.fundo_maneio) }}</strong></div>
-                            <div class="rounded-2xl bg-slate-50 p-4"><div class="text-xs font-bold uppercase text-slate-500">Vendas</div><strong class="text-2xl">{{ euros(restaurante.vendas) }}</strong></div>
-                            <div class="rounded-2xl bg-emerald-50 p-4"><div class="text-xs font-bold uppercase text-emerald-700">Esperado</div><strong class="text-2xl text-emerald-800">{{ euros(restaurante.esperado_caixa) }}</strong></div>
-                            <div class="rounded-2xl bg-slate-50 p-4"><div class="text-xs font-bold uppercase text-slate-500">Pedidos</div><strong class="text-2xl">{{ restaurante.pedidos }}</strong></div>
-                        </div>
-                        <div v-else class="rounded-2xl bg-amber-50 p-5 font-bold text-amber-800">Abre primeiro a caixa do Restaurante para poderes abrir contas de mesa.</div>
-
-                        <div class="grid gap-2">
-                            <button type="button" class="rounded-2xl border border-slate-300 px-4 py-3 font-black" @click="prepararAbertura('Restaurante')">{{ restaurante ? 'Reabrir / ajustar fundo' : 'Abrir Restaurante' }}</button>
-                            <Link :href="route('mesas.index')" class="rounded-2xl bg-slate-900 px-4 py-3 text-center font-black text-white">Ir para mesas</Link>
-                            <Link :href="route('pedidos.create', { para_levar: 1 })" class="rounded-2xl bg-emerald-600 px-4 py-3 text-center font-black text-white">Pedido para levar</Link>
-                            <Link :href="route('pedidos.index')" class="rounded-2xl bg-white px-4 py-3 text-center font-black text-slate-900 ring-1 ring-slate-300">Ver contas</Link>
-                        </div>
-                    </div>
-
-                    <div v-if="restaurante?.estado === 'fechada'" class="mx-5 mb-5 rounded-2xl bg-slate-50 p-4 text-sm">
-                        <div class="flex justify-between"><span>Contado</span><strong>{{ euros(restaurante.valor_contado) }}</strong></div>
-                        <div class="flex justify-between"><span>Diferença</span><strong :class="diferencaClass(restaurante.diferenca)">{{ euros(restaurante.diferenca) }}</strong></div>
-                    </div>
-
-                    <div v-if="restaurante?.estado === 'aberta' && caixaAFechar !== restaurante.id" class="border-t border-slate-100 p-5">
-                        <button type="button" class="w-full rounded-2xl bg-red-600 px-4 py-4 font-black text-white" @click="prepararFecho(restaurante)">Fechar Restaurante</button>
-                    </div>
-
-                    <form v-if="caixaAFechar === restaurante?.id" class="border-t border-slate-100 bg-slate-50 p-5" @submit.prevent="fecharCaixa(restaurante)">
-                        <div class="grid gap-3 md:grid-cols-[180px_1fr_auto_auto] md:items-end">
-                            <label class="block text-sm font-bold text-slate-600">Valor contado
-                                <input v-model.number="fecharForm.valor_contado" type="number" min="0" step="0.01" class="mt-1 w-full rounded-xl border-slate-300 text-xl font-black">
-                            </label>
-                            <label class="block text-sm font-bold text-slate-600">Observações
-                                <input v-model="fecharForm.observacoes_fecho" class="mt-1 w-full rounded-xl border-slate-300" placeholder="Opcional">
-                            </label>
-                            <button type="button" class="rounded-xl border border-slate-300 px-4 py-3 font-bold" @click="cancelarFecho">Cancelar</button>
-                            <button class="rounded-xl bg-red-600 px-4 py-3 font-black text-white disabled:opacity-50" :disabled="fecharForm.processing">Confirmar fecho</button>
-                        </div>
-                    </form>
-                </section>
-
-                <section v-if="pontosBar.length" class="rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p class="text-xs font-black uppercase tracking-[0.25em] text-emerald-700">Senhas impressas</p>
-                            <h2 class="text-2xl font-black">Cafés e bares</h2>
-                        </div>
-                    </div>
-
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <article v-for="ponto in pontosBar" :key="ponto" class="rounded-3xl border p-4" :class="caixasPorPonto[ponto] ? caixasPorPonto[ponto].estado === 'fechada' ? 'border-slate-200 bg-slate-50' : 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'">
-                            <div class="flex items-start justify-between gap-3">
-                                <div>
-                                    <h3 class="text-xl font-black">{{ ponto }}</h3>
-                                    <p v-if="caixasPorPonto[ponto]?.estado === 'fechada'" class="text-sm font-bold text-slate-600">Fechado às {{ hora(caixasPorPonto[ponto].fechado_as) }}</p>
-                                    <p v-else-if="caixasPorPonto[ponto]" class="text-sm font-bold text-emerald-700">Aberto às {{ hora(caixasPorPonto[ponto].aberto_as) }}</p>
-                                    <p v-else class="text-sm font-bold text-amber-700">Ainda não aberto</p>
-                                </div>
-                                <span class="rounded-full px-3 py-1 text-xs font-black" :class="estadoClasses(caixasPorPonto[ponto])">{{ estadoLabel(caixasPorPonto[ponto]) }}</span>
-                            </div>
-
-                            <div v-if="caixasPorPonto[ponto]" class="mt-4 grid grid-cols-3 gap-2 text-sm">
-                                <div class="rounded-xl bg-white/80 p-3"><div class="text-slate-500">Fundo</div><strong>{{ euros(caixasPorPonto[ponto].fundo_maneio) }}</strong></div>
-                                <div class="rounded-xl bg-white/80 p-3"><div class="text-slate-500">Vendas</div><strong>{{ euros(caixasPorPonto[ponto].vendas) }}</strong></div>
-                                <div class="rounded-xl bg-white/80 p-3"><div class="text-slate-500">Esperado</div><strong>{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></div>
-                            </div>
-
-                            <div v-if="caixasPorPonto[ponto]?.estado === 'fechada'" class="mt-3 rounded-xl bg-white/80 p-3 text-sm">
-                                <div class="flex justify-between"><span>Contado</span><strong>{{ euros(caixasPorPonto[ponto].valor_contado) }}</strong></div>
-                                <div class="flex justify-between"><span>Diferença</span><strong :class="diferencaClass(caixasPorPonto[ponto].diferenca)">{{ euros(caixasPorPonto[ponto].diferenca) }}</strong></div>
-                            </div>
-
-                            <div class="mt-4 grid gap-2" :class="caixasPorPonto[ponto]?.estado === 'aberta' ? 'grid-cols-3' : 'grid-cols-2'">
-                                <button type="button" class="rounded-xl border border-slate-300 px-3 py-2 font-bold" @click="prepararAbertura(ponto)">{{ caixasPorPonto[ponto] ? 'Ajustar' : 'Abrir' }}</button>
-                                <Link v-if="caixasPorPonto[ponto]?.estado === 'aberta'" :href="route('bar.index', { ponto })" class="rounded-xl bg-emerald-600 px-3 py-2 text-center font-black text-white">Vender senhas</Link>
-                                <button v-if="caixasPorPonto[ponto]?.estado === 'aberta' && caixaAFechar !== caixasPorPonto[ponto].id" type="button" class="rounded-xl bg-slate-900 px-3 py-2 font-black text-white" @click="prepararFecho(caixasPorPonto[ponto])">Fechar</button>
-                            </div>
-
-                            <form v-if="caixaAFechar === caixasPorPonto[ponto]?.id" class="mt-4 rounded-xl bg-white p-3" @submit.prevent="fecharCaixa(caixasPorPonto[ponto])">
-                                <label class="block text-sm font-bold text-slate-600">Valor contado
-                                    <input v-model.number="fecharForm.valor_contado" type="number" min="0" step="0.01" class="mt-1 w-full rounded-xl border-slate-300 text-xl font-black">
-                                </label>
-                                <label class="mt-3 block text-sm font-bold text-slate-600">Observações
-                                    <textarea v-model="fecharForm.observacoes_fecho" class="mt-1 w-full rounded-xl border-slate-300" rows="2" placeholder="Opcional"></textarea>
-                                </label>
-                                <div class="mt-3 grid grid-cols-2 gap-2">
-                                    <button type="button" class="rounded-xl border border-slate-300 px-3 py-2 font-bold" @click="cancelarFecho">Cancelar</button>
-                                    <button class="rounded-xl bg-red-600 px-3 py-2 font-black text-white disabled:opacity-50" :disabled="fecharForm.processing">Confirmar</button>
-                                </div>
-                            </form>
-                        </article>
-                    </div>
-                </section>
+        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 font-sans text-tinta tabular-nums">
+            <div class="flex flex-col gap-1.5">
+                <span class="text-sm font-bold text-suave-2">{{ dataExtenso || data }}</span>
+                <h1 class="text-[30px] font-extrabold leading-tight">Caixa diária</h1>
+                <p class="max-w-[640px] text-[15px] text-suave">{{ pontosBar.length ? 'Abre o Restaurante para trabalhar contas de mesa. Abre os cafés/bares para vender por senha e controlar trocos.' : 'Abre o Restaurante para trabalhar contas de mesa e controlar o fecho de caixa.' }}</p>
             </div>
 
-            <form class="sticky top-6 self-start rounded-[2rem] bg-white p-5 shadow-sm ring-1 ring-slate-200" @submit.prevent="abrirCaixa">
-                <p class="text-xs font-black uppercase tracking-[0.25em] text-slate-500">Abertura</p>
-                <h2 class="mt-2 text-2xl font-black">Abrir / reabrir caixa</h2>
-                <label class="mt-5 block text-sm font-bold text-slate-600">Ponto
-                    <input v-model="form.ponto" list="pontos-caixa" class="mt-1 w-full rounded-xl border-slate-300 text-lg font-black">
-                </label>
-                <datalist id="pontos-caixa"><option v-for="ponto in pontos_padrao" :key="ponto" :value="ponto" /></datalist>
-                <label class="mt-4 block text-sm font-bold text-slate-600">Fundo de maneio
-                    <input v-model.number="form.fundo_maneio" type="number" min="0" step="0.01" class="mt-1 w-full rounded-xl border-slate-300 text-2xl font-black" placeholder="0.00">
-                </label>
-                <div v-if="Object.keys(form.errors).length" class="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">
-                    <div v-for="erro in form.errors" :key="erro">{{ erro }}</div>
+            <section aria-label="Totais do dia" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div class="flex flex-col gap-1 rounded-[14px] border border-linha bg-white px-[18px] py-4">
+                    <span class="text-sm font-semibold text-suave-2">Fundo de maneio</span>
+                    <strong class="text-[22px] font-extrabold sm:text-[26px]">{{ euros(totalFundo) }}</strong>
                 </div>
-                <button class="mt-5 w-full rounded-2xl bg-slate-900 p-4 font-black text-white disabled:opacity-50" :disabled="form.processing">
-                    {{ form.processing ? 'A guardar...' : 'Guardar abertura' }}
-                </button>
-                <p class="mt-3 text-xs text-slate-500">Se uma caixa estiver fechada, reabrir limpa o fecho e permite continuar a trabalhar nesse ponto.</p>
-            </form>
+                <div class="flex flex-col gap-1 rounded-[14px] border border-linha bg-white px-[18px] py-4">
+                    <span class="text-sm font-semibold text-suave-2">Vendas</span>
+                    <strong class="text-[22px] font-extrabold sm:text-[26px]">{{ euros(totalVendas) }}</strong>
+                </div>
+                <div class="flex flex-col gap-1 rounded-[14px] border border-verde-claro2 bg-verde-claro px-[18px] py-4 text-verde-escuro">
+                    <span class="text-sm font-bold">Esperado em caixa</span>
+                    <strong class="text-[22px] font-extrabold sm:text-[26px]">{{ euros(totalEsperado) }}</strong>
+                </div>
+                <div class="flex flex-col gap-1 rounded-[14px] border border-linha bg-white px-[18px] py-4">
+                    <span class="text-sm font-semibold text-suave-2">Contado</span>
+                    <strong class="text-[22px] font-extrabold sm:text-[26px]">{{ euros(totalContado) }}</strong>
+                    <span v-if="temFechadas" class="text-[13px] text-suave-2">só caixas já fechadas</span>
+                </div>
+            </section>
+
+            <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div class="flex min-w-0 flex-col gap-5">
+                    <!-- Restaurante -->
+                    <section class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                        <div class="flex flex-wrap items-start justify-between gap-3 border-b border-linha-fraca p-5">
+                            <div class="flex flex-col gap-1">
+                                <span class="text-[13px] font-bold uppercase tracking-[.08em] text-verde">Restaurante</span>
+                                <h2 class="text-[22px] font-extrabold">Contas de mesa</h2>
+                                <p class="text-[15px] text-suave">Usa esta caixa para abrir mesas, receber contas e fechar o dia do restaurante.</p>
+                            </div>
+                            <span class="inline-flex h-8 items-center gap-2 whitespace-nowrap rounded-full px-3.5 text-[13px] font-extrabold" :class="restaurante ? estadoClasses(restaurante) : 'bg-laranja-claro text-laranja-texto'">
+                                <span class="h-2 w-2 rounded-full" :class="!restaurante ? 'bg-laranja' : restaurante.estado === 'fechada' ? 'bg-suave-2' : 'bg-verde-ok'" />
+                                <template v-if="!restaurante">Falta abrir</template>
+                                <template v-else-if="restaurante.estado === 'fechada'">Fechada{{ restaurante.fechado_as ? ` às ${hora(restaurante.fechado_as)}` : '' }}</template>
+                                <template v-else>Aberta{{ restaurante.aberto_as ? ` às ${hora(restaurante.aberto_as)}` : '' }}</template>
+                            </span>
+                        </div>
+
+                        <div v-if="restaurante" class="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4">
+                            <div class="rounded-[10px] bg-fundo p-3.5"><div class="text-[13px] font-semibold text-suave-2">Fundo</div><strong class="text-[22px]">{{ euros(restaurante.fundo_maneio) }}</strong></div>
+                            <div class="rounded-[10px] bg-fundo p-3.5"><div class="text-[13px] font-semibold text-suave-2">Vendas</div><strong class="text-[22px]">{{ euros(restaurante.vendas) }}</strong></div>
+                            <div class="rounded-[10px] bg-verde-claro p-3.5 text-verde-escuro"><div class="text-[13px] font-bold">Esperado</div><strong class="text-[22px]">{{ euros(restaurante.esperado_caixa) }}</strong></div>
+                            <div class="rounded-[10px] bg-fundo p-3.5"><div class="text-[13px] font-semibold text-suave-2">Pedidos</div><strong class="text-[22px]">{{ restaurante.pedidos }}</strong></div>
+                        </div>
+                        <div v-else class="m-5 rounded-[10px] bg-laranja-claro p-4 font-bold text-laranja-texto">Abre primeiro a caixa do Restaurante para poderes abrir contas de mesa.</div>
+
+                        <div v-if="restaurante?.estado === 'fechada'" class="mx-5 mb-5 flex flex-col gap-1 border-t border-linha-fraca pt-3 text-[15px]">
+                            <div class="flex justify-between"><span>Contado</span><strong>{{ euros(restaurante.valor_contado) }}</strong></div>
+                            <div class="flex justify-between"><span>Diferença</span><strong :class="diferencaClass(restaurante.diferenca)">{{ euros(restaurante.diferenca) }}</strong></div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2.5 px-5 pb-5">
+                            <Link :href="route('mesas.index')" class="inline-flex h-[52px] flex-[1_1_160px] items-center justify-center gap-2 rounded-[10px] bg-verde text-base font-bold text-white hover:bg-verde-escuro">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="4" rx="1" /><path d="M6 10v9M18 10v9" /></svg>
+                                Ir para mesas
+                            </Link>
+                            <Link :href="route('pedidos.create', { para_levar: 1 })" class="inline-flex h-[52px] flex-[1_1_160px] items-center justify-center rounded-[10px] border border-linha-forte bg-white text-base font-bold text-tinta hover:bg-fundo">Pedido para levar</Link>
+                            <Link :href="route('pedidos.index')" class="inline-flex h-[52px] flex-[1_1_160px] items-center justify-center rounded-[10px] border border-linha-forte bg-white text-base font-bold text-tinta hover:bg-fundo">Ver contas</Link>
+                            <button type="button" class="h-[52px] flex-[1_1_160px] whitespace-nowrap rounded-[10px] border border-linha-forte px-2.5 text-[15px] font-bold" :class="restaurante ? 'bg-transparent text-suave hover:bg-fundo' : 'border-transparent bg-verde text-white hover:bg-verde-escuro'" @click="prepararAbertura('Restaurante')">{{ restaurante ? 'Reabrir / ajustar fundo' : 'Abrir Restaurante' }}</button>
+                        </div>
+
+                        <div v-if="restaurante?.estado === 'aberta' && caixaAFechar !== restaurante.id" class="border-t border-linha-fraca p-5">
+                            <button type="button" class="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-[10px] bg-perigo text-base font-extrabold text-white hover:brightness-95" @click="prepararFecho(restaurante)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                                Fechar Restaurante
+                            </button>
+                        </div>
+
+                        <form v-if="restaurante && caixaAFechar === restaurante.id" class="flex flex-col gap-3.5 border-t border-[#F0D3CD] bg-perigo-claro p-5" @submit.prevent="fecharCaixa(restaurante)">
+                            <div class="flex items-center gap-2.5 text-[17px] font-extrabold text-perigo-texto">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                                Fechar Restaurante
+                            </div>
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Valor contado
+                                    <span class="flex h-14 items-center rounded-[10px] border border-linha-forte bg-white px-3.5 focus-within:border-verde">
+                                        <input v-model.number="fecharForm.valor_contado" type="number" min="0" step="0.01" inputmode="decimal" class="w-full min-w-0 border-0 bg-transparent p-0 text-2xl font-extrabold text-tinta focus:ring-0">
+                                        <span class="font-bold text-suave-2">€</span>
+                                    </span>
+                                </label>
+                                <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Observações
+                                    <input v-model="fecharForm.observacoes_fecho" class="h-14 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Opcional">
+                                </label>
+                            </div>
+                            <p class="text-sm text-perigo-texto">Esperado: <strong>{{ euros(restaurante.esperado_caixa) }}</strong>. A diferença é calculada ao confirmar.</p>
+                            <div v-if="Object.keys(fecharForm.errors).length" role="alert" class="rounded-[10px] bg-white p-3 text-sm font-semibold text-perigo-texto">
+                                <div v-for="erro in fecharForm.errors" :key="erro">{{ erro }}</div>
+                            </div>
+                            <div class="flex flex-wrap justify-end gap-2.5">
+                                <button type="button" class="h-12 rounded-[10px] border border-linha-forte bg-white px-5 text-[15px] font-bold text-tinta" @click="cancelarFecho">Cancelar</button>
+                                <button class="h-12 rounded-[10px] bg-perigo px-6 text-[15px] font-extrabold text-white disabled:opacity-50" :disabled="fecharForm.processing">Confirmar fecho</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <!-- Cafés e bares -->
+                    <section v-if="pontosBar.length" class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-0.5">
+                            <span class="text-[13px] font-bold uppercase tracking-[.08em] text-azul">Senhas impressas</span>
+                            <h2 class="text-[22px] font-extrabold">Cafés e bares</h2>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-2">
+                            <article
+                                v-for="ponto in pontosBar"
+                                :key="ponto"
+                                class="flex flex-col gap-3.5 rounded-[14px] p-[18px]"
+                                :class="!caixasPorPonto[ponto]
+                                    ? 'border border-dashed border-[#E3B58F] bg-laranja-claro'
+                                    : caixasPorPonto[ponto].estado === 'fechada'
+                                        ? 'border border-l-[5px] border-linha border-l-[#8E9A94] bg-white'
+                                        : 'border border-l-[5px] border-linha border-l-verde-ok bg-white'"
+                            >
+                                <div class="flex items-start justify-between gap-2.5">
+                                    <div class="min-w-0">
+                                        <h3 class="break-words text-[19px] font-extrabold">{{ ponto }}</h3>
+                                        <p v-if="caixasPorPonto[ponto]?.estado === 'fechada'" class="mt-0.5 text-sm font-semibold text-suave-2">Fechado às {{ hora(caixasPorPonto[ponto].fechado_as) }}</p>
+                                        <p v-else-if="caixasPorPonto[ponto]" class="mt-0.5 text-sm font-semibold text-verde">Aberto às {{ hora(caixasPorPonto[ponto].aberto_as) }}</p>
+                                        <p v-else class="mt-0.5 text-sm font-semibold text-laranja-texto">Ainda não aberto</p>
+                                    </div>
+                                    <span class="inline-flex h-7 shrink-0 items-center rounded-full px-3 text-xs font-extrabold" :class="estadoClasses(caixasPorPonto[ponto])">{{ estadoLabel(caixasPorPonto[ponto]) }}</span>
+                                </div>
+
+                                <div v-if="caixasPorPonto[ponto]" class="grid grid-cols-3 gap-2 text-sm">
+                                    <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Fundo</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].fundo_maneio) }}</strong></div>
+                                    <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Vendas</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].vendas) }}</strong></div>
+                                    <div class="min-w-0 rounded-[10px] p-2.5" :class="caixasPorPonto[ponto].estado === 'aberta' ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo'"><div :class="caixasPorPonto[ponto].estado === 'aberta' ? '' : 'text-suave-2'">Esperado</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></div>
+                                </div>
+
+                                <div v-if="caixasPorPonto[ponto]?.estado === 'fechada'" class="flex flex-col gap-1 border-t border-linha-fraca pt-3 text-[15px]">
+                                    <div class="flex justify-between"><span>Contado</span><strong>{{ euros(caixasPorPonto[ponto].valor_contado) }}</strong></div>
+                                    <div class="flex justify-between"><span>Diferença</span><strong :class="diferencaClass(caixasPorPonto[ponto].diferenca)">{{ euros(caixasPorPonto[ponto].diferenca) }}</strong></div>
+                                </div>
+
+                                <div v-if="caixaAFechar !== caixasPorPonto[ponto]?.id || !caixasPorPonto[ponto]" class="grid grid-cols-2 gap-2">
+                                    <Link v-if="caixasPorPonto[ponto]?.estado === 'aberta'" :href="route('bar.index', { ponto })" class="col-span-2 inline-flex h-12 items-center justify-center rounded-[10px] bg-verde text-[15px] font-bold text-white hover:bg-verde-escuro">Vender senhas</Link>
+                                    <button
+                                        type="button"
+                                        class="h-12 rounded-[10px] text-[15px] font-bold"
+                                        :class="[
+                                            caixasPorPonto[ponto] ? 'border border-linha-forte bg-white text-tinta hover:bg-fundo' : 'bg-verde text-white hover:bg-verde-escuro',
+                                            caixasPorPonto[ponto]?.estado === 'aberta' ? '' : 'col-span-2',
+                                        ]"
+                                        @click="prepararAbertura(ponto)"
+                                    >{{ !caixasPorPonto[ponto] ? 'Abrir caixa' : caixasPorPonto[ponto].estado === 'fechada' ? 'Reabrir' : 'Ajustar fundo' }}</button>
+                                    <button v-if="caixasPorPonto[ponto]?.estado === 'aberta'" type="button" class="h-12 rounded-[10px] bg-escuro-2 text-[15px] font-bold text-white hover:bg-escuro" @click="prepararFecho(caixasPorPonto[ponto])">Fechar caixa</button>
+                                </div>
+
+                                <form v-if="caixasPorPonto[ponto] && caixaAFechar === caixasPorPonto[ponto].id" class="flex flex-col gap-3 rounded-[10px] bg-perigo-claro p-3.5" @submit.prevent="fecharCaixa(caixasPorPonto[ponto])">
+                                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Valor contado
+                                        <span class="flex h-14 items-center rounded-[10px] border border-linha-forte bg-white px-3.5 focus-within:border-verde">
+                                            <input v-model.number="fecharForm.valor_contado" type="number" min="0" step="0.01" inputmode="decimal" class="w-full min-w-0 border-0 bg-transparent p-0 text-2xl font-extrabold text-tinta focus:ring-0">
+                                            <span class="font-bold text-suave-2">€</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Observações
+                                        <textarea v-model="fecharForm.observacoes_fecho" rows="2" class="w-full rounded-[10px] border border-linha-forte bg-white p-3 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Opcional"></textarea>
+                                    </label>
+                                    <p class="text-sm text-perigo-texto">Esperado: <strong>{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></p>
+                                    <div v-if="Object.keys(fecharForm.errors).length" role="alert" class="rounded-[10px] bg-white p-3 text-sm font-semibold text-perigo-texto">
+                                        <div v-for="erro in fecharForm.errors" :key="erro">{{ erro }}</div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button type="button" class="h-12 rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold text-tinta" @click="cancelarFecho">Cancelar</button>
+                                        <button class="h-12 rounded-[10px] bg-perigo text-[15px] font-extrabold text-white disabled:opacity-50" :disabled="fecharForm.processing">Confirmar</button>
+                                    </div>
+                                </form>
+                            </article>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Abertura -->
+                <form ref="formAbertura" class="flex flex-col gap-4 rounded-[14px] border border-linha bg-white p-5 xl:sticky xl:top-6" @submit.prevent="abrirCaixa">
+                    <div class="flex flex-col gap-0.5">
+                        <span class="text-[13px] font-bold uppercase tracking-[.08em] text-suave-2">Abertura</span>
+                        <h2 class="text-xl font-extrabold">Abrir / reabrir caixa</h2>
+                    </div>
+                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Ponto
+                        <input v-model="form.ponto" list="pontos-caixa" class="h-12 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-[17px] font-bold text-tinta focus:border-verde focus:ring-verde">
+                    </label>
+                    <datalist id="pontos-caixa"><option v-for="ponto in pontos_padrao" :key="ponto" :value="ponto" /></datalist>
+                    <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Fundo de maneio
+                        <span class="flex h-14 items-center rounded-[10px] border border-linha-forte bg-white px-3.5 focus-within:border-verde">
+                            <input v-model.number="form.fundo_maneio" type="number" min="0" step="0.01" inputmode="decimal" class="w-full min-w-0 border-0 bg-transparent p-0 text-2xl font-extrabold text-tinta focus:ring-0" placeholder="0,00">
+                            <span class="font-bold text-suave-2">€</span>
+                        </span>
+                    </label>
+                    <div v-if="Object.keys(form.errors).length" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">
+                        <div v-for="erro in form.errors" :key="erro">{{ erro }}</div>
+                    </div>
+                    <button class="h-[52px] rounded-[10px] bg-verde text-base font-extrabold text-white hover:bg-verde-escuro disabled:opacity-50" :disabled="form.processing">
+                        {{ form.processing ? 'A guardar...' : 'Guardar abertura' }}
+                    </button>
+                    <p class="text-[13px] leading-snug text-suave-2">Se uma caixa estiver fechada, reabrir limpa o fecho e permite continuar a trabalhar nesse ponto.</p>
+                </form>
+            </div>
         </div>
     </AppLayout>
 </template>

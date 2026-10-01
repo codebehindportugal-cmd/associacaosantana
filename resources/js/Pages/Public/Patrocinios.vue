@@ -43,46 +43,51 @@ const submit = async () => {
     <PublicShell>
         <main>
             <!-- Hero -->
-            <section class="relative isolate overflow-hidden bg-stone-800 px-5 py-24 text-white lg:px-8">
-                <div class="absolute inset-0 -z-10 bg-gradient-to-r from-stone-900/90 to-stone-800/60" />
-                <div class="mx-auto max-w-6xl">
-                    <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">Festa anual</p>
-                    <h1 class="mt-4 max-w-3xl text-5xl font-bold leading-tight text-white sm:text-6xl">
+            <section class="border-b border-linha bg-white py-14 sm:py-20">
+                <div class="mx-auto w-full max-w-[1120px] px-4 sm:px-6">
+                    <p class="m-0 text-[13px] font-bold uppercase tracking-[0.12em] text-verde">Festa anual</p>
+                    <h1 class="m-0 mt-4 max-w-3xl text-[clamp(36px,5vw,60px)] font-extrabold leading-[1.05] tracking-[-0.02em]">
                         {{ content.hero_titulo || 'Apoia a Festa de Santa Ana' }}
                     </h1>
-                    <p class="mt-6 max-w-2xl text-lg leading-relaxed text-stone-200">
+                    <p class="m-0 mt-5 max-w-2xl text-lg text-suave">
                         {{ content.hero_subtitulo || 'Ajude-nos a manter viva uma festa feita pela comunidade. Cada contributo conta e a visibilidade é combinada consigo.' }}
                     </p>
                 </div>
             </section>
 
-            <div class="h-0.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
-
             <!-- Conteúdo + Formulário -->
-            <section class="py-20 bg-amber-50">
-                <div class="mx-auto grid max-w-7xl gap-12 px-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:px-8">
+            <section class="border-b border-linha bg-fundo py-14 sm:py-20">
+                <div class="mx-auto grid w-full max-w-[1120px] gap-10 px-4 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:gap-12">
                     <div>
-                        <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Como funciona</p>
-                        <h2 class="mt-3 text-4xl font-bold text-stone-800 leading-tight">
+                        <p class="m-0 text-[13px] font-bold uppercase tracking-[0.12em] text-verde">Como funciona</p>
+                        <h2 class="m-0 mt-3 text-[clamp(28px,3.2vw,40px)] font-extrabold leading-[1.15]">
                             {{ content.introducao || 'Patrocínio simples, direto e adaptado.' }}
                         </h2>
-                        <p class="mt-5 text-lg leading-relaxed text-stone-600">
+                        <p class="m-0 mt-5 text-lg leading-relaxed text-suave">
                             {{ content.corpo || 'Cada patrocinador contribui com o que lhe for possível. Em troca, trabalhamos consigo para dar a máxima visibilidade à vossa marca: no recinto com lonas, nas nossas redes sociais e aqui no nosso site.' }}
                         </p>
-                        <div class="mt-8 grid gap-4">
-                            <article v-for="benefit in benefits" :key="benefit[0]" class="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-                                <h3 class="text-lg font-bold text-stone-800">{{ benefit[0] }}</h3>
-                                <p class="mt-2 text-stone-600">{{ benefit[1] }}</p>
+                        <div v-if="benefits.length" class="mt-8 grid gap-3">
+                            <article v-for="(benefit, i) in benefits" :key="benefit[0]" class="flex items-start gap-4 rounded-[14px] border border-linha bg-white p-5">
+                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-verde-claro text-verde" aria-hidden="true">
+                                    <svg v-if="i % 3 === 0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1" /><path d="M8 20l4-4 4 4" /></svg>
+                                    <svg v-else-if="i % 3 === 1" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
+                                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg>
+                                </span>
+                                <div class="min-w-0">
+                                    <h3 class="m-0 text-lg font-extrabold">{{ benefit[0] }}</h3>
+                                    <p class="m-0 mt-1 text-base text-suave">{{ benefit[1] }}</p>
+                                </div>
                             </article>
                         </div>
                     </div>
 
-                    <!-- Form -->
-                    <form class="rounded-xl border border-amber-200 bg-white p-8 shadow-md" @submit.prevent="submit">
-                        <h2 class="text-2xl font-bold text-stone-800">Proposta de patrocínio</h2>
-                        <p class="mt-2 text-sm text-stone-500">Diga-nos como gostaria de apoiar. Entraremos em contacto para combinar os detalhes.</p>
+                    <!-- Formulário -->
+                    <form id="proposta" class="rounded-[14px] border border-linha bg-white p-5 shadow-[0_8px_24px_rgba(22,32,28,.06)] sm:p-8" @submit.prevent="submit">
+                        <h2 class="m-0 text-2xl font-extrabold">Proposta de patrocínio</h2>
+                        <p class="m-0 mt-2 text-[15px] text-suave">Diga-nos como gostaria de apoiar. Entraremos em contacto para combinar os detalhes.</p>
 
-                        <p v-if="inertiaPage.props.flash?.success" class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                        <p v-if="inertiaPage.props.flash?.success" class="m-0 mt-4 flex items-start gap-2.5 rounded-[10px] border border-verde-claro2 bg-verde-claro p-3.5 text-[15px] font-semibold text-verde-escuro" role="status">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-px shrink-0"><path d="M5 12l5 5L19 7" /></svg>
                             {{ inertiaPage.props.flash.success }}
                         </p>
 
@@ -109,46 +114,50 @@ const submit = async () => {
                             </label>
                             <label class="field sm:col-span-2">
                                 Mensagem / proposta livre
-                                <textarea v-model="form.mensagem" rows="5" class="pub-input" />
+                                <textarea v-model="form.mensagem" rows="5" class="pub-input pub-textarea" />
                                 <span v-if="form.errors.mensagem" class="field-error">{{ form.errors.mensagem }}</span>
                             </label>
                         </div>
 
-                        <label class="mt-5 flex gap-3 text-sm text-stone-600">
-                            <input v-model="form.aceita_contacto" type="checkbox" class="mt-1 rounded border-amber-300 text-amber-600 focus:ring-amber-500">
+                        <label class="mt-5 flex cursor-pointer gap-3 rounded-[10px] bg-fundo p-3.5 text-[15px] text-suave">
+                            <input v-model="form.aceita_contacto" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 rounded border-linha-forte text-verde focus:ring-verde">
                             <span>Aceito ser contactado pela ARDC Santana para dar seguimento a esta proposta.</span>
                         </label>
-                        <span v-if="form.errors.aceita_contacto" class="mt-1 block text-xs text-red-600">{{ form.errors.aceita_contacto }}</span>
+                        <span v-if="form.errors.aceita_contacto" class="field-error mt-1 block">{{ form.errors.aceita_contacto }}</span>
 
-                        <button type="submit" class="mt-6 w-full rounded-md bg-amber-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-60" :disabled="form.processing">
+                        <button type="submit" class="mt-6 h-[54px] w-full rounded-[10px] bg-verde px-5 text-[17px] font-bold text-white transition hover:bg-verde-escuro disabled:cursor-not-allowed disabled:opacity-60" :disabled="form.processing">
                             {{ form.processing ? 'A enviar...' : 'Enviar proposta' }}
                         </button>
                     </form>
                 </div>
             </section>
 
-            <SponsorsSlider :patrocinadores="patrocinadores" />
+            <div class="bg-white">
+                <SponsorsSlider :patrocinadores="patrocinadores" />
+            </div>
         </main>
     </PublicShell>
 </template>
 
 <style scoped>
-.field { display: grid; gap: 0.35rem; font-size: 0.875rem; font-weight: 600; color: #57534e; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 15px; font-weight: 700; color: #16201C; }
 .pub-input {
-    background: #fffbeb;
-    border: 1px solid #fde68a;
-    border-radius: 0.5rem;
-    color: #1c1917;
-    font-size: 0.875rem;
-    padding: 0.625rem 0.875rem;
-    transition: border-color 200ms;
     width: 100%;
+    height: 50px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid #D5D9D3;
+    background: #FFFFFF;
+    color: #16201C;
+    font-size: 16px;
+    font-weight: 400;
+    transition: border-color 150ms, box-shadow 150ms;
 }
+.pub-textarea { height: auto; padding: 12px 14px; resize: vertical; }
 .pub-input:focus {
-    border-color: #d97706;
-    box-shadow: 0 0 0 3px rgb(217 119 6 / 0.15);
+    border-color: #0F6B4F;
+    box-shadow: 0 0 0 3px rgb(15 107 79 / 0.15);
     outline: none;
 }
-.field-error { color: #dc2626; font-size:0.75rem; }
+.field-error { color: #A3241A; font-size: 14px; font-weight: 600; }
 </style>
-

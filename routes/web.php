@@ -133,6 +133,7 @@ Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(func
     Route::delete('/pedido/{pedido}/item/{item}', [PosRestController::class, 'removerItem'])->name('pedido.item.remover');
     Route::patch('/pedido/{pedido}/item/{item}/urgente', [PosRestController::class, 'toggleUrgente'])->name('pedido.item.urgente');
     Route::patch('/pedido/{pedido}/fechar', [PosRestController::class, 'fecharConta'])->name('pedido.fechar');
+    Route::patch('/pedido/{pedido}/pedir-conta', [PosRestController::class, 'pedirConta'])->name('pedido.pedir-conta');
     Route::patch('/pedido/{pedido}/lugares', [PosRestController::class, 'atualizarLugares'])->name('pedido.lugares');
     Route::patch('/pedido/{pedido}/observacoes', [PosRestController::class, 'atualizarObservacoes'])->name('pedido.observacoes');
     Route::get('/pedido/{pedido}/talao', [PosRestController::class, 'talao'])->name('pedido.talao');

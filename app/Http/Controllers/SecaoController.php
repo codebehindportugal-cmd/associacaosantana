@@ -61,14 +61,18 @@ class SecaoController extends Controller
                 'mesa' => 'Senha #'.$pedido->numero_senha,
                 'operador' => $this->operadorPedido($pedido),
                 'urgente' => false,
+                // Início da espera (ISO 8601) — o ecrã calcula os minutos
+                'desde' => $pedido->created_at?->toISOString(),
                 'items' => $pedido->items->values(),
-            ]);
+            ])
+            ->sortBy([['desde', 'asc']]);
 
         return Inertia::render('Secao/Ecra', [
             'titulo' => 'BAR',
             'itemsPorMesa' => $items->values(),
             'tem_urgentes' => false,
             'modoBar' => true,
+            'agora' => now()->toISOString(),
         ]);
     }
 
@@ -95,9 +99,12 @@ class SecaoController extends Controller
                 'mesa' => $mesa,
                 'operador' => $this->operadorPedido($grupo->first()->pedido),
                 'urgente' => $grupo->contains('prioridade', true),
+                // Início da espera (ISO 8601): artigo pendente mais antigo do grupo
+                'desde' => $grupo->min('created_at')?->toISOString(),
                 'items' => $grupo->sortByDesc('prioridade')->values(),
             ])
-            ->sortByDesc('urgente');
+            // Prioridade primeiro, depois os mais antigos
+            ->sortBy([['urgente', 'desc'], ['desde', 'asc']]);
 
         return Inertia::render('Secao/Ecra', [
             'titulo' => $titulo,
@@ -106,6 +113,7 @@ class SecaoController extends Controller
                 ->whereHas('pedido', fn ($query) => $query->where('tipo', 'restaurante'))
                 ->where('secao', $secao)
                 ->exists(),
+            'agora' => now()->toISOString(),
         ]);
     }
 

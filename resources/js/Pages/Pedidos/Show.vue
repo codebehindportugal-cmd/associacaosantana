@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -136,7 +136,26 @@ const doarTroco = () => {
     fecharContaForm.troco = 0;
 };
 
-const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2)}€`;
+const formatarPreco = (valor) => `${Number(valor ?? 0).toFixed(2).replace('.', ',')}€`;
+
+// Apresentação (cores por secção e nomes de estado)
+const corSecao = (secao) => ({
+    bebidas: { texto: 'text-secao-bar', borda: 'border-l-secao-bar', pilula: 'text-secao-bar' },
+    frango: { texto: 'text-secao-grelhados', borda: 'border-l-secao-grelhados', pilula: 'text-secao-grelhados' },
+    acompanhamentos: { texto: 'text-secao-acompanhamentos', borda: 'border-l-secao-acompanhamentos', pilula: 'text-secao-acompanhamentos' },
+    comida: { texto: 'text-secao-cozinha', borda: 'border-l-secao-cozinha', pilula: 'text-secao-cozinha' },
+    sobremesas: { texto: 'text-secao-sobremesas', borda: 'border-l-secao-sobremesas', pilula: 'text-secao-sobremesas' },
+}[secao] ?? { texto: 'text-suave', borda: 'border-l-secao-servico', pilula: 'text-tinta' });
+const estadoNome = (estado) => ({ pendente: 'Pendente', preparacao: 'Em preparação', pronto: 'Pronto', entregue: 'Entregue', cancelado: 'Cancelado' }[estado] ?? estado);
+const estadoClass = (estado) => ({
+    pendente: 'bg-laranja-claro text-laranja-texto',
+    preparacao: 'bg-[#E8EEFA] text-[#1E4592]',
+    pronto: 'bg-verde-claro2 text-verde-escuro',
+    entregue: 'bg-linha-fraca text-suave',
+    cancelado: 'bg-perigo-claro text-perigo-texto',
+}[estado] ?? 'bg-linha-fraca text-suave');
+const metodosPagamento = [['dinheiro', 'Dinheiro'], ['mbway', 'MBWay'], ['multibanco', 'Multibanco'], ['transferencia', 'Transferência']];
+const ajustarQuantidade = (delta) => { quantidade.value = Math.max(1, Number(quantidade.value || 1) + delta); };
 
 const escolherTipoAtendimento = (tipo) => {
     pedidoForm.tipo_atendimento = tipo;
@@ -178,223 +197,243 @@ onMounted(() => {
 
 <template>
     <AppLayout>
-        <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold">{{ pedido ? `Pedido #${pedido.id}` : 'Novo pedido' }}</h1>
-                <p v-if="pedido" class="mt-1 text-sm text-slate-500">{{ pedido.mesa?.designacao ?? 'Para levar' }} · {{ pedido.estado }} · {{ criadoPor }}</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                <Link v-if="pedido" :href="route('pedidos.talao', pedido.id)" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold">Talão</Link>
-                <Link :href="route('pedidos.index')" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold">Voltar</Link>
-            </div>
-        </div>
+        <div class="flex flex-col gap-5 font-sans text-tinta tabular-nums">
+            <Link :href="route('pedidos.index')" class="inline-flex min-h-11 items-center gap-1.5 self-start text-[15px] font-bold text-verde hover:text-verde-escuro">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+                Voltar aos pedidos
+            </Link>
 
-        <div v-if="aviso" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 shadow-sm">
-            {{ aviso }}
-        </div>
-
-        <form v-if="!pedido" class="max-w-xl space-y-4 rounded-lg bg-white p-6 shadow-sm" @submit.prevent="criarPedido">
-            <div class="grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-2">
-                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'mesa' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="escolherTipoAtendimento('mesa')">Mesa</button>
-                <button type="button" class="rounded-md px-4 py-3 font-black" :class="pedidoForm.tipo_atendimento === 'para_levar' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'" @click="escolherTipoAtendimento('para_levar')">Para levar</button>
-            </div>
-
-            <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="block">
-                <span class="mb-1 block text-sm font-semibold text-slate-700">Mesa ou submesa</span>
-                <select v-model="pedidoForm.mesa_id" class="w-full rounded-md border-slate-300">
-                    <option v-for="mesa in mesas" :key="mesa.id" :value="mesa.id">
-                        {{ mesa.designacao }}{{ mesa.lugares ? ` · lugares ${mesa.lugares}` : '' }} · {{ mesa.capacidade }} pessoas
-                    </option>
-                </select>
-            </label>
-
-            <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="block">
-                <span class="mb-1 block text-sm font-semibold text-slate-700">Lugares ocupados</span>
-                <input v-model="pedidoForm.lugares_ocupados" type="number" min="1" class="w-full rounded-md border-slate-300" placeholder="Vazio = mesa completa">
-            </label>
-
-            <label v-if="pedidoForm.tipo_atendimento === 'mesa' && pedidoForm.lugares_ocupados" class="block">
-                <span class="mb-1 block text-sm font-semibold text-slate-700">Letra da submesa</span>
-                <select v-model="pedidoForm.submesa_letra" class="w-full rounded-md border-slate-300 uppercase">
-                    <option value="">Escolher letra</option>
-                    <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
-                </select>
-                <div v-if="pedidoForm.errors.submesa_letra" class="mt-1 text-sm font-semibold text-red-600">{{ pedidoForm.errors.submesa_letra }}</div>
-            </label>
-
-            <textarea v-model="pedidoForm.observacoes" class="w-full rounded-md border-slate-300" placeholder="Observações"></textarea>
-            <button class="rounded-md bg-slate-900 px-4 py-2 text-white">Criar pedido</button>
-        </form>
-
-        <div v-else class="grid gap-6 xl:grid-cols-[1fr_420px]">
-            <section class="space-y-4">
-                <div v-if="!pedidoFechado" class="rounded-lg bg-white p-5 shadow-sm">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <div class="text-sm text-slate-500">Mesa</div>
-                            <div class="text-xl font-bold">{{ pedido.mesa?.designacao ?? 'Para levar' }}</div>
-                        </div>
-                        <div>
-                            <div class="text-sm text-slate-500">Pedido feito por</div>
-                            <div class="text-xl font-bold">{{ criadoPor }}</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-sm text-slate-500">Total</div>
-                            <div class="text-2xl font-bold">{{ formatarPreco(totalPedido) }}</div>
-                        </div>
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h1 class="text-[30px] font-extrabold leading-tight">{{ pedido ? `Pedido #${pedido.id}` : 'Novo pedido' }}</h1>
+                        <span v-if="pedido" class="inline-flex h-7 items-center rounded-full px-3 text-sm font-bold" :class="estadoClass(pedido.estado)">{{ estadoNome(pedido.estado) }}</span>
                     </div>
+                    <p v-if="pedido" class="text-[15px] text-suave">{{ pedido.mesa?.designacao ?? 'Para levar' }} · {{ criadoPor }}</p>
+                </div>
+                <Link v-if="pedido" :href="route('pedidos.talao', pedido.id)" class="inline-flex h-12 items-center gap-2 rounded-[10px] border border-linha-forte bg-white px-[18px] text-base font-bold text-tinta hover:bg-fundo">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6M3 9h18v8H3zM6 14h12v7H6z" /></svg>
+                    Talão
+                </Link>
+            </div>
+
+            <div v-if="aviso" role="status" class="flex items-center gap-2.5 rounded-[10px] bg-verde-claro px-4 py-3 text-[15px] font-bold text-verde-escuro">
+                <svg class="shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>
+                {{ aviso }}
+            </div>
+
+            <!-- Novo pedido -->
+            <form v-if="!pedido" class="flex w-full max-w-xl flex-col gap-4 rounded-[14px] border border-linha bg-white p-5 sm:p-6" @submit.prevent="criarPedido">
+                <div role="radiogroup" aria-label="Tipo de atendimento" class="grid grid-cols-2 gap-2">
+                    <button type="button" role="radio" :aria-checked="pedidoForm.tipo_atendimento === 'mesa'" class="h-12 rounded-[10px] text-base font-bold transition" :class="pedidoForm.tipo_atendimento === 'mesa' ? 'bg-escuro text-white' : 'border border-linha-forte bg-white text-tinta hover:bg-fundo'" @click="escolherTipoAtendimento('mesa')">Mesa</button>
+                    <button type="button" role="radio" :aria-checked="pedidoForm.tipo_atendimento === 'para_levar'" class="h-12 rounded-[10px] text-base font-bold transition" :class="pedidoForm.tipo_atendimento === 'para_levar' ? 'bg-escuro text-white' : 'border border-linha-forte bg-white text-tinta hover:bg-fundo'" @click="escolherTipoAtendimento('para_levar')">Para levar</button>
                 </div>
 
-                <div class="rounded-lg bg-white shadow-sm">
-                    <div class="border-b border-slate-200 px-5 py-4 font-semibold">Itens do pedido</div>
-                    <div v-if="erroItem" class="mx-5 mt-4 rounded-md bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{{ erroItem }}</div>
-                    <div v-if="pedido.items?.length" class="divide-y divide-slate-100">
-                        <div v-for="item in pedido.items" :key="item.id" class="flex items-center justify-between gap-4 px-5 py-4" :class="item.prioridade ? 'bg-red-50' : ''">
-                            <div>
-                                <div class="font-semibold">{{ item.quantidade }}x {{ item.produto?.nome }} <span v-if="item.prioridade" class="ml-2 rounded-full bg-amber-600 px-2 py-1 text-xs font-black text-white">A TERMINAR</span></div>
-                                <div class="text-sm text-slate-500">{{ item.produto?.categoria?.nome }} · {{ formatarPreco(item.preco_unitario) }} cada</div>
-                                <div v-if="item.observacoes" class="mt-2 rounded-md bg-amber-100 px-3 py-2 text-sm font-bold text-amber-900">
-                                    Info: {{ item.observacoes }}
+                <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="flex flex-col gap-1.5">
+                    <span class="text-sm font-bold text-suave">Mesa ou submesa</span>
+                    <select v-model="pedidoForm.mesa_id" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde">
+                        <option v-for="mesa in mesas" :key="mesa.id" :value="mesa.id">
+                            {{ mesa.designacao }}{{ mesa.lugares ? ` · lugares ${mesa.lugares}` : '' }} · {{ mesa.capacidade }} pessoas
+                        </option>
+                    </select>
+                    <span v-if="pedidoForm.errors.mesa_id" class="text-sm font-bold text-perigo">{{ pedidoForm.errors.mesa_id }}</span>
+                </label>
+
+                <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="flex flex-col gap-1.5">
+                    <span class="text-sm font-bold text-suave">Lugares ocupados</span>
+                    <input v-model="pedidoForm.lugares_ocupados" type="number" min="1" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Vazio = mesa completa">
+                </label>
+
+                <label v-if="pedidoForm.tipo_atendimento === 'mesa' && pedidoForm.lugares_ocupados" class="flex flex-col gap-1.5">
+                    <span class="text-sm font-bold text-suave">Letra da submesa</span>
+                    <select v-model="pedidoForm.submesa_letra" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde uppercase">
+                        <option value="">Escolher letra</option>
+                        <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
+                    </select>
+                    <span v-if="pedidoForm.errors.submesa_letra" class="text-sm font-bold text-perigo">{{ pedidoForm.errors.submesa_letra }}</span>
+                </label>
+
+                <label class="flex flex-col gap-1.5">
+                    <span class="text-sm font-bold text-suave">Observações</span>
+                    <textarea v-model="pedidoForm.observacoes" rows="3" class="w-full rounded-[10px] border-linha-forte px-3.5 py-3 text-base focus:border-verde focus:ring-verde" placeholder="Observações"></textarea>
+                </label>
+                <button type="submit" :disabled="pedidoForm.processing" class="h-[52px] rounded-[10px] bg-verde text-base font-bold text-white hover:bg-verde-escuro disabled:opacity-60">Criar pedido</button>
+            </form>
+
+            <div v-else class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div class="flex min-w-0 flex-col gap-5">
+                    <section aria-labelledby="itens-titulo" class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                        <div v-if="!pedidoFechado" class="grid gap-3 border-b border-linha-fraca px-5 py-4 sm:grid-cols-3">
+                            <div class="flex flex-col"><span class="text-[13px] font-semibold text-suave">Mesa</span><span class="text-lg font-extrabold">{{ pedido.mesa?.designacao ?? 'Para levar' }}</span></div>
+                            <div class="flex flex-col"><span class="text-[13px] font-semibold text-suave">Pedido feito por</span><span class="text-lg font-extrabold">{{ criadoPor }}</span></div>
+                            <div class="flex flex-col"><span class="text-[13px] font-semibold text-suave">Total</span><span class="text-lg font-extrabold">{{ formatarPreco(totalPedido) }}</span></div>
+                        </div>
+                        <h2 id="itens-titulo" class="border-b border-linha-fraca px-5 py-3.5 text-lg font-extrabold">Itens do pedido</h2>
+                        <div v-if="erroItem" class="mx-5 mt-4 rounded-[10px] bg-perigo-claro px-4 py-3 text-sm font-bold text-perigo-texto">{{ erroItem }}</div>
+                        <template v-if="pedido.items?.length">
+                            <div v-for="item in pedido.items" :key="item.id" class="flex flex-wrap items-center gap-x-4 gap-y-2.5 border-b border-linha-fraca px-5 py-3.5 last:border-b-0" :class="item.prioridade ? 'bg-laranja-claro/60' : ''">
+                                <div class="flex min-w-0 flex-grow basis-56 flex-col gap-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="text-[17px] font-extrabold">{{ item.quantidade }}x {{ item.produto?.nome }}</span>
+                                        <span v-if="item.prioridade" class="inline-flex h-6 items-center rounded-full bg-laranja px-2.5 text-xs font-extrabold tracking-wide text-white">A TERMINAR</span>
+                                    </div>
+                                    <span class="text-sm text-suave-2"><span class="font-bold" :class="corSecao(item.produto?.categoria?.secao).texto">{{ item.produto?.categoria?.nome }}</span> · {{ formatarPreco(item.preco_unitario) }} cada</span>
+                                    <span v-if="item.observacoes" class="self-start rounded-md bg-laranja-claro px-2 py-0.5 text-sm font-semibold text-laranja-texto">Info: {{ item.observacoes }}</span>
+                                </div>
+                                <div class="ml-auto flex flex-wrap items-center gap-2">
+                                    <span v-if="mostrarEstadoItems" class="inline-flex h-7 items-center rounded-full px-2.5 text-sm font-bold" :class="estadoClass(item.estado)">{{ estadoNome(item.estado) }}</span>
+                                    <button type="button" :aria-pressed="!!item.prioridade" class="h-11 rounded-[10px] px-3.5 text-sm font-bold transition" :class="item.prioridade ? 'bg-laranja text-white' : 'border border-[#F5D9BF] bg-laranja-claro text-laranja-texto hover:brightness-95'" @click="alternarUrgente(item)">A terminar</button>
+                                    <button v-if="!pedidoFechado" type="button" class="h-11 min-w-[64px] rounded-[10px] border border-[#F2C7C1] bg-white px-3.5 text-sm font-bold text-perigo hover:bg-perigo-claro" @click="anularItem(item)">
+                                        {{ item.quantidade > 1 ? '-1' : 'Anular' }}
+                                    </button>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <button type="button" class="rounded-full px-3 py-2 text-xs font-black" :class="item.prioridade ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-700'" @click="alternarUrgente(item)">A terminar</button>
-                                <button v-if="!pedidoFechado" type="button" class="rounded-full bg-red-100 px-3 py-2 text-xs font-black text-red-700" @click="anularItem(item)">
-                                    {{ item.quantidade > 1 ? '-1' : 'Anular' }}
-                                </button>
-                                <div v-if="mostrarEstadoItems" class="rounded-full px-3 py-1 text-xs font-semibold" :class="item.estado === 'pronto' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
-                                    {{ item.estado }}
+                        </template>
+                        <div v-else class="px-5 py-8 text-center text-[15px] text-suave">Ainda não há comida ou bebidas neste pedido.</div>
+                    </section>
+
+                    <section aria-labelledby="adicionar-titulo" class="flex flex-col gap-4 rounded-[14px] border border-linha bg-white p-5">
+                        <h2 id="adicionar-titulo" class="text-lg font-extrabold">Adicionar produtos</h2>
+                        <div class="flex flex-wrap items-end gap-3">
+                            <div class="flex flex-col gap-1.5">
+                                <span id="qtd-rotulo" class="text-sm font-bold text-suave">Quantidade</span>
+                                <div role="group" aria-labelledby="qtd-rotulo" class="flex h-12 items-stretch overflow-hidden rounded-[10px] border border-linha-forte">
+                                    <button type="button" aria-label="Menos um" class="w-12 bg-fundo text-xl font-bold hover:bg-linha-fraca" @click="ajustarQuantidade(-1)">−</button>
+                                    <input v-model.number="quantidade" type="number" min="1" aria-label="Quantidade" class="w-16 border-0 text-center text-lg font-extrabold focus:ring-0">
+                                    <button type="button" aria-label="Mais um" class="w-12 bg-fundo text-xl font-bold hover:bg-linha-fraca" @click="ajustarQuantidade(1)">+</button>
                                 </div>
                             </div>
+                            <label class="flex h-12 cursor-pointer items-center gap-3 rounded-[10px] border border-linha-forte px-4 text-[15px] font-semibold">
+                                <input v-model="itemForm.prioridade" type="checkbox" class="h-5 w-5 rounded border-linha-forte text-laranja focus:ring-laranja">
+                                Marcar novo item como a terminar
+                            </label>
                         </div>
-                    </div>
-                    <div v-else class="px-5 py-8 text-center text-sm text-slate-500">Ainda não há comida ou bebidas neste pedido.</div>
-                </div>
-
-                <div class="rounded-lg bg-white p-5 shadow-sm">
-                    <div class="mb-4 flex items-center justify-between gap-3">
-                        <h2 class="font-semibold">Adicionar produtos</h2>
-                        <input v-model.number="quantidade" type="number" min="1" class="w-20 rounded-md border-slate-300 text-center">
-                    </div>
-
-                    <label class="mb-4 flex items-center gap-3 rounded-lg bg-amber-50 p-3 font-bold text-amber-800">
-                        <input v-model="itemForm.prioridade" type="checkbox" class="rounded border-amber-300 text-amber-600">
-                        Marcar novo item como a terminar
-                    </label>
-
-                    <label class="mb-4 block rounded-lg bg-amber-50 p-3">
-                        <span class="mb-1 block text-sm font-black text-amber-900">Informação para a secção</span>
-                        <textarea v-model="itemForm.observacoes" rows="2" class="w-full rounded-md border-amber-200 text-sm" placeholder="Ex.: sem picante, alergia, sem molho..."></textarea>
-                    </label>
-
-                    <div class="mb-3 flex flex-wrap gap-2">
-                        <button
-                            v-for="[valor, label] in secoes"
-                            :key="valor"
-                            type="button"
-                            class="rounded-md border px-3 py-2 text-sm font-semibold"
-                            :class="secaoAtiva === valor ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'"
-                            @click="secaoAtiva = valor"
-                        >
-                            {{ label }}
-                        </button>
-                    </div>
-
-                    <input v-model="termo" class="mb-4 w-full rounded-md border-slate-300" placeholder="Procurar produto">
-
-                    <div class="grid max-h-[58vh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                        <button
-                            v-for="produto in produtosFiltrados"
-                            :key="produto.id"
-                            type="button"
-                            class="rounded-lg border border-slate-200 p-3 text-left hover:border-emerald-500 hover:bg-emerald-50"
-                            @click="adicionarProduto(produto)"
-                        >
-                            <div class="font-semibold">{{ produto.nome }}</div>
-                            <div class="mt-1 flex items-center justify-between text-sm text-slate-500">
-                                <span>{{ produto.categoria?.nome }}</span>
-                                <span class="font-semibold text-slate-900">{{ formatarPreco(produto.preco) }}</span>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <aside class="space-y-4">
-                <form class="rounded-lg bg-white p-5 shadow-sm" @submit.prevent="estadoForm.patch(route('pedidos.estado', pedido.id))">
-                    <label class="block">
-                        <span class="mb-1 block text-sm font-semibold text-slate-700">Estado do pedido</span>
-                        <select v-model="estadoForm.estado" class="w-full rounded-md border-slate-300">
-                            <option>pendente</option>
-                            <option>preparacao</option>
-                            <option>entregue</option>
-                            <option>cancelado</option>
-                        </select>
-                    </label>
-                    <button class="mt-3 rounded-md bg-emerald-700 px-4 py-2 text-white">Mudar estado</button>
-                </form>
-
-                <div v-if="!pedidoFechado" class="space-y-3 xl:sticky xl:top-5 xl:z-10">
-                    <form ref="caixaRef" class="rounded-lg bg-white p-5 shadow-sm" @submit.prevent="fecharConta">
-                        <div class="mb-4 rounded-lg bg-slate-900 p-4 text-white">
-                            <div class="text-sm font-bold text-white/70">Total a receber</div>
-                            <div class="mt-1 text-5xl font-black">{{ formatarPreco(totalPedido) }}</div>
-                        </div>
-                        <h2 class="mb-3 font-semibold">Fechar conta</h2>
-                        <div class="grid gap-3">
-                            <label class="block">
-                                <span class="mb-1 block text-sm font-semibold text-slate-700">Método de pagamento</span>
-                                <select v-model="fecharContaForm.metodo_pagamento" class="w-full rounded-md border-slate-300">
-                                    <option value="dinheiro">Dinheiro</option>
-                                    <option value="mbway">MBWay</option>
-                                    <option value="multibanco">Multibanco</option>
-                                    <option value="transferencia">Transferência</option>
-                                </select>
-                            </label>
-                            <label class="block">
-                                <span class="mb-1 block text-sm font-semibold text-slate-700">Valor recebido</span>
-                                <input v-model.number="fecharContaForm.valor_recebido" type="number" min="0" step="0.01" class="w-full rounded-md border-slate-300" :placeholder="formatarPreco(totalPedido)">
-                            </label>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button type="button" class="rounded-md bg-emerald-700 px-3 py-3 text-sm font-black text-white" @click="pagamentoCerto">Valor certo</button>
-                                <button type="button" class="rounded-md border border-slate-300 px-3 py-3 text-sm font-black" @click="entregarTroco">Entregar troco</button>
-                            </div>
-                            <label class="block">
-                                <span class="mb-1 block text-sm font-semibold text-slate-700">Troco entregue</span>
-                                <input v-model.number="fecharContaForm.troco" type="number" min="0" step="0.01" class="w-full rounded-md border-slate-300">
-                            </label>
-                            <button type="button" class="rounded-md bg-amber-100 px-3 py-3 text-sm font-black text-amber-900" @click="doarTroco">
-                                Cliente deixa o troco como doação
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-sm font-bold text-suave">Informação para a secção</span>
+                            <textarea v-model="itemForm.observacoes" rows="2" class="w-full rounded-[10px] border-linha-forte px-3.5 py-3 text-base focus:border-verde focus:ring-verde" placeholder="Ex.: sem picante, alergia, sem molho..."></textarea>
+                        </label>
+                        <div role="group" aria-label="Filtrar por secção" class="flex flex-wrap gap-2">
+                            <button
+                                v-for="[valor, label] in secoes"
+                                :key="valor"
+                                type="button"
+                                :aria-pressed="secaoAtiva === valor"
+                                class="inline-flex h-11 items-center rounded-full border px-4 text-[15px] font-bold transition"
+                                :class="secaoAtiva === valor ? 'border-escuro bg-escuro text-white' : ['border-linha-forte bg-white hover:bg-fundo', corSecao(valor).pilula]"
+                                @click="secaoAtiva = valor"
+                            >
+                                {{ label }}
                             </button>
                         </div>
-                        <div class="mt-3 rounded-md bg-slate-50 p-3 text-sm">
-                            <div class="flex justify-between"><span>Total</span><strong>{{ formatarPreco(totalPedido) }}</strong></div>
-                            <div class="flex justify-between"><span>Recebido</span><strong>{{ formatarPreco(valorRecebido) }}</strong></div>
-                            <div class="flex justify-between"><span>Troco possível</span><strong>{{ formatarPreco(trocoADevolver) }}</strong></div>
-                            <div class="flex justify-between"><span>Troco entregue</span><strong>{{ formatarPreco(valorTroco) }}</strong></div>
-                            <div class="flex justify-between text-amber-800"><span>Doação</span><strong>{{ formatarPreco(doacaoEstimada) }}</strong></div>
+                        <label class="flex h-12 items-center gap-2.5 rounded-[10px] border border-linha-forte px-3.5 focus-within:border-verde focus-within:ring-1 focus-within:ring-verde">
+                            <svg class="shrink-0 text-suave-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
+                            <span class="sr-only">Procurar produto</span>
+                            <input v-model="termo" type="search" class="w-full border-0 p-0 text-base focus:ring-0" placeholder="Procurar produto">
+                        </label>
+                        <div class="grid max-h-[58vh] grid-cols-2 gap-2.5 overflow-y-auto pr-1 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))]">
+                            <button
+                                v-for="produto in produtosFiltrados"
+                                :key="produto.id"
+                                type="button"
+                                :disabled="pedidoFechado"
+                                class="flex min-h-[80px] flex-col justify-between gap-2 rounded-[10px] border border-l-[5px] border-linha-forte bg-white p-3 text-left text-tinta transition hover:bg-fundo active:scale-[.98] disabled:opacity-50"
+                                :class="corSecao(produto.categoria?.secao).borda"
+                                @click="adicionarProduto(produto)"
+                            >
+                                <span class="text-[15px] font-bold">{{ produto.nome }}</span>
+                                <span class="flex flex-wrap items-end justify-between gap-1">
+                                    <span class="text-[13px] font-bold" :class="corSecao(produto.categoria?.secao).texto">{{ produto.categoria?.nome }}</span>
+                                    <span class="text-[15px] font-extrabold">{{ formatarPreco(produto.preco) }}</span>
+                                </span>
+                            </button>
+                            <p v-if="!produtosFiltrados.length" class="col-span-full py-4 text-center text-[15px] text-suave">Nenhum produto encontrado.</p>
                         </div>
-                        <div v-if="Object.keys(fecharContaForm.errors).length" class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                            <div v-for="erro in fecharContaForm.errors" :key="erro">{{ erro }}</div>
-                        </div>
-                        <button
-                            type="submit"
-                            class="mt-3 w-full rounded-lg bg-slate-900 p-4 text-sm font-bold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
-                            :disabled="fecharContaForm.processing"
-                        >
-                            {{ fecharContaForm.processing ? 'A fechar...' : 'Receber e imprimir talão' }}
-                        </button>
+                    </section>
+                </div>
+
+                <aside class="flex flex-col gap-4">
+                    <form class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-[18px]" @submit.prevent="estadoForm.patch(route('pedidos.estado', pedido.id))">
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-sm font-bold text-suave">Estado do pedido</span>
+                            <select v-model="estadoForm.estado" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde font-semibold">
+                                <option value="pendente">Pendente</option>
+                                <option value="preparacao">Em preparação</option>
+                                <option value="entregue">Entregue</option>
+                                <option value="cancelado">Cancelado</option>
+                            </select>
+                        </label>
+                        <button type="submit" :disabled="estadoForm.processing" class="h-11 rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold text-tinta hover:bg-fundo disabled:opacity-60">Mudar estado</button>
                     </form>
 
-                    <button
-                        type="button"
-                        class="w-full rounded-lg border border-red-300 bg-white p-4 text-sm font-bold text-red-700 shadow-sm hover:bg-red-50"
-                        @click="cancelarPedido"
-                    >
-                        Cancelar pedido
-                    </button>
-                </div>
-            </aside>
+                    <div v-if="!pedidoFechado" class="flex flex-col gap-3 xl:sticky xl:top-5 xl:z-10">
+                        <form ref="caixaRef" aria-labelledby="fechar-titulo" class="flex flex-col overflow-hidden rounded-[14px] border-2 border-laranja bg-white" @submit.prevent="fecharConta">
+                            <div class="flex flex-col gap-0.5 bg-laranja-claro px-[18px] py-4">
+                                <span class="text-sm font-bold text-laranja-texto">Total a receber</span>
+                                <span class="text-[40px] font-extrabold leading-tight text-laranja-texto">{{ formatarPreco(totalPedido) }}</span>
+                            </div>
+                            <div class="flex flex-col gap-3.5 p-[18px]">
+                                <h2 id="fechar-titulo" class="text-lg font-extrabold">Fechar conta</h2>
+                                <div class="flex flex-col gap-1.5">
+                                    <span id="metodo-rotulo" class="text-sm font-bold text-suave">Método de pagamento</span>
+                                    <div role="radiogroup" aria-labelledby="metodo-rotulo" class="grid grid-cols-2 gap-2">
+                                        <button v-for="[valor, label] in metodosPagamento" :key="valor" type="button" role="radio"
+                                            :aria-checked="fecharContaForm.metodo_pagamento === valor"
+                                            class="h-12 rounded-[10px] text-[15px] font-bold transition"
+                                            :class="fecharContaForm.metodo_pagamento === valor ? 'border-2 border-laranja bg-laranja-claro text-laranja-texto' : 'border border-linha-forte bg-white text-tinta hover:bg-fundo'"
+                                            @click="fecharContaForm.metodo_pagamento = valor">{{ label }}</button>
+                                    </div>
+                                </div>
+                                <label class="flex flex-col gap-1.5">
+                                    <span class="text-sm font-bold text-suave">Valor recebido</span>
+                                    <span class="flex h-[52px] items-center rounded-[10px] border border-linha-forte px-3.5 focus-within:border-verde focus-within:ring-1 focus-within:ring-verde">
+                                        <input v-model.number="fecharContaForm.valor_recebido" type="number" min="0" step="0.01" inputmode="decimal" class="w-full flex-grow border-0 p-0 text-right text-[22px] font-extrabold focus:ring-0" :placeholder="formatarPreco(totalPedido)">
+                                        <span class="pl-1.5 text-suave-2">€</span>
+                                    </span>
+                                </label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold hover:bg-fundo" @click="pagamentoCerto">Valor certo</button>
+                                    <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold hover:bg-fundo" @click="entregarTroco">Entregar troco</button>
+                                </div>
+                                <label class="flex flex-col gap-1.5">
+                                    <span class="text-sm font-bold text-suave">Troco entregue</span>
+                                    <span class="flex h-12 items-center rounded-[10px] border border-linha-forte px-3.5 focus-within:border-verde focus-within:ring-1 focus-within:ring-verde">
+                                        <input v-model.number="fecharContaForm.troco" type="number" min="0" step="0.01" inputmode="decimal" class="w-full flex-grow border-0 p-0 text-right text-lg font-bold focus:ring-0">
+                                        <span class="pl-1.5 text-suave-2">€</span>
+                                    </span>
+                                </label>
+                                <button type="button" class="h-11 rounded-[10px] border border-dashed border-verde bg-verde-claro text-sm font-bold text-verde-escuro hover:brightness-95" @click="doarTroco">
+                                    Cliente deixa o troco como doação
+                                </button>
+                                <dl class="flex flex-col gap-1 rounded-[10px] bg-fundo px-3.5 py-3 text-[15px]">
+                                    <div class="flex justify-between"><dt class="text-suave">Total</dt><dd class="font-bold">{{ formatarPreco(totalPedido) }}</dd></div>
+                                    <div class="flex justify-between"><dt class="text-suave">Recebido</dt><dd class="font-bold">{{ formatarPreco(valorRecebido) }}</dd></div>
+                                    <div class="flex justify-between"><dt class="text-suave">Troco possível</dt><dd class="font-bold">{{ formatarPreco(trocoADevolver) }}</dd></div>
+                                    <div class="flex justify-between"><dt class="text-suave">Troco entregue</dt><dd class="font-bold">{{ formatarPreco(valorTroco) }}</dd></div>
+                                    <div class="flex justify-between"><dt class="text-suave">Doação</dt><dd class="font-bold text-verde">{{ formatarPreco(doacaoEstimada) }}</dd></div>
+                                </dl>
+                                <div v-if="Object.keys(fecharContaForm.errors).length" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-bold text-perigo-texto">
+                                    <div v-for="erro in fecharContaForm.errors" :key="erro">{{ erro }}</div>
+                                </div>
+                                <button
+                                    type="submit"
+                                    class="h-[60px] rounded-[10px] bg-laranja text-lg font-extrabold text-white transition hover:brightness-95 disabled:opacity-60"
+                                    :disabled="fecharContaForm.processing"
+                                >
+                                    {{ fecharContaForm.processing ? 'A fechar...' : 'Receber e imprimir talão' }}
+                                </button>
+                            </div>
+                        </form>
+
+                        <button
+                            type="button"
+                            class="h-12 w-full rounded-[10px] border border-[#F2C7C1] bg-white text-[15px] font-bold text-perigo hover:bg-perigo-claro"
+                            @click="cancelarPedido"
+                        >
+                            Cancelar pedido
+                        </button>
+                    </div>
+                </aside>
+            </div>
         </div>
     </AppLayout>
 </template>

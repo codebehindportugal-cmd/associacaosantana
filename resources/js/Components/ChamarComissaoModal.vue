@@ -50,40 +50,41 @@ const chamar = async () => {
 <template>
     <!-- Backdrop -->
     <div
-        class="fixed inset-0 z-50 flex items-end bg-black/70"
+        class="fixed inset-0 z-50 flex items-end bg-escuro/70 font-sans" role="dialog" aria-modal="true" aria-label="Chamar comissão"
         @click.self="$emit('fechar')"
     >
         <!-- Sheet -->
-        <div class="w-full rounded-t-3xl bg-gray-950 text-white shadow-2xl flex flex-col"
+        <div class="mx-auto flex w-full max-w-2xl flex-col rounded-t-[22px] bg-escuro text-white shadow-2xl"
              style="max-height: 92dvh; padding-bottom: max(env(safe-area-inset-bottom), 1.25rem);">
 
             <!-- Drag handle -->
-            <div class="mx-auto mt-3 mb-1 h-1 w-10 rounded-full bg-gray-700 shrink-0"></div>
+            <div class="mx-auto mb-1 mt-3 h-1 w-10 shrink-0 rounded-full bg-escuro-2"></div>
 
             <!-- Scrollable content -->
             <div class="overflow-y-auto px-5 pt-3 pb-2">
 
                 <!-- Sucesso -->
                 <div v-if="sucesso" class="py-10 text-center">
-                    <div class="mb-3 text-6xl">✅</div>
-                    <p class="text-2xl font-black">Comissão chamada!</p>
-                    <p class="mt-2 text-sm font-semibold text-gray-400">
-                        Um membro vai até <strong class="text-amber-400">{{ localSelecionado }}</strong>.
+                    <div class="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-verde text-white"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg></div>
+                    <p class="text-2xl font-extrabold">Comissão chamada!</p>
+                    <p class="mt-2 text-base font-semibold text-escuro-inativo">
+                        Um membro vai até <strong class="text-white">{{ localSelecionado }}</strong>.
                     </p>
                 </div>
 
                 <template v-else>
                     <!-- Cabeçalho -->
                     <div class="mb-4 flex items-center justify-between">
-                        <h2 class="text-xl font-black">🎉 Chamar Comissão</h2>
+                        <h2 class="flex items-center gap-2.5 text-xl font-extrabold"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12" /></svg>Chamar Comissão</h2>
                         <button
                             type="button"
-                            class="rounded-xl bg-gray-800 px-3 py-2 text-sm font-black active:bg-gray-700"
+                            class="flex h-14 w-14 items-center justify-center rounded-[10px] bg-escuro-2 text-white active:bg-suave"
+                            aria-label="Fechar"
                             @click="$emit('fechar')"
-                        >✕</button>
+                        ><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
                     </div>
 
-                    <p class="mb-4 text-sm font-semibold text-gray-400">Onde estás?</p>
+                    <p class="mb-4 text-base font-semibold text-escuro-inativo">Onde estás?</p>
 
                     <!-- Grelha de locais -->
                     <div class="mb-5 grid grid-cols-2 gap-2.5">
@@ -91,10 +92,11 @@ const chamar = async () => {
                             v-for="local in locais"
                             :key="local"
                             type="button"
-                            class="rounded-2xl py-5 text-base font-black transition active:scale-95"
+                            class="min-h-[64px] rounded-[14px] px-3 py-4 text-lg font-extrabold transition active:scale-95"
                             :class="localSelecionado === local
-                                ? 'bg-amber-500 text-black'
-                                : 'bg-gray-800 text-white active:bg-gray-700'"
+                                ? 'bg-laranja text-white ring-2 ring-white'
+                                : 'bg-escuro-2 text-white active:bg-suave'"
+                            :aria-pressed="localSelecionado === local"
                             @click="localSelecionado = local"
                         >
                             {{ local }}
@@ -102,18 +104,19 @@ const chamar = async () => {
                     </div>
 
                     <!-- Erro -->
-                    <div v-if="erro" class="mb-3 rounded-xl bg-red-900/80 p-3 text-sm font-bold text-red-200">
+                    <div v-if="erro" class="mb-3 rounded-[10px] bg-perigo-claro p-3 text-base font-bold text-perigo-texto" role="alert">
                         {{ erro }}
                     </div>
 
                     <!-- Botão principal -->
                     <button
                         type="button"
-                        class="w-full rounded-2xl bg-amber-500 py-5 text-lg font-black text-black transition active:scale-95 disabled:opacity-40"
+                        class="flex min-h-[72px] w-full items-center justify-center gap-3 rounded-[14px] bg-laranja py-5 text-xl font-extrabold text-white transition active:scale-95 disabled:opacity-40"
                         :disabled="!localSelecionado || enviando"
                         @click="chamar"
                     >
-                        {{ enviando ? 'A enviar...' : '📣 CHAMAR COMISSÃO' }}
+                        <template v-if="!enviando"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12" /></svg></template>
+                        {{ enviando ? 'A enviar...' : 'Chamar comissão' }}
                     </button>
                 </template>
             </div>

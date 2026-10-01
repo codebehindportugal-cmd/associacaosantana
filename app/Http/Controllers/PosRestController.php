@@ -326,7 +326,7 @@ class PosRestController extends Controller
             ]);
         }
 
-        $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+        $pedido->update(['total' => $pedido->fresh('items')->total_calculado, 'conta_pedida_em' => null]);
         $secao = $this->normalizarSecao($produto->categoria->secao ?? 'cozinha');
         $printJobs->criarItemPedido($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos'), [
             'quantidade' => (int) $data['quantidade'],
@@ -373,7 +373,8 @@ class PosRestController extends Controller
             ]);
         }
 
-        $pedido->update(['total' => $pedido->fresh('items')->total_calculado]);
+        // Novos artigos: a mesa volta a estar a consumir, deixa de estar "A pagar"
+        $pedido->update(['total' => $pedido->fresh('items')->total_calculado, 'conta_pedida_em' => null]);
 
         // Agrupar itens por secção: um único talão por secção/impressora
         $pedidoFresh = $pedido->fresh('mesa.mesaPrincipal', 'user', 'pos');
@@ -446,12 +447,35 @@ class PosRestController extends Controller
             'troco' => $troco,
             'doacao' => max(0, round($valorRecebido - $total - $troco, 2)),
             'metodo_pagamento' => $data['metodo_pagamento'],
+            'conta_pedida_em' => null,
         ]);
 
         $this->libertarMesaDoPedido($pedido);
         $printJobs->criarConta($pedido->fresh('mesa.mesaPrincipal', 'user', 'pos', 'items.produto.categoria'));
 
         return to_route('pos.rest.pedido.talao', $pedido);
+    }
+
+    /**
+     * Estado "A pagar": o empregado pediu a conta da mesa e ainda não foi paga.
+     * Não há valor novo no enum de mesas — a mesa fica "A pagar" (laranja no mapa)
+     * enquanto tiver um pedido aberto com conta_pedida_em preenchido.
+     * Enviar novos artigos ou fechar a conta limpa o campo.
+     */
+    public function pedirConta(Request $request, Pedido $pedido): RedirectResponse
+    {
+        $data = $request->validate([
+            'pedida' => ['required', 'boolean'],
+        ]);
+
+        if (! in_array($pedido->estado, ['pendente', 'preparacao', 'pronto'], true)) {
+            return back()->withErrors(['pedido' => 'Este pedido já não está aberto.']);
+        }
+
+        $pedida = (bool) $data['pedida'];
+        $pedido->update(['conta_pedida_em' => $pedida ? ($pedido->conta_pedida_em ?? now()) : null]);
+
+        return back()->with('success', $pedida ? 'Conta pedida. A mesa aparece como "A pagar".' : 'Pedido de conta anulado.');
     }
 
     public function atualizarObservacoes(Request $request, Pedido $pedido): RedirectResponse

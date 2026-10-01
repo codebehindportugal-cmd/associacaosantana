@@ -97,90 +97,99 @@ const dataFormatada = (data) => {
 </script>
 
 <template>
-    <div class="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-5 text-white">
-        <div class="w-full max-w-sm rounded-2xl bg-gray-900 p-6 shadow-2xl">
+    <div class="flex min-h-screen flex-col items-center justify-center bg-fundo p-4 font-sans text-tinta tabular-nums">
+        <div class="w-full max-w-[440px] space-y-4">
 
-            <!-- Cabeçalho -->
-            <div class="mb-6 text-center">
-                <div class="mb-2 text-4xl">🎉</div>
-                <h1 class="text-2xl font-black">Associação de Santana</h1>
-                <p class="mt-1 text-sm font-bold text-gray-400">Reserva de</p>
-                <p class="mt-0.5 text-xl font-black text-amber-400">{{ reserva.nome }}</p>
+            <!-- Cabeçalho + info da reserva -->
+            <div class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                <div class="px-6 pb-5 pt-6 text-center">
+                    <span class="mx-auto flex h-[52px] w-[52px] items-center justify-center rounded-full bg-verde-claro text-verde">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M12 10v10" /></svg>
+                    </span>
+                    <h1 class="m-0 mt-3 text-2xl font-extrabold">Associação de Santana</h1>
+                    <p class="m-0 mt-1 text-sm font-semibold text-suave">Reserva de</p>
+                    <p class="m-0 mt-0.5 text-[26px] font-extrabold leading-tight text-verde">{{ reserva.nome }}</p>
+                </div>
+
+                <div class="border-t border-linha px-6 py-2">
+                    <div class="flex min-h-[52px] items-center gap-3 border-b border-linha-fraca">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 text-suave"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+                        <span class="text-lg font-bold first-letter:uppercase">{{ dataFormatada(reserva.data) }}</span>
+                    </div>
+                    <div class="flex min-h-[52px] items-center gap-3 border-b border-linha-fraca">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 text-suave"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                        <span class="text-lg font-bold">{{ reserva.hora }}</span>
+                    </div>
+                    <div class="flex min-h-[52px] items-center gap-3">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0 text-suave"><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /><circle cx="17" cy="9" r="2.5" /><path d="M16 14.2c2.8.3 5 2.7 5 5.8" /></svg>
+                        <span class="text-lg font-bold">{{ reserva.pessoas }} {{ reserva.pessoas === 1 ? 'pessoa' : 'pessoas' }}</span>
+                    </div>
+                </div>
             </div>
 
-            <!-- Info da reserva -->
-            <div class="mb-6 rounded-xl bg-gray-800 p-4 text-sm font-bold">
-                <div class="flex items-center gap-2 text-gray-300">
-                    <span>📅</span>
-                    <span class="capitalize">{{ dataFormatada(reserva.data) }}</span>
+            <div class="rounded-[14px] border border-linha bg-white p-6">
+                <!-- Estado: não suportado -->
+                <div v-if="estado === 'nao_suportado'" class="rounded-[10px] bg-perigo-claro p-4 text-center text-[15px] font-bold text-perigo-texto">
+                    O teu browser não suporta notificações push.<br>
+                    Aguarda a chamada no local.
                 </div>
-                <div class="mt-2 flex items-center gap-2 text-gray-300">
-                    <span>🕐</span>
-                    <span>{{ reserva.hora }}</span>
-                </div>
-                <div class="mt-2 flex items-center gap-2 text-gray-300">
-                    <span>👥</span>
-                    <span>{{ reserva.pessoas }} {{ reserva.pessoas === 1 ? 'pessoa' : 'pessoas' }}</span>
-                </div>
-            </div>
 
-            <!-- Estado: não suportado -->
-            <div v-if="estado === 'nao_suportado'" class="rounded-xl bg-red-900/50 p-4 text-center text-sm font-bold text-red-300">
-                O teu browser não suporta notificações push.<br>
-                Aguarda a chamada no local.
-            </div>
+                <!-- Estado: subscrito -->
+                <div v-else-if="estado === 'subscrito'" class="text-center">
+                    <div class="flex flex-col items-center rounded-[10px] bg-verde-claro p-5">
+                        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-verde text-white"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></span>
+                        <p class="m-0 mt-3 text-lg font-extrabold text-verde-escuro">Notificações ativas!</p>
+                        <p class="m-0 mt-1 text-[15px] font-semibold text-verde-escuro">
+                            Receberás uma notificação quando a tua vez chegar.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="mt-3 h-12 w-full rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold text-suave transition hover:bg-fundo"
+                        @click="desativarNotificacoes"
+                    >
+                        Desativar notificações
+                    </button>
+                </div>
 
-            <!-- Estado: subscrito -->
-            <div v-else-if="estado === 'subscrito'" class="text-center">
-                <div class="mb-4 rounded-xl bg-emerald-900/50 p-4">
-                    <div class="text-3xl">🔔</div>
-                    <p class="mt-2 font-black text-emerald-400">Notificações ativas!</p>
-                    <p class="mt-1 text-sm font-bold text-emerald-300">
-                        Receberás uma notificação quando a tua vez chegar.
+                <!-- Estado: a subscrever -->
+                <div v-else-if="estado === 'a_subscrever'" class="flex flex-col items-center py-4 text-center">
+                    <span class="h-10 w-10 animate-spin rounded-full border-4 border-verde-claro2 border-t-verde" aria-hidden="true"></span>
+                    <p class="m-0 mt-3 text-base font-bold text-suave">A ativar notificações...</p>
+                </div>
+
+                <!-- Estado: erro -->
+                <div v-else-if="estado === 'erro'" class="text-center">
+                    <div class="mb-4 rounded-[10px] bg-perigo-claro p-4 text-[15px] font-bold text-perigo-texto" role="alert">
+                        {{ mensagem }}
+                    </div>
+                    <button
+                        type="button"
+                        class="h-[60px] w-full rounded-[10px] bg-verde text-lg font-extrabold text-white transition hover:bg-verde-escuro"
+                        @click="ativarNotificacoes"
+                    >
+                        Tentar novamente
+                    </button>
+                </div>
+
+                <!-- Estado: início -->
+                <div v-else class="text-center">
+                    <p class="m-0 mb-5 text-base text-suave">
+                        Ativa as notificações e avisa-te quando for a tua vez, mesmo que não estejas a olhar para o telemóvel.
+                    </p>
+                    <button
+                        type="button"
+                        class="flex min-h-[60px] w-full items-center justify-center gap-2.5 rounded-[10px] bg-verde px-4 py-3 text-lg font-extrabold text-white transition hover:bg-verde-escuro active:scale-[0.98]"
+                        @click="ativarNotificacoes"
+                    >
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+                        Notificar-me quando for chamado
+                    </button>
+                    <p class="m-0 mt-4 text-[13px] text-suave-2">
+                        Só funciona enquanto tiveres o browser aberto.<br>
+                        Não guardamos nenhum dado pessoal.
                     </p>
                 </div>
-                <button
-                    class="mt-2 w-full rounded-xl bg-gray-700 py-3 text-sm font-bold text-gray-400 hover:bg-gray-600"
-                    @click="desativarNotificacoes"
-                >
-                    Desativar notificações
-                </button>
-            </div>
-
-            <!-- Estado: a subscrever -->
-            <div v-else-if="estado === 'a_subscrever'" class="text-center">
-                <div class="text-3xl">⏳</div>
-                <p class="mt-2 font-bold text-gray-300">A ativar notificações...</p>
-            </div>
-
-            <!-- Estado: erro -->
-            <div v-else-if="estado === 'erro'" class="text-center">
-                <div class="mb-3 rounded-xl bg-red-900/50 p-4 text-sm font-bold text-red-300">
-                    {{ mensagem }}
-                </div>
-                <button
-                    class="w-full rounded-xl bg-amber-500 py-4 text-lg font-black text-gray-950"
-                    @click="ativarNotificacoes"
-                >
-                    Tentar novamente
-                </button>
-            </div>
-
-            <!-- Estado: início -->
-            <div v-else class="text-center">
-                <p class="mb-4 text-sm font-bold text-gray-400">
-                    Ativa as notificações e avisa-te quando for a tua vez, mesmo que não estejas a olhar para o telemóvel.
-                </p>
-                <button
-                    class="w-full rounded-xl bg-amber-500 py-4 text-lg font-black text-gray-950 active:scale-95 transition-transform"
-                    @click="ativarNotificacoes"
-                >
-                    🔔 Notificar-me quando for chamado
-                </button>
-                <p class="mt-3 text-xs font-bold text-gray-500">
-                    Só funciona enquanto tiveres o browser aberto.<br>
-                    Não guardamos nenhum dado pessoal.
-                </p>
             </div>
 
         </div>

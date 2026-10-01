@@ -27,6 +27,8 @@ class ClientePedidoController extends Controller
                 'id' => $produto->id,
                 'nome' => $produto->nome,
                 'descricao' => null,
+                // Só para mostrar ao cliente; ao gravar, o preço é sempre lido do servidor.
+                'preco' => (float) $produto->preco,
                 'categoria' => [
                     'nome' => $produto->categoria?->nome,
                     'secao' => $produto->categoria?->secao,

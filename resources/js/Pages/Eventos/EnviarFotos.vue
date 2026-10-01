@@ -197,79 +197,89 @@ const recomecar = () => {
     </Head>
 
     <PublicShell>
-        <main class="min-h-screen px-4 py-10">
-            <section class="mx-auto max-w-2xl">
+        <main class="min-h-screen pb-16 pt-10 sm:pt-14">
+            <section class="mx-auto w-full max-w-[760px] px-4 sm:px-6">
                 <header class="mb-6 flex items-center gap-4">
-                    <img v-if="evento.cartaz" :src="evento.cartaz" alt="" class="h-20 w-20 shrink-0 rounded-xl border border-amber-200 object-cover">
-                    <div>
-                        <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Partilha as tuas fotos</p>
-                        <h1 class="mt-1 text-3xl font-bold text-stone-800">{{ evento.titulo }}</h1>
-                        <p v-if="evento.subtitulo || evento.data" class="text-sm text-stone-500">{{ [evento.data, evento.subtitulo].filter(Boolean).join(' · ') }}</p>
+                    <img v-if="evento.cartaz" :src="evento.cartaz" alt="" class="h-20 w-20 shrink-0 rounded-[14px] border border-linha bg-linha object-cover">
+                    <div class="min-w-0">
+                        <p class="m-0 text-[13px] font-bold uppercase tracking-[0.12em] text-verde">Partilha as tuas fotos</p>
+                        <h1 class="m-0 mt-1 text-[clamp(28px,3.6vw,38px)] font-extrabold leading-[1.1] tracking-[-0.01em]">{{ evento.titulo }}</h1>
+                        <p v-if="evento.subtitulo || evento.data" class="m-0 mt-1 text-[15px] text-suave">{{ [evento.data, evento.subtitulo].filter(Boolean).join(' · ') }}</p>
                     </div>
                 </header>
 
                 <!-- Sucesso -->
-                <div v-if="concluido" class="rounded-xl border border-emerald-200 bg-white p-8 text-center shadow-sm">
-                    <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-2xl text-emerald-700">✓</div>
-                    <h2 class="mt-4 text-2xl font-bold text-stone-800">Obrigado, {{ nome.split(' ')[0] }}!</h2>
-                    <p class="mt-2 text-stone-600">
+                <div v-if="concluido" class="flex flex-col items-center rounded-[14px] border border-linha bg-white p-8 text-center">
+                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-verde-claro text-verde">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7" /></svg>
+                    </span>
+                    <h2 class="m-0 mt-4 text-2xl font-extrabold">Obrigado, {{ nome.split(' ')[0] }}!</h2>
+                    <p class="m-0 mt-2 text-base text-suave">
                         Recebemos <template v-if="enviadas">{{ enviadas }} foto(s)</template><template v-if="enviadas && videosEnviados"> e </template><template v-if="videosEnviados">{{ videosEnviados }} link(s) de vídeo</template>.
                         As fotos aparecem na página do evento depois de aprovadas; os vídeos são descarregados e publicados pela associação.
                     </p>
                     <div class="mt-6 flex flex-wrap justify-center gap-3">
-                        <button type="button" class="rounded-lg bg-amber-600 px-5 py-3 font-bold text-white hover:bg-amber-700" @click="recomecar">Enviar mais fotos</button>
-                        <Link :href="route('eventos.public.show', evento.id)" class="rounded-lg border border-amber-300 px-5 py-3 font-bold text-amber-800 hover:bg-amber-100">Ver o evento</Link>
+                        <button type="button" class="inline-flex h-[52px] items-center rounded-[10px] bg-verde px-[22px] text-base font-bold text-white transition hover:bg-verde-escuro" @click="recomecar">Enviar mais fotos</button>
+                        <Link :href="route('eventos.public.show', evento.id)" class="inline-flex h-[52px] items-center rounded-[10px] border border-linha-forte bg-white px-[22px] text-base font-bold text-tinta no-underline transition hover:border-verde hover:text-verde">Ver o evento</Link>
                     </div>
                 </div>
 
-                <form v-else class="space-y-5 rounded-xl border border-amber-200 bg-white p-5 shadow-sm sm:p-6" @submit.prevent="enviar">
-                    <p class="text-sm text-stone-600">Estiveste no evento? Envia-nos as tuas fotografias e os links dos teus vídeos. Depois de aprovados pela associação, ficam na galeria do evento.</p>
+                <form v-else class="space-y-5 rounded-[14px] border border-linha bg-white p-5 sm:p-6" @submit.prevent="enviar">
+                    <p class="m-0 text-base text-suave">Estiveste no evento? Envia-nos as tuas fotografias e os links dos teus vídeos. Depois de aprovados pela associação, ficam na galeria do evento.</p>
 
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="block text-sm font-bold text-stone-700">
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <label class="flex flex-col gap-1.5 text-[15px] font-bold">
                             O teu nome *
-                            <input v-model="nome" required maxlength="120" :disabled="aEnviar" class="mt-1 w-full rounded-md border-stone-300" placeholder="Nome">
+                            <input v-model="nome" required maxlength="120" :disabled="aEnviar" class="campo" placeholder="Nome">
                         </label>
-                        <label class="block text-sm font-bold text-stone-700">
-                            Email ou telefone <span class="font-normal text-stone-400">(opcional)</span>
-                            <input v-model="contacto" maxlength="160" :disabled="aEnviar" class="mt-1 w-full rounded-md border-stone-300" placeholder="Para te contactarmos, se for preciso">
+                        <label class="flex flex-col gap-1.5 text-[15px] font-bold">
+                            <span>Email ou telefone <span class="font-normal text-suave-2">(opcional)</span></span>
+                            <input v-model="contacto" maxlength="160" :disabled="aEnviar" class="campo" placeholder="Para te contactarmos, se for preciso">
                         </label>
                     </div>
 
                     <div>
                         <button
                             type="button"
-                            class="flex w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 px-4 py-8 text-center transition hover:bg-amber-100 disabled:opacity-50"
+                            class="flex w-full flex-col items-center justify-center gap-1.5 rounded-[14px] border-2 border-dashed border-verde bg-verde-claro px-4 py-7 text-center transition hover:bg-verde-claro2 disabled:cursor-not-allowed disabled:opacity-50"
                             :disabled="aEnviar || fotos.length >= maxFotos"
                             @click="inputFotos?.click()"
                         >
-                            <span class="text-3xl">📷</span>
-                            <span class="font-bold text-amber-800">Escolher fotografias</span>
-                            <span class="text-xs text-stone-500">Até {{ maxFotos }} fotos · JPG, PNG ou WEBP · vídeos só por link (em baixo)</span>
+                            <span class="flex h-12 w-12 items-center justify-center rounded-full bg-verde text-white">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.5" /></svg>
+                            </span>
+                            <span class="text-lg font-extrabold text-verde-escuro">Escolher fotografias</span>
+                            <span class="text-sm text-suave">Até {{ maxFotos }} fotos · JPG, PNG ou WEBP · vídeos só por link (em baixo)</span>
                         </button>
                         <input ref="inputFotos" type="file" accept="image/*" multiple class="hidden" @change="escolher">
                     </div>
 
-                    <div v-if="fotos.length" class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        <div v-for="foto in fotos" :key="foto.id" class="relative overflow-hidden rounded-lg border border-amber-200 bg-stone-100">
+                    <TransitionGroup v-if="fotos.length" tag="div" class="grid grid-cols-3 gap-2 sm:grid-cols-4" enter-active-class="transition duration-200" enter-from-class="opacity-0 scale-95" leave-active-class="transition duration-150" leave-to-class="opacity-0 scale-95">
+                        <div v-for="foto in fotos" :key="foto.id" class="relative overflow-hidden rounded-[10px] border border-linha bg-linha">
                             <img :src="foto.preview" alt="" class="aspect-square w-full object-cover" :class="{ 'opacity-50': foto.estado === 'a-enviar' }">
                             <button
                                 v-if="!aEnviar && foto.estado !== 'enviada'"
                                 type="button"
-                                class="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-stone-900/70 text-sm font-bold text-white"
+                                class="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-full bg-escuro/80 text-white"
                                 aria-label="Remover"
                                 @click="remover(foto)"
-                            >×</button>
-                            <span v-if="foto.estado === 'a-enviar'" class="absolute inset-x-0 bottom-0 bg-amber-600/90 py-1 text-center text-xs font-bold text-white">A enviar…</span>
-                            <span v-else-if="foto.estado === 'enviada'" class="absolute inset-x-0 bottom-0 bg-emerald-600/90 py-1 text-center text-xs font-bold text-white">Enviada ✓</span>
-                            <span v-else-if="foto.estado === 'erro'" class="absolute inset-x-0 bottom-0 bg-red-600/90 px-1 py-1 text-center text-[11px] font-bold leading-tight text-white" :title="foto.erro">{{ foto.erro }}</span>
+                            ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+                            <span v-if="foto.estado === 'a-enviar'" class="absolute inset-x-0 bottom-0 bg-laranja py-1 text-center text-xs font-bold text-white">A enviar…</span>
+                            <span v-else-if="foto.estado === 'enviada'" class="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-verde-ok py-1 text-center text-xs font-bold text-white">
+                                Enviada
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7" /></svg>
+                            </span>
+                            <span v-else-if="foto.estado === 'erro'" class="absolute inset-x-0 bottom-0 bg-perigo px-1 py-1 text-center text-[11px] font-bold leading-tight text-white" :title="foto.erro">{{ foto.erro }}</span>
                         </div>
-                    </div>
+                    </TransitionGroup>
 
                     <!-- Vídeos: só links -->
-                    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4">
-                        <p class="font-bold text-stone-800">🎬 Tens vídeos?</p>
-                        <p class="mt-0.5 text-xs text-stone-600">Para não enviares ficheiros pesados, partilha só o <b>link</b> (Google Drive, WeTransfer, YouTube, Dropbox, OneDrive…). Confirma que o link está aberto a quem o tiver. A associação descarrega e publica o vídeo.</p>
+                    <div class="rounded-[14px] border border-[#C9D6F0] bg-[#EEF3FC] p-4 sm:p-5">
+                        <p class="m-0 flex items-center gap-2 text-[17px] font-extrabold">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="text-azul"><rect x="2" y="6" width="14" height="12" rx="2" /><path d="M16 10l6-3v10l-6-3z" /></svg>
+                            Tens vídeos?
+                        </p>
+                        <p class="m-0 mt-1 text-sm text-suave">Para não enviares ficheiros pesados, partilha só o <b>link</b> (Google Drive, WeTransfer, YouTube, Dropbox, OneDrive…). Confirma que o link está aberto a quem o tiver. A associação descarrega e publica o vídeo.</p>
                         <div class="mt-3 space-y-2">
                             <div v-for="video in videos" :key="video.id">
                                 <div class="flex items-center gap-2">
@@ -279,44 +289,66 @@ const recomecar = () => {
                                         inputmode="url"
                                         maxlength="2048"
                                         :disabled="aEnviar || video.estado === 'enviado'"
-                                        class="min-w-0 flex-1 rounded-md border-sky-300 text-sm"
-                                        :class="{ 'border-red-400': video.estado === 'erro', 'bg-emerald-50': video.estado === 'enviado' }"
+                                        class="campo min-w-0 flex-1"
+                                        :class="{ '!border-perigo': video.estado === 'erro', '!bg-verde-claro': video.estado === 'enviado' }"
                                         placeholder="https://drive.google.com/…"
                                         @input="video.estado === 'erro' && (video.estado = 'pronto')"
                                     >
-                                    <span v-if="video.estado === 'enviado'" class="text-sm font-bold text-emerald-700">Enviado ✓</span>
-                                    <span v-else-if="video.estado === 'a-enviar'" class="text-sm font-bold text-amber-700">A enviar…</span>
-                                    <button v-else-if="videos.length > 1 && !aEnviar" type="button" class="grid h-8 w-8 place-items-center rounded-full text-lg font-bold text-stone-500 hover:bg-sky-100" aria-label="Remover link" @click="removerVideo(video)">×</button>
+                                    <span v-if="video.estado === 'enviado'" class="flex shrink-0 items-center gap-1 text-sm font-bold text-verde">
+                                        Enviado
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7" /></svg>
+                                    </span>
+                                    <span v-else-if="video.estado === 'a-enviar'" class="shrink-0 text-sm font-bold text-laranja-texto">A enviar…</span>
+                                    <button v-else-if="videos.length > 1 && !aEnviar" type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-linha bg-white text-tinta hover:bg-fundo" aria-label="Remover link" @click="removerVideo(video)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
                                 </div>
-                                <p v-if="video.estado === 'erro'" class="mt-1 text-xs font-bold text-red-600">{{ video.erro }}</p>
+                                <p v-if="video.estado === 'erro'" class="m-0 mt-1 text-sm font-bold text-perigo">{{ video.erro }}</p>
                             </div>
                         </div>
-                        <button v-if="videos.length < maxVideos && !aEnviar" type="button" class="mt-2 text-sm font-bold text-sky-700 underline" @click="adicionarVideo">+ Adicionar outro link</button>
+                        <button v-if="videos.length < maxVideos && !aEnviar" type="button" class="mt-3 inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#C9D6F0] bg-white px-4 text-[15px] font-bold text-azul hover:bg-[#F6F9FE]" @click="adicionarVideo">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                            Adicionar outro link
+                        </button>
                     </div>
 
-                    <div v-if="aEnviar" class="h-2 overflow-hidden rounded-full bg-amber-100">
-                        <div class="h-full bg-amber-600 transition-all" :style="{ width: `${progresso}%` }"></div>
+                    <div v-if="aEnviar" class="h-2 overflow-hidden rounded-full bg-verde-claro" role="progressbar" :aria-valuenow="progresso" aria-valuemin="0" aria-valuemax="100">
+                        <div class="h-full bg-verde transition-all" :style="{ width: `${progresso}%` }"></div>
                     </div>
 
-                    <label class="flex items-start gap-2 text-sm text-stone-600">
-                        <input v-model="autorizo" type="checkbox" :disabled="aEnviar" class="mt-0.5 rounded border-stone-300 text-amber-600">
+                    <label class="flex cursor-pointer items-start gap-3 rounded-[10px] bg-fundo p-3.5 text-[15px] text-suave">
+                        <input v-model="autorizo" type="checkbox" :disabled="aEnviar" class="mt-0.5 h-5 w-5 shrink-0 rounded border-linha-forte text-verde focus:ring-verde">
                         <span>Confirmo que as fotos e vídeos são meus e autorizo a ARDC Santana a publicá-los no site e nas redes sociais da associação. As pessoas que aparecem concordam com a publicação.
-                            <Link :href="route('legal.privacidade')" class="font-semibold text-amber-700 underline">Política de privacidade</Link>.
+                            <Link :href="route('legal.privacidade')" class="font-bold text-verde underline">Política de privacidade</Link>.
                         </span>
                     </label>
 
-                    <p v-if="erroGeral" class="rounded-md bg-red-50 p-3 text-sm font-bold text-red-700">{{ erroGeral }}</p>
+                    <p v-if="erroGeral" class="m-0 rounded-[10px] bg-perigo-claro p-3.5 text-[15px] font-bold text-perigo-texto" role="alert">{{ erroGeral }}</p>
 
                     <button
                         type="submit"
-                        class="w-full rounded-xl bg-amber-600 px-6 py-4 text-lg font-black text-white shadow-md transition hover:bg-amber-700 disabled:opacity-60"
+                        class="h-[60px] w-full rounded-[10px] bg-verde px-6 text-lg font-extrabold text-white transition hover:bg-verde-escuro disabled:cursor-not-allowed disabled:opacity-60"
                         :disabled="aEnviar || (!pendentes.length && !videosPreenchidos.length)"
                     >
                         {{ textoBotao }}
                     </button>
-                    <p class="text-center text-xs text-stone-400">Nada fica visível sem ser aprovado pela associação.</p>
+                    <p class="m-0 text-center text-[13px] text-suave-2">Nada fica visível sem ser aprovado pela associação.</p>
                 </form>
             </section>
         </main>
     </PublicShell>
 </template>
+
+<style scoped>
+.campo {
+    width: 100%;
+    height: 50px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid #D5D9D3;
+    background: #FFFFFF;
+    color: #16201C;
+    font-size: 16px;
+    font-weight: 400;
+}
+.campo:focus { border-color: #0F6B4F; box-shadow: 0 0 0 3px rgb(15 107 79 / 0.15); outline: none; }
+.campo:disabled { background: #F4F5F2; }
+</style>

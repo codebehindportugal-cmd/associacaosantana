@@ -43,6 +43,8 @@ class Impressora extends Model
     protected $casts = [
         'porta' => 'integer',
         'ativa' => 'boolean',
+        'ultimo_ok_at' => 'datetime',
+        'ultimo_erro_at' => 'datetime',
     ];
 
     public function ehUsb(): bool

@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
@@ -409,354 +409,287 @@ const textoLugaresVazios = (mesa) => {
 };
 
 const textoLugaresVaziosCurto = (mesa) => `${lugaresVazios(mesa)} livres`;
+
+// Apresentação (redesign): cores dos estados e textos curtos
+const estadoNome = { livre: 'Livre', grupo: 'Mesa grande / grupo', ocupada: 'Ocupada', reservada: 'Reservada' };
+const estadoChip = {
+    livre: 'border border-[#8FA39A] bg-white text-tinta',
+    grupo: 'bg-roxo text-white',
+    ocupada: 'bg-verde text-white',
+    reservada: 'bg-azul text-white',
+};
+const segmentoCor = {
+    livre: 'bg-white text-tinta',
+    grupo: 'bg-roxo text-white',
+    ocupada: 'bg-verde text-white',
+    reservada: 'bg-azul text-white',
+};
+const rodapeMesa = (mesa) => {
+    const vazios = lugaresVazios(mesa);
+    if (vazios > 0) return `${vazios} livres`;
+    return estadoVisual(mesa) === 'grupo' ? 'Grupo' : 'Cheia';
+};
+const zonaFundo = (zona) => ({
+    palco: 'bg-[#FBF3E6]',
+    balcao: 'bg-[#EEF2FB]',
+    cozinha: 'bg-[#F1F3EF]',
+    wc: 'bg-[#EEF5FA]',
+    entrada: 'bg-white',
+    porta: 'bg-white',
+    texto: 'bg-transparent border-transparent',
+}[zona.tipo] ?? 'bg-fundo/70');
 </script>
 
 <template>
     <AppLayout>
-        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold">Mapa da sala</h1>
-                <p class="mt-1 text-sm text-slate-500">Salão com 41 mesas. Distribui as mesas no mapa e divide cada mesa em submesas quando precisares.</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                <button type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" @click="editarMapa = !editarMapa">
-                    {{ editarMapa ? 'Sair da edição' : 'Editar mapa' }}
-                </button>
-                <button v-if="editarMapa" type="button" class="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white" @click="guardarMapa">Guardar mapa</button>
-                <Link :href="route('mesas.create')" class="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white">Nova mesa</Link>
-            </div>
-        </div>
-
-        <div class="mb-4 grid gap-3 rounded-lg bg-white p-4 text-sm shadow-sm md:grid-cols-4">
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-emerald-500"></span>Livre</div>
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-violet-600"></span>Mesa grande / grupo</div>
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-red-500"></span>Ocupada</div>
-            <div class="flex items-center gap-2"><span class="h-3 w-3 rounded-full bg-amber-500"></span>Reservada</div>
-            <div class="text-slate-500">{{ editarMapa ? 'Arrasta as mesas no mapa.' : 'Clica numa mesa para gerir.' }}</div>
-        </div>
-
-        <div class="grid gap-5 xl:grid-cols-[1fr_340px]">
-            <section class="rounded-lg border border-slate-300 bg-slate-100 p-3">
-                <div data-sala-mapa class="relative h-[78vh] min-h-[720px] w-full overflow-hidden rounded-lg bg-[#f7f5ef] shadow-inner ring-1 ring-slate-300">
-                <div class="absolute inset-x-[2%] inset-y-[4%] rounded-md border-[3px] border-slate-800/70"></div>
-                <div class="absolute left-[2%] top-[38%] h-[18%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute left-[2%] top-[63%] h-[14%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute right-[2%] top-[12%] h-[16%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute right-[2%] bottom-[8%] h-[12%] w-[2px] bg-[#f7f5ef]"></div>
-
-                <button
-                    v-for="zona in zonasMapa"
-                    :key="`zona-${zona.id}`"
-                    type="button"
-                    class="absolute flex items-center justify-center rounded-sm border-[3px] p-1 text-center text-xs font-black uppercase transition"
-                    :class="[zonaClasse(zona), zonaSelecionada?.id === zona.id ? 'ring-4 ring-slate-900/25' : '', editarMapa ? 'cursor-move hover:bg-white/70' : '']"
-                    :style="zonaStyle(zona)"
-                    @mousedown="iniciarDragZona($event, zona)"
-                    @click="selecionarZona(zona)"
-                >
-                    <span :class="zonaVertical(zona) ? '[writing-mode:vertical-rl]' : ''">{{ zona.nome }}</span>
-                </button>
-
-                <button
-                    v-for="mesa in mesasMapa"
-                    :key="mesa.id"
-                    type="button"
-                    class="absolute overflow-hidden rounded-md border-2 border-slate-900 bg-white text-left shadow-sm transition"
-                    :class="[mesaSelecionada?.id === mesa.id ? 'ring-4 ring-slate-900/25' : '', mesaParcial(mesa) ? 'ring-2 ring-amber-500' : '', editarMapa ? 'cursor-move' : 'hover:scale-[1.01]']"
-                    :style="mesaStyle(mesa)"
-                    @mousedown="iniciarDrag($event, mesa)"
-                    @click="selecionarMesa(mesa)"
-                >
-                    <div class="absolute inset-0 flex" :class="mesa.mapa_altura > mesa.mapa_largura ? 'flex-col' : 'flex-row'">
-                        <div
-                            v-for="segmento in segmentosMesa(mesa)"
-                            :key="segmento.id"
-                            class="min-h-0 min-w-0 border-white/60"
-                            :class="[segmentoClass[segmento.estado] ?? segmentoClass.livre, mesa.mapa_altura > mesa.mapa_largura ? 'border-b last:border-b-0' : 'border-r last:border-r-0']"
-                            :style="{ flex: segmento.capacidade }"
-                        ></div>
+        <div class="flex flex-col gap-[18px] font-sans text-tinta tabular-nums">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex max-w-[620px] flex-col gap-1.5">
+                    <div class="flex gap-1.5 text-sm font-bold">
+                        <Link :href="route('sala.index')" class="text-verde hover:text-verde-escuro">Sala ao vivo</Link>
+                        <span class="text-suave-2">/</span>
+                        <span class="text-suave">Gerir mesas</span>
                     </div>
-                    <div class="relative z-10 flex h-full flex-col justify-between p-1 text-center text-white drop-shadow">
-                        <div class="flex items-start justify-between gap-1">
-                            <span class="rounded bg-slate-950/55 px-1 text-[10px] font-black">{{ mesa.numero }}</span>
-                            <span class="h-2.5 w-2.5 rounded-full ring-1 ring-white" :class="estadoDot[estadoVisual(mesa)]"></span>
-                        </div>
-
-                        <div v-if="mesa.submesas.length" class="space-y-0.5">
-                            <div class="grid gap-0.5" :class="mesa.submesas.length > 3 ? 'grid-cols-3' : 'grid-cols-2'">
-                                <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="rounded bg-slate-950/45 px-1 py-0.5 text-[9px] font-black">
-                                    {{ segmento.label }}
-                                </span>
-                            </div>
-                            <span v-if="lugaresVazios(mesa) > 0" class="inline-block rounded bg-slate-950/55 px-1 py-0.5 text-[9px] font-bold">{{ textoLugaresVaziosCurto(mesa) }}</span>
-                        </div>
-                        <div v-else>
-                            <span class="rounded bg-slate-950/45 px-1 py-0.5 text-[9px] font-bold">{{ textoLugaresVaziosCurto(mesa) }}</span>
-                        </div>
-                    </div>
-                </button>
+                    <h1 class="text-[30px] font-extrabold leading-tight">Mapa da sala</h1>
+                    <p class="text-[15px] text-suave">Salão com 41 mesas. Distribui as mesas no mapa e divide cada mesa em submesas quando precisares.</p>
                 </div>
-            </section>
-
-            <aside v-if="editarMapa" class="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <form class="space-y-3 rounded-md border border-dashed border-slate-300 bg-white p-4" @submit.prevent="criarZona">
-                    <h2 class="text-lg font-black">Novo elemento</h2>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Nome</label>
-                        <input v-model="zonaForm.nome" type="text" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Ex.: Porta lateral">
-                        <p v-if="zonaForm.errors.nome" class="mt-1 text-xs font-semibold text-red-600">{{ zonaForm.errors.nome }}</p>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Tipo</label>
-                        <select v-model="zonaForm.tipo" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                            <option v-for="[valor, label] in tiposZona" :key="valor" :value="valor">{{ label }}</option>
-                        </select>
-                        <p v-if="zonaForm.errors.tipo" class="mt-1 text-xs font-semibold text-red-600">{{ zonaForm.errors.tipo }}</p>
-                    </div>
-                    <button type="submit" class="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" :disabled="zonaForm.processing">
-                        Criar elemento
+                <div class="flex flex-wrap gap-2.5">
+                    <button v-if="editarMapa" type="button" class="h-12 rounded-[10px] bg-verde px-[18px] text-[15px] font-bold text-white hover:bg-verde-escuro" @click="guardarMapa">Guardar mapa</button>
+                    <button type="button" :aria-pressed="editarMapa" class="flex h-12 items-center gap-2 rounded-[10px] px-[18px] text-[15px] font-bold transition"
+                        :class="editarMapa ? 'border-2 border-escuro bg-escuro text-white' : 'border border-linha-forte bg-white text-tinta hover:bg-fundo'"
+                        @click="editarMapa = !editarMapa">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" /></svg>
+                        {{ editarMapa ? 'Sair da edição' : 'Editar mapa' }}
                     </button>
-                </form>
+                    <Link :href="route('mesas.create')" class="flex h-12 items-center gap-2 rounded-[10px] border border-linha-forte bg-white px-[18px] text-[15px] font-bold text-tinta hover:bg-fundo">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                        Nova mesa
+                    </Link>
+                </div>
+            </div>
 
-                <div v-if="zonaSelecionada" class="space-y-3 rounded-md bg-slate-50 p-4">
-                    <div>
-                        <h2 class="text-xl font-bold">{{ zonaSelecionada.nome }}</h2>
-                        <p class="text-sm text-slate-500">Elemento da sala · {{ zonaSelecionada.tipo }}</p>
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold text-suave">
+                <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded border-2 border-[#8FA39A] bg-white"></span>Livre</span>
+                <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded bg-roxo"></span>Mesa grande / grupo</span>
+                <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded bg-verde"></span>Ocupada</span>
+                <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded bg-azul"></span>Reservada</span>
+                <span class="rounded-full px-3 py-1.5 font-bold sm:ml-auto" :class="editarMapa ? 'bg-laranja-claro text-laranja-texto' : 'bg-verde-claro text-verde-escuro'">
+                    {{ editarMapa ? 'Arrasta as mesas no mapa.' : 'Clica numa mesa para gerir.' }}
+                </span>
+            </div>
+
+            <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
+                <section aria-label="Mapa" class="overflow-x-auto rounded-[14px] border border-linha bg-white p-3">
+                    <div
+                        data-sala-mapa
+                        class="relative h-[78vh] min-h-[640px] w-full min-w-[640px] select-none overflow-hidden rounded-[10px] bg-[#FAFBF8] bg-[length:5%_5%] [background-image:linear-gradient(#ECEEEA_1px,transparent_1px),linear-gradient(90deg,#ECEEEA_1px,transparent_1px)]"
+                        :class="editarMapa ? 'border-2 border-dashed border-laranja' : 'border border-linha-fraca'"
+                    >
+                        <button
+                            v-for="zona in zonasMapa"
+                            :key="`zona-${zona.id}`"
+                            type="button"
+                            class="absolute flex items-center justify-center rounded-lg p-1 text-center text-[13px] font-extrabold uppercase tracking-[.06em] text-suave transition"
+                            :class="[zonaFundo(zona), editarMapa ? 'cursor-move border-2 border-dashed border-verde' : 'border border-linha-forte', zonaSelecionada?.id === zona.id ? 'ring-4 ring-verde-claro2' : '']"
+                            :style="zonaStyle(zona)"
+                            @mousedown="iniciarDragZona($event, zona)"
+                            @click="selecionarZona(zona)"
+                        >
+                            <span :class="zonaVertical(zona) ? '[writing-mode:vertical-rl]' : ''">{{ zona.nome }}</span>
+                        </button>
+
+                        <button
+                            v-for="mesa in mesasMapa"
+                            :key="mesa.id"
+                            type="button"
+                            :aria-label="`${mesa.designacao}, ${estadoNome[estadoVisual(mesa)]}, ${textoLugaresVazios(mesa)}`"
+                            :aria-pressed="mesaSelecionada?.id === mesa.id"
+                            class="absolute flex flex-col overflow-hidden rounded-lg bg-white p-0 transition"
+                            :class="[
+                                mesaSelecionada?.id === mesa.id ? 'z-10 border-[3px] border-tinta ring-4 ring-verde-claro2' : (estadoVisual(mesa) === 'livre' ? 'border-2 border-[#8FA39A]' : 'border-2 border-transparent'),
+                                editarMapa ? 'cursor-move' : 'hover:scale-[1.02]',
+                            ]"
+                            :style="mesaStyle(mesa)"
+                            @mousedown="iniciarDrag($event, mesa)"
+                            @click="selecionarMesa(mesa)"
+                        >
+                            <span class="flex min-h-0 w-full flex-grow" :class="mesa.mapa_altura > mesa.mapa_largura ? 'flex-col' : 'flex-row'">
+                                <span
+                                    v-for="segmento in segmentosMesa(mesa)"
+                                    :key="segmento.id"
+                                    class="flex min-h-0 min-w-0 items-center justify-center text-[15px] font-extrabold"
+                                    :class="[segmentoCor[segmento.estado] ?? segmentoCor.livre, mesa.mapa_altura > mesa.mapa_largura ? 'border-b-2 border-white last:border-b-0' : 'border-r-2 border-white last:border-r-0']"
+                                    :style="{ flex: segmento.capacidade }"
+                                >{{ mesa.submesas?.length ? segmento.label : mesa.numero }}</span>
+                            </span>
+                            <span class="w-full truncate border-t border-linha-fraca bg-white py-0.5 text-center text-[11px] font-bold text-suave">{{ rodapeMesa(mesa) }}</span>
+                        </button>
                     </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Nome</label>
-                        <input v-model="zonaEditForm.nome" type="text" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                        <p v-if="zonaEditForm.errors.nome" class="mt-1 text-xs font-semibold text-red-600">{{ zonaEditForm.errors.nome }}</p>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Tipo</label>
-                        <select v-model="zonaEditForm.tipo" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                            <option v-for="[valor, label] in tiposZona" :key="valor" :value="valor">{{ label }}</option>
-                        </select>
-                        <p v-if="zonaEditForm.errors.tipo" class="mt-1 text-xs font-semibold text-red-600">{{ zonaEditForm.errors.tipo }}</p>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">X</span>
-                            <input :value="zonaSelecionada.mapa_x" type="number" min="0" max="100" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="zonaSelecionada.mapa_x = limitar(Number($event.target.value), 0, 100 - zonaSelecionada.mapa_largura)">
+                </section>
+
+                <!-- Modo edição -->
+                <aside v-if="editarMapa" class="flex flex-col gap-3.5">
+                    <form aria-labelledby="novo-elemento" class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-[18px]" @submit.prevent="criarZona">
+                        <h2 id="novo-elemento" class="text-lg font-extrabold">Novo elemento</h2>
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-sm font-bold text-suave">Nome</span>
+                            <input v-model="zonaForm.nome" type="text" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Ex.: Porta lateral">
+                            <span v-if="zonaForm.errors.nome" class="text-sm font-semibold text-perigo">{{ zonaForm.errors.nome }}</span>
                         </label>
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">Y</span>
-                            <input :value="zonaSelecionada.mapa_y" type="number" min="0" max="100" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="zonaSelecionada.mapa_y = limitar(Number($event.target.value), 0, 100 - zonaSelecionada.mapa_altura)">
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-sm font-bold text-suave">Tipo</span>
+                            <select v-model="zonaForm.tipo" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde"><option v-for="[valor, label] in tiposZona" :key="valor" :value="valor">{{ label }}</option></select>
+                            <span v-if="zonaForm.errors.tipo" class="text-sm font-semibold text-perigo">{{ zonaForm.errors.tipo }}</span>
                         </label>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Largura</label>
-                        <input :value="zonaSelecionada.mapa_largura" type="number" min="1" max="60" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(zonaSelecionada, 'mapa_largura', $event.target.value, 1, 60)">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Altura</label>
-                        <input :value="zonaSelecionada.mapa_altura" type="number" min="1" max="60" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(zonaSelecionada, 'mapa_altura', $event.target.value, 1, 60)">
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button type="button" class="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" :disabled="zonaEditForm.processing" @click="atualizarZona">
-                            Guardar elemento
-                        </button>
-                        <button type="button" class="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" @click="apagarZona">
-                            Apagar
-                        </button>
-                    </div>
-                </div>
-
-                <div v-else-if="mesaSelecionada" class="space-y-3 rounded-md bg-slate-50 p-4">
-                    <h2 class="text-xl font-bold">{{ mesaSelecionada.designacao }}</h2>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Largura</label>
-                        <input :value="mesaSelecionada.mapa_largura" type="number" min="4" max="40" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(mesaSelecionada, 'mapa_largura', $event.target.value)">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Altura</label>
-                        <input :value="mesaSelecionada.mapa_altura" type="number" min="4" max="40" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(mesaSelecionada, 'mapa_altura', $event.target.value)">
-                    </div>
-                </div>
-            </aside>
-
-            <aside v-if="!editarMapa && zonaSelecionada" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="mb-4">
-                    <h2 class="text-xl font-bold">{{ zonaSelecionada.nome }}</h2>
-                    <p class="text-sm text-slate-500">Elemento da sala · {{ zonaSelecionada.tipo }}</p>
-                </div>
-
-                <div v-if="editarMapa" class="space-y-3 rounded-md bg-slate-50 p-4">
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Nome</label>
-                        <input v-model="zonaEditForm.nome" type="text" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                        <p v-if="zonaEditForm.errors.nome" class="mt-1 text-xs font-semibold text-red-600">{{ zonaEditForm.errors.nome }}</p>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Tipo</label>
-                        <select v-model="zonaEditForm.tipo" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                            <option v-for="[valor, label] in tiposZona" :key="valor" :value="valor">{{ label }}</option>
-                        </select>
-                        <p v-if="zonaEditForm.errors.tipo" class="mt-1 text-xs font-semibold text-red-600">{{ zonaEditForm.errors.tipo }}</p>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">X</span>
-                            <input :value="zonaSelecionada.mapa_x" type="number" min="0" max="100" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="zonaSelecionada.mapa_x = limitar(Number($event.target.value), 0, 100 - zonaSelecionada.mapa_largura)">
-                        </label>
-                        <label>
-                            <span class="text-xs font-semibold uppercase text-slate-500">Y</span>
-                            <input :value="zonaSelecionada.mapa_y" type="number" min="0" max="100" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="zonaSelecionada.mapa_y = limitar(Number($event.target.value), 0, 100 - zonaSelecionada.mapa_altura)">
-                        </label>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Largura</label>
-                        <input :value="zonaSelecionada.mapa_largura" type="number" min="1" max="60" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(zonaSelecionada, 'mapa_largura', $event.target.value, 1, 60)">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Altura</label>
-                        <input :value="zonaSelecionada.mapa_altura" type="number" min="1" max="60" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(zonaSelecionada, 'mapa_altura', $event.target.value, 1, 60)">
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button type="button" class="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" :disabled="zonaEditForm.processing" @click="atualizarZona">
-                            Guardar elemento
-                        </button>
-                        <button type="button" class="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50" @click="apagarZona">
-                            Apagar
-                        </button>
-                    </div>
-                </div>
-
-                <div v-else class="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">
-                    Ativa “Editar mapa” para mover ou redimensionar este elemento.
-                </div>
-
-                <form v-if="editarMapa" class="mt-4 space-y-3 rounded-md border border-dashed border-slate-300 bg-white p-4" @submit.prevent="criarZona">
-                    <h3 class="text-sm font-black uppercase text-slate-600">Novo elemento</h3>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Nome</label>
-                        <input v-model="zonaForm.nome" type="text" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Ex.: Porta lateral">
-                        <p v-if="zonaForm.errors.nome" class="mt-1 text-xs font-semibold text-red-600">{{ zonaForm.errors.nome }}</p>
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Tipo</label>
-                        <select v-model="zonaForm.tipo" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                            <option v-for="[valor, label] in tiposZona" :key="valor" :value="valor">{{ label }}</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" :disabled="zonaForm.processing">
-                        Criar elemento
-                    </button>
-                </form>
-            </aside>
-
-            <aside v-if="!editarMapa && mesaSelecionada" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                        <h2 class="text-xl font-bold">{{ mesaSelecionada.designacao }}</h2>
-                        <p class="text-sm text-slate-500">{{ mesaSelecionada.capacidade }} lugares · {{ mesaSelecionada.submesas.length ? `${mesaSelecionada.submesas.length} submesas` : 'mesa inteira' }}</p>
-                        <p class="mt-1 text-sm font-bold text-emerald-700">{{ textoLugaresVazios(mesaSelecionada) }}</p>
-                    </div>
-                    <span class="rounded-full border px-3 py-1 text-xs font-bold uppercase" :class="estadoClass[estadoVisual(mesaSelecionada)]">{{ estadoVisual(mesaSelecionada) }}</span>
-                </div>
-
-                <div v-if="editarMapa" class="mb-5 space-y-3 rounded-md bg-slate-50 p-4">
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Largura</label>
-                        <input :value="mesaSelecionada.mapa_largura" type="number" min="4" max="40" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(mesaSelecionada, 'mapa_largura', $event.target.value)">
-                    </div>
-                    <div>
-                        <label class="text-xs font-semibold uppercase text-slate-500">Altura</label>
-                        <input :value="mesaSelecionada.mapa_altura" type="number" min="4" max="40" class="mt-1 w-full rounded-md border-slate-300 text-sm" @input="alterarTamanho(mesaSelecionada, 'mapa_altura', $event.target.value)">
-                    </div>
-                    <form class="space-y-3 rounded-md border border-dashed border-slate-300 bg-white p-4" @submit.prevent="criarZona">
-                        <h3 class="text-sm font-black uppercase text-slate-600">Novo elemento da sala</h3>
-                        <div>
-                            <label class="text-xs font-semibold uppercase text-slate-500">Nome</label>
-                            <input v-model="zonaForm.nome" type="text" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Ex.: Porta, bar, palco">
-                            <p v-if="zonaForm.errors.nome" class="mt-1 text-xs font-semibold text-red-600">{{ zonaForm.errors.nome }}</p>
-                        </div>
-                        <div>
-                            <label class="text-xs font-semibold uppercase text-slate-500">Tipo</label>
-                            <select v-model="zonaForm.tipo" class="mt-1 w-full rounded-md border-slate-300 text-sm">
-                                <option v-for="[valor, label] in tiposZona" :key="valor" :value="valor">{{ label }}</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60" :disabled="zonaForm.processing">
-                            Criar elemento
-                        </button>
+                        <button type="submit" class="h-11 rounded-[10px] border border-verde bg-verde-claro text-[15px] font-bold text-verde-escuro hover:brightness-95 disabled:opacity-60" :disabled="zonaForm.processing">Criar elemento</button>
                     </form>
-                </div>
 
-                <div class="mb-5 grid gap-2">
-                    <div v-if="pedidosAtivosDaMesa(mesaSelecionada).length" class="grid gap-2 rounded-md bg-slate-50 p-3">
-                        <div class="text-xs font-semibold uppercase text-slate-500">Pedidos ativos</div>
-                        <Link v-for="item in pedidosAtivosDaMesaDetalhados(mesaSelecionada)" :key="item.pedido.id" :href="route('pedidos.show', item.pedido.id)" class="rounded-md bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white">
-                            Ver pedido #{{ item.pedido.id }} · {{ item.local }}
+                    <div v-if="zonaSelecionada" class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-[18px]">
+                        <div class="flex flex-col gap-0.5">
+                            <h2 class="text-lg font-extrabold">{{ zonaSelecionada.nome }}</h2>
+                            <p class="text-sm text-suave-2">Elemento da sala · {{ zonaSelecionada.tipo }}</p>
+                        </div>
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-sm font-bold text-suave">Nome</span>
+                            <input v-model="zonaEditForm.nome" type="text" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde">
+                            <span v-if="zonaEditForm.errors.nome" class="text-sm font-semibold text-perigo">{{ zonaEditForm.errors.nome }}</span>
+                        </label>
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-sm font-bold text-suave">Tipo</span>
+                            <select v-model="zonaEditForm.tipo" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde"><option v-for="[valor, label] in tiposZona" :key="valor" :value="valor">{{ label }}</option></select>
+                            <span v-if="zonaEditForm.errors.tipo" class="text-sm font-semibold text-perigo">{{ zonaEditForm.errors.tipo }}</span>
+                        </label>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">X</span>
+                                <input :value="zonaSelecionada.mapa_x" type="number" min="0" max="100" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" @input="zonaSelecionada.mapa_x = limitar(Number($event.target.value), 0, 100 - zonaSelecionada.mapa_largura)">
+                            </label>
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Y</span>
+                                <input :value="zonaSelecionada.mapa_y" type="number" min="0" max="100" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" @input="zonaSelecionada.mapa_y = limitar(Number($event.target.value), 0, 100 - zonaSelecionada.mapa_altura)">
+                            </label>
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Largura</span>
+                                <input :value="zonaSelecionada.mapa_largura" type="number" min="1" max="60" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" @input="alterarTamanho(zonaSelecionada, 'mapa_largura', $event.target.value, 1, 60)">
+                            </label>
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Altura</span>
+                                <input :value="zonaSelecionada.mapa_altura" type="number" min="1" max="60" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" @input="alterarTamanho(zonaSelecionada, 'mapa_altura', $event.target.value, 1, 60)">
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" class="h-11 rounded-[10px] bg-verde text-[15px] font-bold text-white hover:bg-verde-escuro disabled:opacity-60" :disabled="zonaEditForm.processing" @click="atualizarZona">Guardar elemento</button>
+                            <button type="button" class="h-11 rounded-[10px] border border-[#F0C9C2] bg-white px-4 text-sm font-bold text-perigo hover:bg-perigo-claro" @click="apagarZona">Apagar</button>
+                        </div>
+                    </div>
+
+                    <div v-else-if="mesaSelecionada" class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-[18px]">
+                        <h2 class="text-lg font-extrabold">{{ mesaSelecionada.designacao }}</h2>
+                        <p class="text-sm text-suave-2">Arrasta no mapa ou ajusta o tamanho.</p>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Largura</span>
+                                <input :value="mesaSelecionada.mapa_largura" type="number" min="4" max="40" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" @input="alterarTamanho(mesaSelecionada, 'mapa_largura', $event.target.value)">
+                            </label>
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Altura</span>
+                                <input :value="mesaSelecionada.mapa_altura" type="number" min="4" max="40" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" @input="alterarTamanho(mesaSelecionada, 'mapa_altura', $event.target.value)">
+                            </label>
+                        </div>
+                        <button v-if="mesaLivre(mesaSelecionada) && mesaSelecionada.submesas.length" type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta hover:bg-fundo" @click="juntarMesa(mesaSelecionada)">Juntar mesa</button>
+                    </div>
+                </aside>
+
+                <!-- Elemento selecionado (fora da edição) -->
+                <aside v-if="!editarMapa && zonaSelecionada" class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-[18px]">
+                    <div class="flex flex-col gap-0.5">
+                        <h2 class="text-[22px] font-extrabold">{{ zonaSelecionada.nome }}</h2>
+                        <p class="text-[15px] text-suave">Elemento da sala · {{ zonaSelecionada.tipo }}</p>
+                    </div>
+                    <div class="rounded-[10px] bg-laranja-claro p-3 text-sm font-semibold text-laranja-texto">
+                        Ativa “Editar mapa” para mover ou redimensionar este elemento.
+                    </div>
+                </aside>
+
+                <!-- Mesa selecionada (fora da edição) -->
+                <aside v-if="!editarMapa && mesaSelecionada" class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                    <div class="flex flex-col gap-1.5 border-b border-linha-fraca p-[18px]">
+                        <div class="flex items-center justify-between gap-2.5">
+                            <h2 class="text-[22px] font-extrabold">{{ mesaSelecionada.designacao }}</h2>
+                            <span class="inline-flex h-7 items-center whitespace-nowrap rounded-full px-3 text-[13px] font-extrabold" :class="estadoChip[estadoVisual(mesaSelecionada)]">{{ estadoNome[estadoVisual(mesaSelecionada)] }}</span>
+                        </div>
+                        <p class="text-[15px] text-suave">{{ mesaSelecionada.capacidade }} lugares · {{ mesaSelecionada.submesas.length ? `${mesaSelecionada.submesas.length} submesas` : 'mesa inteira' }}</p>
+                        <p class="text-[15px] font-bold">{{ textoLugaresVazios(mesaSelecionada) }}</p>
+                    </div>
+
+                    <div v-if="pedidosAtivosDaMesa(mesaSelecionada).length" class="flex flex-col gap-2 border-b border-linha-fraca px-[18px] py-3.5">
+                        <span class="text-[13px] font-extrabold uppercase tracking-[.06em] text-suave-2">Pedidos ativos</span>
+                        <Link v-for="item in pedidosAtivosDaMesaDetalhados(mesaSelecionada)" :key="item.pedido.id" :href="route('pedidos.show', item.pedido.id)"
+                            class="flex min-h-11 items-center justify-between gap-2 rounded-[10px] bg-verde-claro px-3.5 py-2 text-base font-bold text-verde-escuro hover:bg-verde-claro2">
+                            <span>Ver pedido #{{ item.pedido.id }} · {{ item.local }}</span>
+                            <svg class="shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
                         </Link>
                     </div>
-                    <div v-if="podeAbrirPedido(mesaSelecionada) && !mesaSelecionada.submesas.length && !mesaSelecionada.mesa_principal_id" class="rounded-md bg-slate-50 p-4">
-                        <label class="text-xs font-semibold uppercase text-slate-500">Lugares ocupados</label>
-                        <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Obrigatorio">
-                        <label v-if="precisaSubmesaSelecionada" class="mt-3 block text-xs font-semibold uppercase text-slate-500">
-                            Letra da submesa
-                            <select v-model="letraSubmesaNova" class="mt-1 w-full rounded-md border-slate-300 text-sm uppercase">
-                                <option value="">Escolher letra</option>
-                                <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
-                            </select>
-                        </label>
-                        <label v-if="precisaMesasGrupoSelecionada" class="mt-3 block text-xs font-semibold uppercase text-slate-500">
-                            Mesas do grupo
-                            <input v-model="mesasGrupo" type="text" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Ex.: 32 33 34">
-                        </label>
-                        <p class="mt-2 text-xs text-slate-500">Ex.: 5 divide a mesa. Acima da capacidade, indica as mesas do grupo.</p>
-                    </div>
-                    <button v-if="podeAbrirPedidoMesaCompleta(mesaSelecionada)" type="button" class="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" :disabled="!podeAbrirPedidoSelecionado" @click="abrirPedidoSelecionado">
-                        {{ mesaDivididaLivre(mesaSelecionada) ? 'Abrir pedido mesa completa' : 'Abrir pedido' }}
-                    </button>
-                    <div v-else-if="mesaSelecionada.submesas.length" class="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-800">
-                        Esta mesa está dividida. Abre o pedido numa das submesas abaixo.
-                    </div>
-                    <button v-if="editarMapa && mesaLivre(mesaSelecionada) && mesaSelecionada.submesas.length" type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" @click="juntarMesa(mesaSelecionada)">Juntar mesa</button>
-                    <button v-if="podeMarcarLivre(mesaSelecionada)" type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold" @click="libertarMesa(mesaSelecionada)">Marcar livre</button>
-                    <Link :href="route('mesas.edit', mesaSelecionada.id)" class="rounded-md border border-slate-300 px-3 py-2 text-center text-sm font-semibold">Editar mesa</Link>
-                    <button
-                        v-if="!pedidosAtivosDaMesa(mesaSelecionada).length"
-                        type="button"
-                        class="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-                        @click="apagarMesa(mesaSelecionada)"
-                    >
-                        Remover mesa
-                    </button>
-                </div>
 
-                <div v-if="mesaSelecionada.submesas.length" class="space-y-2">
-                    <div class="text-xs font-semibold uppercase text-slate-500">Submesas</div>
-                    <div v-for="submesa in mesaSelecionada.submesas" :key="submesa.id" class="rounded-md border p-3" :class="estadoClass[estadoSubmesa(submesa)]">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <div class="font-black">{{ letraSubmesa(submesa) }}</div>
-                                <div class="text-xs">{{ submesa.capacidade }} pessoas · lugares {{ submesa.lugares }}</div>
+                    <div v-if="podeAbrirPedidoMesaCompleta(mesaSelecionada)" class="flex flex-col gap-3 border-b border-linha-fraca p-[18px]">
+                        <template v-if="podeAbrirPedido(mesaSelecionada) && !mesaSelecionada.submesas.length && !mesaSelecionada.mesa_principal_id">
+                            <label class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Lugares ocupados</span>
+                                <input v-model="lugaresOcupados" type="number" min="1" max="80" class="h-12 w-full rounded-[10px] border-linha-forte px-3 text-[17px] font-bold focus:border-verde focus:ring-verde" placeholder="Obrigatório">
+                            </label>
+                            <label v-if="precisaSubmesaSelecionada" class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Letra da submesa</span>
+                                <select v-model="letraSubmesaNova" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde uppercase">
+                                    <option value="">Escolher letra</option>
+                                    <option v-for="letra in submesaLetras" :key="letra" :value="letra">{{ letra }}</option>
+                                </select>
+                            </label>
+                            <label v-if="precisaMesasGrupoSelecionada" class="flex flex-col gap-1.5">
+                                <span class="text-sm font-bold text-suave">Mesas do grupo</span>
+                                <input v-model="mesasGrupo" type="text" class="h-11 w-full rounded-[10px] border-linha-forte px-3 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Ex.: 32 33 34">
+                            </label>
+                            <p class="text-[13px] text-suave-2">Ex.: 5 divide a mesa. Acima da capacidade, indica as mesas do grupo.</p>
+                        </template>
+                        <button type="button" class="h-14 rounded-[10px] bg-verde text-[17px] font-extrabold text-white hover:bg-verde-escuro disabled:opacity-50" :disabled="!podeAbrirPedidoSelecionado" @click="abrirPedidoSelecionado">
+                            {{ mesaDivididaLivre(mesaSelecionada) ? 'Abrir pedido mesa completa' : 'Abrir pedido' }}
+                        </button>
+                    </div>
+
+                    <div v-if="mesaSelecionada.submesas.length" class="flex flex-col gap-2 border-b border-linha-fraca px-[18px] py-3.5">
+                        <span class="text-[13px] font-extrabold uppercase tracking-[.06em] text-suave-2">Submesas</span>
+                        <p v-if="!podeAbrirPedidoMesaCompleta(mesaSelecionada)" class="text-sm text-suave">Esta mesa está dividida. Abre o pedido numa das submesas abaixo.</p>
+                        <div v-for="submesa in mesaSelecionada.submesas" :key="submesa.id" class="flex flex-col gap-2 rounded-[10px] border border-linha px-3 py-2.5">
+                            <div class="flex items-center gap-2.5">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-extrabold"
+                                    :class="estadoSubmesa(submesa) === 'livre' ? 'border-2 border-[#8FA39A] bg-white text-tinta' : segmentoCor[estadoSubmesa(submesa)]">{{ letraSubmesa(submesa) }}</span>
+                                <span class="min-w-0 flex-grow text-sm text-suave">{{ submesa.capacidade }} pessoas · lugares {{ submesa.lugares }}</span>
+                                <button
+                                    v-if="!mesaLivre(mesaSelecionada) && podeAbrirPedido(submesa)"
+                                    type="button"
+                                    class="h-11 rounded-[10px] bg-verde px-4 text-[15px] font-bold text-white hover:bg-verde-escuro disabled:opacity-50"
+                                    :disabled="submesa.capacidade > 1 && !lugaresSubmesa[submesa.id]"
+                                    @click="abrirPedidoSubmesa(submesa)"
+                                >Abrir</button>
                             </div>
-                            <button
-                                v-if="!mesaLivre(mesaSelecionada) && podeAbrirPedido(submesa)"
-                                type="button"
-                                class="rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
-                                :disabled="submesa.capacidade > 1 && !lugaresSubmesa[submesa.id]"
-                                @click="abrirPedidoSubmesa(submesa)"
-                            >
-                                Abrir
-                            </button>
-                        </div>
-                        <label v-if="!mesaLivre(mesaSelecionada) && podeAbrirPedido(submesa) && submesa.capacidade > 1" class="mt-3 block text-xs font-semibold uppercase text-slate-600">
-                            Lugares ocupados
-                            <input v-model="lugaresSubmesa[submesa.id]" type="number" min="1" :max="submesa.capacidade - 1" class="mt-1 w-full rounded-md border-slate-300 text-sm" placeholder="Vazio = submesa completa">
-                        </label>
-                        <div v-if="pedidosAtivos(submesa).length" class="mt-3 grid gap-2">
-                            <Link v-for="pedido in pedidosAtivos(submesa)" :key="pedido.id" :href="route('pedidos.show', pedido.id)" class="rounded-md bg-slate-900 px-3 py-2 text-center text-xs font-semibold text-white">
-                                Ver pedido #{{ pedido.id }}
-                            </Link>
+                            <label v-if="!mesaLivre(mesaSelecionada) && podeAbrirPedido(submesa) && submesa.capacidade > 1" class="flex flex-col gap-1 text-[13px] font-semibold text-suave">
+                                Lugares ocupados
+                                <input v-model="lugaresSubmesa[submesa.id]" type="number" min="1" :max="submesa.capacidade - 1" class="h-11 min-w-0 rounded-lg border-linha-forte px-2.5 text-sm focus:border-verde focus:ring-verde" placeholder="Vazio = submesa completa">
+                            </label>
+                            <div v-if="pedidosAtivos(submesa).length" class="flex flex-wrap gap-x-3 gap-y-1">
+                                <Link v-for="pedido in pedidosAtivos(submesa)" :key="pedido.id" :href="route('pedidos.show', pedido.id)" class="inline-flex min-h-11 items-center text-sm font-bold text-verde underline hover:text-verde-escuro">
+                                    Ver pedido #{{ pedido.id }}
+                                </Link>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </aside>
+
+                    <div class="flex flex-wrap gap-2 px-[18px] py-3.5">
+                        <button v-if="podeMarcarLivre(mesaSelecionada)" type="button" class="flex-[1_1_120px] h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta hover:bg-fundo" @click="libertarMesa(mesaSelecionada)">Marcar livre</button>
+                        <Link :href="route('mesas.edit', mesaSelecionada.id)" class="flex flex-[1_1_120px] items-center justify-center h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta hover:bg-fundo">Editar mesa</Link>
+                        <button v-if="!pedidosAtivosDaMesa(mesaSelecionada).length" type="button" class="flex-[1_1_120px] h-11 rounded-[10px] border border-[#F0C9C2] bg-white px-4 text-sm font-bold text-perigo hover:bg-perigo-claro" @click="apagarMesa(mesaSelecionada)">Remover mesa</button>
+                    </div>
+                </aside>
+            </div>
         </div>
     </AppLayout>
 </template>
-

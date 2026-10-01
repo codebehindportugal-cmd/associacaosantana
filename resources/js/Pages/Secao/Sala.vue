@@ -10,30 +10,52 @@ const ultimaAtualizacao = ref(new Date());
 let polling = null;
 
 const estadoDot = {
-    livre: 'bg-emerald-400',
-    por_receber: 'bg-orange-400',
-    grupo: 'bg-violet-500',
-    ocupada: 'bg-red-500',
-    reservada: 'bg-sky-400',
+    livre: 'bg-white border-2 border-[#8FA39A]',
+    por_receber: 'bg-laranja',
+    grupo: 'bg-roxo',
+    ocupada: 'bg-verde',
+    reservada: 'bg-azul',
 };
 
 const segmentoClass = {
-    livre: 'bg-emerald-500/90',
-    por_receber: 'bg-orange-500/90',
-    grupo: 'bg-violet-600/95',
-    ocupada: 'bg-red-600/95',
-    reservada: 'bg-sky-500/90',
+    livre: 'bg-white',
+    por_receber: 'bg-laranja',
+    grupo: 'bg-roxo',
+    ocupada: 'bg-verde',
+    reservada: 'bg-azul',
 };
+// Vários grupos ao mesmo tempo: tons de roxo diferentes para os distinguir (o texto "Grupo" fica sempre escrito)
 const coresGrupo = [
-    'bg-violet-600/95',
-    'bg-cyan-600/95',
-    'bg-fuchsia-600/95',
-    'bg-lime-500/95',
-    'bg-amber-500/95',
-    'bg-blue-600/95',
-    'bg-rose-600/95',
-    'bg-teal-600/95',
+    'bg-roxo',
+    'bg-[#5A2B78]',
+    'bg-[#9B5CC4]',
+    'bg-[#4A2266]',
+    'bg-[#8A4FB0]',
+    'bg-[#6A3590]',
 ];
+const bordaMesa = {
+    livre: 'border-[#8FA39A]',
+    por_receber: 'border-laranja-texto',
+    grupo: 'border-[#5A2B78]',
+    ocupada: 'border-verde-escuro',
+    reservada: 'border-[#1D428C]',
+};
+const legenda = [
+    { estado: 'livre', label: 'Livre' },
+    { estado: 'por_receber', label: 'Pedido por receber' },
+    { estado: 'grupo', label: 'Grupo' },
+    { estado: 'ocupada', label: 'Ocupada' },
+    { estado: 'reservada', label: 'Reservada' },
+];
+const resumoCartoes = computed(() => [
+    { n: resumo.value.livre, label: 'livres', borda: 'border-white' },
+    { n: resumo.value.por_receber, label: 'por receber', borda: 'border-laranja' },
+    { n: resumo.value.grupo, label: 'grupos', borda: 'border-roxo' },
+    { n: resumo.value.ocupada, label: 'ocupadas', borda: 'border-verde-ok' },
+    { n: resumo.value.reservada, label: 'reservadas', borda: 'border-azul' },
+]);
+// Mesa livre e sem submesas: fundo branco → texto escuro
+const textoEscuro = (mesa) => !mesa?.submesas?.length && estadoMesa(mesa) === 'livre';
 
 const estadoLabel = {
     livre: 'Livre',
@@ -199,48 +221,45 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <main class="min-h-screen bg-[#161922] p-4 text-white sm:p-6">
-        <header class="mb-4 flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h1 class="text-4xl font-black tracking-normal sm:text-5xl">SALA</h1>
-                <p class="mt-1 text-sm font-semibold text-white/60">Visão de entrega · atualização automática</p>
+    <main class="flex min-h-screen flex-col gap-5 bg-escuro px-6 py-6 font-sans tabular-nums text-white xl:px-10 xl:py-7">
+        <header class="flex shrink-0 flex-wrap items-center justify-between gap-6">
+            <div class="flex flex-col gap-1">
+                <h1 class="text-5xl font-extrabold leading-none xl:text-[72px]">SALA</h1>
+                <p class="text-lg font-semibold text-escuro-inativo xl:text-2xl">Visão de entrega · atualização automática</p>
             </div>
-            <div class="grid grid-cols-2 gap-2 text-sm font-black sm:grid-cols-5">
-                <div class="rounded-md bg-emerald-500/20 px-3 py-2 text-emerald-100">{{ resumo.livre }} livres</div>
-                <div class="rounded-md bg-orange-500/20 px-3 py-2 text-orange-100">{{ resumo.por_receber }} por receber</div>
-                <div class="rounded-md bg-violet-500/20 px-3 py-2 text-violet-100">{{ resumo.grupo }} grupos</div>
-                <div class="rounded-md bg-red-500/20 px-3 py-2 text-red-100">{{ resumo.ocupada }} ocupadas</div>
-                <div class="rounded-md bg-sky-500/20 px-3 py-2 text-sky-100">{{ resumo.reservada }} reservadas</div>
+            <div class="flex flex-wrap gap-3.5">
+                <div
+                    v-for="cartao in resumoCartoes"
+                    :key="cartao.label"
+                    class="flex min-w-[150px] flex-col justify-center rounded-2xl border-l-[12px] bg-[#233029] px-5 py-2.5 xl:h-[104px] xl:min-w-[190px]"
+                    :class="cartao.borda"
+                >
+                    <span class="text-4xl font-extrabold leading-none xl:text-[52px]">{{ cartao.n }}</span>
+                    <span class="text-lg font-bold text-escuro-inativo xl:text-2xl">{{ cartao.label }}</span>
+                </div>
             </div>
         </header>
 
-        <div class="mb-4 grid gap-2 text-sm font-bold sm:grid-cols-5">
-            <div class="flex items-center gap-2 rounded-md bg-white/10 px-3 py-2"><span class="h-3 w-3 rounded-full bg-emerald-400"></span>Livre</div>
-            <div class="flex items-center gap-2 rounded-md bg-white/10 px-3 py-2"><span class="h-3 w-3 rounded-full bg-orange-400"></span>Pedido por receber</div>
-            <div class="flex items-center gap-2 rounded-md bg-white/10 px-3 py-2"><span class="h-3 w-3 rounded-full bg-violet-500"></span>Mesa grande / grupo</div>
-            <div class="flex items-center gap-2 rounded-md bg-white/10 px-3 py-2"><span class="h-3 w-3 rounded-full bg-red-500"></span>Ocupada</div>
-            <div class="flex items-center gap-2 rounded-md bg-white/10 px-3 py-2"><span class="h-3 w-3 rounded-full bg-sky-400"></span>Reservada</div>
-        </div>
+        <section aria-label="Mapa da sala" class="relative min-h-[720px] flex-1 overflow-hidden rounded-[22px] bg-fundo">
+            <div data-sala-mapa class="relative h-full min-h-[720px] w-full">
+                <div class="absolute inset-x-[2%] inset-y-[4%] rounded-[10px] border-4 border-suave"></div>
+                <div class="absolute left-[2%] top-[38%] h-[18%] w-1 bg-fundo"></div>
+                <div class="absolute left-[2%] top-[63%] h-[14%] w-1 bg-fundo"></div>
+                <div class="absolute right-[2%] top-[12%] h-[16%] w-1 bg-fundo"></div>
+                <div class="absolute bottom-[8%] right-[2%] h-[12%] w-1 bg-fundo"></div>
 
-        <section class="rounded-lg border border-white/10 bg-white/5 p-3">
-            <div data-sala-mapa class="relative h-[78vh] min-h-[720px] w-full overflow-hidden rounded-lg bg-[#f7f5ef] shadow-2xl ring-1 ring-white/10">
-                <div class="absolute inset-x-[2%] inset-y-[4%] rounded-md border-[3px] border-slate-900/75"></div>
-                <div class="absolute left-[2%] top-[38%] h-[18%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute left-[2%] top-[63%] h-[14%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute right-[2%] top-[12%] h-[16%] w-[2px] bg-[#f7f5ef]"></div>
-                <div class="absolute right-[2%] bottom-[8%] h-[12%] w-[2px] bg-[#f7f5ef]"></div>
-
-                <div class="absolute left-[3%] top-[46%] -rotate-90 text-xs font-black uppercase text-slate-700">WC H.</div>
-                <div class="absolute left-[3%] top-[60%] -rotate-90 text-xs font-black uppercase text-slate-700">WC M.</div>
-                <div class="absolute left-[11%] top-[14%] h-[18%] w-[10%] rounded-sm border-[3px] border-slate-800/70 bg-white/40 p-2 text-center text-xs font-black uppercase text-slate-900 [writing-mode:vertical-rl]">Sobremesas</div>
-                <div class="absolute bottom-[8%] left-[9%] h-[17%] w-[8%] rounded-sm border-[3px] border-slate-800/70 bg-white/40 p-2 text-center text-xs font-black uppercase text-slate-900 [writing-mode:vertical-rl]">Caixa / Bebidas</div>
-                <div class="absolute bottom-[2%] left-[19%] rounded-md bg-white/90 px-3 py-2 text-xs font-black uppercase text-slate-700 shadow-sm">Entrada</div>
-                <div class="absolute right-[5%] top-[31%] rounded-md bg-white/90 px-3 py-2 text-xs font-black uppercase text-slate-700 shadow-sm [writing-mode:vertical-rl]">Palco</div>
+                <div class="absolute left-[3%] top-[46%] -rotate-90 text-sm font-extrabold uppercase text-suave-2 xl:text-lg">WC H.</div>
+                <div class="absolute left-[3%] top-[60%] -rotate-90 text-sm font-extrabold uppercase text-suave-2 xl:text-lg">WC M.</div>
+                <div class="absolute left-[11%] top-[14%] flex h-[18%] w-[10%] items-center justify-center rounded-lg border-[3px] border-suave-2 bg-white p-2 text-center text-sm font-extrabold uppercase text-suave [writing-mode:vertical-rl] xl:text-[22px]">Sobremesas</div>
+                <div class="absolute bottom-[8%] left-[9%] flex h-[17%] w-[8%] items-center justify-center rounded-lg border-[3px] border-suave-2 bg-white p-2 text-center text-sm font-extrabold uppercase text-suave [writing-mode:vertical-rl] xl:text-[22px]">Caixa / Bebidas</div>
+                <div class="absolute bottom-[1%] left-[19%] rounded-lg bg-escuro px-4 py-1.5 text-base font-extrabold uppercase text-white xl:text-xl">Entrada</div>
+                <div class="absolute right-[5%] top-[31%] rounded-lg border-[3px] border-suave-2 bg-white px-2 py-4 text-base font-extrabold uppercase text-suave [writing-mode:vertical-rl] xl:text-[22px]">Palco</div>
 
                 <div
                     v-for="mesa in mesasMapa"
                     :key="mesa.id"
-                    class="absolute overflow-hidden rounded-md border-2 border-slate-950 bg-white text-left shadow-lg"
+                    class="absolute overflow-hidden rounded-xl border-[3px] text-left shadow-[0_4px_12px_rgba(22,32,28,.18)]"
+                    :class="bordaMesa[estadoMesa(mesa)]"
                     :style="mesaStyle(mesa)"
                     :title="textoPedidos(mesa)"
                 >
@@ -249,25 +268,28 @@ onBeforeUnmount(() => {
                             v-for="segmento in segmentosMesa(mesa)"
                             :key="segmento.id"
                             class="min-h-0 min-w-0 border-white/70"
-                            :class="[segmentoClasse(segmento), mesa.mapa_altura > mesa.mapa_largura ? 'border-b last:border-b-0' : 'border-r last:border-r-0']"
+                            :class="[segmentoClasse(segmento), mesa.mapa_altura > mesa.mapa_largura ? 'border-b-2 last:border-b-0' : 'border-r-2 last:border-r-0']"
                             :style="{ flex: segmento.capacidade }"
                         ></div>
                     </div>
 
-                    <div class="relative z-10 flex h-full flex-col justify-between p-1 text-center text-white drop-shadow">
+                    <div class="relative z-10 flex h-full flex-col justify-between overflow-hidden px-[0.6vw] py-[0.4vw]" :class="textoEscuro(mesa) ? 'text-tinta' : 'text-white'">
                         <div class="flex items-start justify-between gap-1">
-                            <span class="rounded bg-slate-950/65 px-1 text-[10px] font-black">{{ mesa.numero }}</span>
-                            <span class="h-2.5 w-2.5 rounded-full ring-1 ring-white" :class="estadoDot[estadoMesa(mesa)]"></span>
+                            <span class="flex items-baseline gap-[0.4vw] whitespace-nowrap leading-none">
+                                <span class="text-[clamp(10px,1.1vw,24px)] font-bold">Mesa</span>
+                                <span class="text-[clamp(16px,2.6vw,60px)] font-extrabold">{{ mesa.numero }}</span>
+                            </span>
+                            <span v-if="mesa.submesas.length" class="h-3 w-3 shrink-0 rounded-full ring-2 ring-white" :class="estadoDot[estadoMesa(mesa)]"></span>
                         </div>
 
                         <div v-if="mesa.submesas.length" class="grid gap-0.5" :class="mesa.submesas.length > 3 ? 'grid-cols-3' : 'grid-cols-2'">
-                            <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="rounded bg-slate-950/55 px-1 py-0.5 text-[9px] font-black">
-                                {{ segmento.label }}
+                            <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="truncate rounded bg-escuro/70 px-1 py-0.5 text-center text-[clamp(9px,0.8vw,18px)] font-extrabold text-white">
+                                {{ segmento.label }} · {{ estadoLabel[segmento.estado] }}
                             </span>
                         </div>
-                        <div v-else class="grid gap-0.5">
-                            <span class="rounded bg-slate-950/55 px-1 py-0.5 text-[9px] font-black">{{ estadoLabel[estadoMesa(mesa)] }}</span>
-                            <span v-if="pedidosAtivos(mesa)[0]" class="rounded bg-slate-950/55 px-1 py-0.5 text-[9px] font-bold">
+                        <div v-else class="flex flex-col gap-0.5">
+                            <span class="whitespace-nowrap text-[clamp(9px,1vw,22px)] font-extrabold uppercase">{{ estadoLabel[estadoMesa(mesa)] }}</span>
+                            <span v-if="pedidosAtivos(mesa)[0]" class="whitespace-nowrap text-[clamp(9px,0.9vw,20px)] font-semibold">
                                 #{{ pedidosAtivos(mesa)[0].id }} · {{ horaPedido(pedidosAtivos(mesa)[0]) }}
                             </span>
                         </div>
@@ -276,8 +298,14 @@ onBeforeUnmount(() => {
             </div>
         </section>
 
-        <div class="fixed bottom-3 right-4 rounded-md bg-black/40 px-3 py-2 text-xs font-bold text-white/70">
-            {{ aAtualizar ? 'A atualizar' : 'Último refresh' }}: {{ hora }}
-        </div>
+        <footer class="flex shrink-0 flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap gap-7 text-lg font-bold text-escuro-inativo xl:text-2xl">
+                <span v-for="item in legenda" :key="item.estado" class="flex items-center gap-2.5">
+                    <span class="h-[22px] w-[22px] rounded-md" :class="item.estado === 'livre' ? 'border-2 border-[#8FA39A] bg-white' : segmentoClass[item.estado]"></span>
+                    {{ item.label }}
+                </span>
+            </div>
+            <span class="text-base font-bold text-[#8FA39A] xl:text-[22px]">{{ aAtualizar ? 'A atualizar' : 'Último refresh' }}: {{ hora }}</span>
+        </footer>
     </main>
 </template>

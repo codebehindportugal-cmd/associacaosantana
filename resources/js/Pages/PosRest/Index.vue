@@ -68,24 +68,57 @@ onBeforeUnmount(() => { clearInterval(relogio); clearInterval(refresh); });
 <template>
     <ChamadaFuncionarioAlert />
     <ComissaoChamadasAlert />
-    <main class="min-h-screen bg-gray-900 p-5 text-white">
-        <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div class="min-w-0"><h1 class="text-xl font-black sm:text-3xl">POS RESTAURANTE</h1><p class="truncate text-sm font-bold text-gray-300 sm:text-base">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT') }}</p></div>
-            <div class="flex w-full gap-2 sm:w-auto">
-                <button class="flex-1 rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:flex-none sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
-                <button class="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-black sm:flex-none sm:px-5 sm:py-3" @click="logout">LOGOUT</button>
+    <main class="flex min-h-screen flex-col bg-fundo font-sans text-tinta tabular-nums">
+        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:py-0">
+            <div class="flex min-w-0 items-baseline gap-4">
+                <h1 class="text-xl font-extrabold">POS Restaurante</h1>
+                <span class="truncate text-sm text-escuro-inativo">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) }}</span>
+            </div>
+            <div class="flex gap-2.5">
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-laranja px-4 text-[15px] font-bold text-white" @click="chamandoComissao = true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                    Chamar comissão
+                </button>
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="logout">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></svg>
+                    Sair
+                </button>
             </div>
         </header>
-        
-        <!-- ESTATÍSTICAS -->
-        <section class="mb-6 grid gap-4 md:grid-cols-2">
-            <div class="rounded-lg bg-emerald-700 p-5"><div class="font-bold">Mesas Livres</div><div class="text-5xl font-black">{{ mesasLivres }}</div></div>
-            <div class="rounded-lg bg-red-700 p-5"><div class="font-bold">Mesas Ocupadas</div><div class="text-5xl font-black">{{ mesasOcupadas }}</div></div>
-        </section>
 
-        <!-- MODO LISTA ALTERNATIVO -->
-        <div class="mt-6 grid gap-3">
-            <Link :href="route('pos.rest.mesas')" class="block rounded-lg bg-emerald-600 p-8 text-center text-3xl font-black">VER MESAS EM LISTA</Link>
+        <div class="flex flex-1 flex-col gap-5 p-4 sm:p-10 sm:pt-7">
+            <section class="grid gap-5 md:grid-cols-2">
+                <div class="flex items-center gap-5 rounded-[14px] border border-linha bg-white px-7 py-5">
+                    <span class="h-6 w-6 shrink-0 rounded-md border-2 border-suave bg-white" aria-hidden="true"></span>
+                    <div>
+                        <span class="block text-lg font-semibold text-suave">Mesas livres</span>
+                        <span class="block text-6xl font-extrabold leading-none">{{ mesasLivres }}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-5 rounded-[14px] border border-linha bg-white px-7 py-5">
+                    <span class="h-6 w-6 shrink-0 rounded-md bg-verde" aria-hidden="true"></span>
+                    <div>
+                        <span class="block text-lg font-semibold text-suave">Mesas ocupadas</span>
+                        <span class="block text-6xl font-extrabold leading-none">{{ mesasOcupadas }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <Link :href="route('pos.rest.mesas')" class="flex min-h-[200px] flex-1 items-center justify-center gap-7 rounded-[14px] bg-verde p-8 text-white hover:bg-verde-escuro hover:text-white">
+                <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="shrink-0"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
+                <span>
+                    <span class="block text-4xl font-extrabold sm:text-5xl">Ver mesas</span>
+                    <span class="mt-1 block text-lg text-verde-claro">Abrir uma mesa, lançar pedidos e fechar a conta</span>
+                </span>
+            </Link>
+
+            <Link :href="route('pos.rest.historico')" class="flex min-h-[76px] items-center justify-between rounded-[14px] border border-linha bg-white px-6 text-tinta hover:text-tinta">
+                <span class="flex items-center gap-3 text-xl font-bold">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                    Histórico do dia
+                </span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+            </Link>
         </div>
 
         <ChamarComissaoModal

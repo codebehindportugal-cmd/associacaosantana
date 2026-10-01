@@ -1,10 +1,5 @@
 <script setup>
-import DangerButton from '@/Components/DangerButton.vue';
 import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import Modal from '@/Components/Modal.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
 import { useForm } from '@inertiajs/vue3';
 import { nextTick, ref } from 'vue';
 
@@ -39,70 +34,38 @@ const closeModal = () => {
 </script>
 
 <template>
-    <section class="space-y-6">
+    <section class="flex flex-col gap-4">
         <header>
-            <h2 class="text-lg font-medium text-gray-900">
-                Delete Account
-            </h2>
-
-            <p class="mt-1 text-sm text-gray-600">
-                Once your account is deleted, all of its resources and data will
-                be permanently deleted. Before deleting your account, please
-                download any data or information that you wish to retain.
+            <h2 class="text-xl font-extrabold text-perigo">Apagar a minha conta</h2>
+            <p class="text-sm text-suave">
+                Quando a conta é apagada, todos os seus dados são apagados para sempre. Antes de apagar,
+                guarda o que quiseres manter.
             </p>
         </header>
 
-        <DangerButton @click="confirmUserDeletion">Delete Account</DangerButton>
+        <button v-if="!confirmingUserDeletion" type="button" class="inline-flex h-12 w-fit items-center rounded-[10px] border border-perigo/40 bg-white px-5 text-[15px] font-bold text-perigo transition hover:bg-perigo-claro" @click="confirmUserDeletion">
+            Apagar conta
+        </button>
 
-        <Modal :show="confirmingUserDeletion" @close="closeModal">
-            <div class="p-6">
-                <h2
-                    class="text-lg font-medium text-gray-900"
+        <div v-else class="flex flex-col gap-3 rounded-[10px] bg-perigo-claro p-4" role="alertdialog" aria-labelledby="t-apagar-conta">
+            <h3 id="t-apagar-conta" class="text-base font-extrabold text-perigo-texto">Tens a certeza que queres apagar a tua conta?</h3>
+            <p class="text-sm text-perigo-texto">Escreve a tua password para confirmar que queres apagar a conta para sempre.</p>
+            <label class="flex flex-col gap-1.5 text-sm font-bold text-perigo-texto sm:max-w-sm" for="password_apagar">Password
+                <input
+                    id="password_apagar"
+                    ref="passwordInput"
+                    v-model="form.password"
+                    type="password"
+                    class="h-12 w-full rounded-[10px] border border-perigo/40 bg-white px-3.5 text-base font-normal text-tinta focus:border-perigo focus:ring-perigo"
+                    placeholder="Password"
+                    @keyup.enter="deleteUser"
                 >
-                    Are you sure you want to delete your account?
-                </h2>
-
-                <p class="mt-1 text-sm text-gray-600">
-                    Once your account is deleted, all of its resources and data
-                    will be permanently deleted. Please enter your password to
-                    confirm you would like to permanently delete your account.
-                </p>
-
-                <div class="mt-6">
-                    <InputLabel
-                        for="password"
-                        value="Password"
-                        class="sr-only"
-                    />
-
-                    <TextInput
-                        id="password"
-                        ref="passwordInput"
-                        v-model="form.password"
-                        type="password"
-                        class="mt-1 block w-3/4"
-                        placeholder="Password"
-                        @keyup.enter="deleteUser"
-                    />
-
-                    <InputError :message="form.errors.password" class="mt-2" />
-                </div>
-
-                <div class="mt-6 flex justify-end">
-                    <SecondaryButton @click="closeModal">
-                        Cancel
-                    </SecondaryButton>
-
-                    <DangerButton
-                        class="ms-3"
-                        :class="{ 'opacity-25': form.processing }"
-                        :disabled="form.processing"
-                        @click="deleteUser"
-                    >
-                        Delete Account
-                    </DangerButton>
-                </div>
+                <InputError :message="form.errors.password" />
+            </label>
+            <div class="flex flex-wrap gap-2.5">
+                <button type="button" class="inline-flex h-12 items-center rounded-[10px] border border-linha-forte bg-white px-5 text-[15px] font-bold text-tinta hover:bg-fundo" @click="closeModal">Cancelar</button>
+                <button type="button" class="inline-flex h-12 items-center rounded-[10px] bg-perigo px-5 text-[15px] font-bold text-white transition hover:opacity-90 disabled:opacity-50" :disabled="form.processing" @click="deleteUser">Apagar conta para sempre</button>
             </div>
-        </Modal>
+        </div>
     </section>
 </template>

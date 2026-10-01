@@ -49,6 +49,7 @@ const criar = () => {
             novo.ativo = true;
             novo.ordem = 0;
             if (logoNovo.value) logoNovo.value.value = '';
+            novoAberto.value = false;
         },
     });
 };
@@ -89,6 +90,12 @@ const adicionarImagem = (sponsor) => {
     });
 };
 
+// Estado de UI: formulário "novo" aberto e cartão de patrocinador expandido
+const novoAberto = ref(false);
+const abertoId = ref(null);
+const alternar = (sponsor) => { abertoId.value = abertoId.value === sponsor.id ? null : sponsor.id; };
+const fotosTexto = (n) => (n === 1 ? '1 foto no ecrã' : `${n} fotos no ecrã`);
+
 const apagarImagem = (imagem) => {
     if (!confirm('Remover esta imagem?')) return;
     router.delete(route('patrocinadores.imagens.destroy', imagem.id), { preserveScroll: true });
@@ -99,135 +106,122 @@ const apagarImagem = (imagem) => {
     <Head title="Patrocinadores" />
 
     <AppLayout>
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-black">Patrocinadores</h1>
-                <p class="mt-1 text-sm text-slate-500">Gere logos, fotos e visibilidade dos patrocinadores no site.</p>
+        <div class="mx-auto flex max-w-[1200px] flex-col gap-4 font-sans text-tinta tabular-nums">
+            <div class="mb-1 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-[30px] font-extrabold leading-tight">Patrocinadores</h1>
+                    <p class="text-[15px] text-suave">Gere logos, fotos e visibilidade dos patrocinadores no site.</p>
+                </div>
+                <div class="flex flex-wrap gap-2.5">
+                    <a :href="route('patrocinios.ecra')" target="_blank" class="btn-sec h-12">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
+                        Ecrã da festa
+                    </a>
+                    <a :href="route('patrocinios.index')" target="_blank" class="btn-sec h-12">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v6H4V6h6" /></svg>
+                        Ver página pública
+                    </a>
+                    <button type="button" class="btn-pri h-12" :aria-expanded="novoAberto" @click="novoAberto = !novoAberto">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                        Novo patrocinador
+                    </button>
+                </div>
             </div>
-            <div class="flex flex-wrap gap-2">
-                <a :href="route('patrocinios.ecra')" target="_blank" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">Ecrã da festa</a>
-                <a :href="route('patrocinios.index')" target="_blank" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-white">Ver página pública</a>
-            </div>
-        </div>
 
-        <form class="mb-8 rounded-lg bg-white p-5 shadow-sm" @submit.prevent="criar">
-            <h2 class="mb-4 font-black">Novo patrocinador</h2>
-            <div class="grid gap-3 md:grid-cols-4">
-                <input v-model="novo.empresa" required placeholder="Empresa" class="rounded-md border-slate-300 md:col-span-2">
-                <input v-model="novo.website" type="url" placeholder="Website com https://" class="rounded-md border-slate-300 md:col-span-2">
-                <input v-model="novo.descricao" placeholder="Descrição curta" class="rounded-md border-slate-300 md:col-span-2">
-                <input v-model.number="novo.ordem" type="number" min="0" placeholder="Ordem" class="rounded-md border-slate-300">
-                <input ref="logoNovo" type="file" accept="image/*,.svg" class="rounded-md border border-slate-300 p-2 text-sm" @change="novo.logotipo = $event.target.files[0]">
-                <label class="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold">
-                    <input v-model="novo.mostrar_no_slider" type="checkbox" class="rounded border-slate-300">
-                    Slider
-                </label>
-                <label class="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold">
-                    <input v-model="novo.ativo" type="checkbox" class="rounded border-slate-300">
-                    Ativo
-                </label>
-            </div>
-            <div v-if="Object.keys(novo.errors).length" class="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                <div v-for="(erro, campo) in novo.errors" :key="campo">{{ erro }}</div>
-            </div>
-            <button class="mt-4 rounded-md bg-slate-900 px-5 py-3 font-black text-white disabled:opacity-60" :disabled="novo.processing">{{ novo.processing ? 'A criar...' : 'Criar patrocinador' }}</button>
-        </form>
+            <form v-if="novoAberto" class="flex flex-col overflow-hidden rounded-[14px] border border-verde bg-white" @submit.prevent="criar">
+                <h2 class="border-b border-linha-fraca px-4 py-4 text-lg font-extrabold sm:px-5">Novo patrocinador</h2>
+                <div class="grid gap-3.5 px-4 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
+                    <label class="rotulo lg:col-span-2">Empresa *<input v-model="novo.empresa" required placeholder="Empresa" class="campo"></label>
+                    <label class="rotulo lg:col-span-2">Website<input v-model="novo.website" type="url" placeholder="Website com https://" class="campo"></label>
+                    <label class="rotulo sm:col-span-2 lg:col-span-4">Descrição<input v-model="novo.descricao" placeholder="Descrição curta" class="campo"></label>
+                    <label class="rotulo">Logótipo<input ref="logoNovo" type="file" accept="image/*,.svg" class="ficheiro" @change="novo.logotipo = $event.target.files[0]"></label>
+                    <label class="rotulo">Ordem<input v-model.number="novo.ordem" type="number" min="0" placeholder="Ordem" class="campo"></label>
+                    <label class="caixa self-end"><input v-model="novo.mostrar_no_slider" type="checkbox" class="chk">Mostrar no slider</label>
+                    <label class="caixa self-end"><input v-model="novo.ativo" type="checkbox" class="chk">Ativo</label>
+                </div>
+                <div v-if="Object.keys(novo.errors).length" class="mx-4 rounded-[10px] bg-perigo-claro p-3 text-sm font-bold text-perigo-texto sm:mx-5">
+                    <div v-for="(erro, campo) in novo.errors" :key="campo">{{ erro }}</div>
+                </div>
+                <div class="flex flex-wrap gap-2.5 px-4 py-4 sm:px-5">
+                    <button class="btn-pri h-[52px] px-6 text-base disabled:opacity-60" :disabled="novo.processing">{{ novo.processing ? 'A criar...' : 'Criar patrocinador' }}</button>
+                    <button type="button" class="btn-sec h-[52px]" @click="novoAberto = false">Cancelar</button>
+                </div>
+            </form>
 
-        <div v-if="!items.length" class="rounded-lg bg-white p-6 text-center font-bold text-slate-500 shadow-sm">
-            Ainda não existem patrocinadores.
-        </div>
+            <div v-if="!items.length" class="rounded-[14px] border border-linha bg-white p-6 text-center font-bold text-suave-2">
+                Ainda não existem patrocinadores.
+            </div>
 
-        <div class="grid gap-4">
-            <article v-for="sponsor in items" :key="sponsor.id" class="rounded-lg bg-white p-5 shadow-sm">
-                <!-- Linha principal: logo / campos / botões -->
-                <div class="grid gap-4 lg:grid-cols-[180px_1fr_auto]">
-                    <div class="grid min-h-32 place-items-center rounded-md bg-slate-50 p-4">
-                        <img :src="sponsor.logo_url" :alt="sponsor.empresa" class="max-h-24 max-w-full object-contain">
+            <article v-for="sponsor in items" :key="sponsor.id" class="overflow-hidden rounded-[14px] border bg-white" :class="abertoId === sponsor.id ? 'border-verde' : 'border-linha'">
+                <!-- Resumo -->
+                <div class="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+                    <div class="grid h-16 w-20 shrink-0 place-items-center rounded-[10px] bg-fundo p-2 sm:h-[74px] sm:w-[120px]">
+                        <img :src="sponsor.logo_url" :alt="sponsor.empresa" class="max-h-full max-w-full object-contain">
                     </div>
-
-                    <div class="grid gap-3 md:grid-cols-4">
-                        <input v-model="sponsor.empresa" class="rounded-md border-slate-300 md:col-span-2">
-                        <input v-model="sponsor.website" type="url" class="rounded-md border-slate-300 md:col-span-2" placeholder="Website">
-                        <input v-model="sponsor.descricao" class="rounded-md border-slate-300 md:col-span-2" placeholder="Descrição">
-                        <input v-model.number="sponsor.ordem" type="number" min="0" class="rounded-md border-slate-300">
-                        <input type="file" accept="image/*,.svg" class="rounded-md border border-slate-300 p-2 text-sm" @change="sponsor.novoLogo = $event.target.files[0]">
-                        <label class="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold">
-                            <input v-model="sponsor.mostrar_no_slider" type="checkbox" class="rounded border-slate-300">
-                            Slider
-                        </label>
-                        <label class="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold">
-                            <input v-model="sponsor.ativo" type="checkbox" class="rounded border-slate-300">
-                            Ativo
-                        </label>
+                    <div class="min-w-0 flex-1">
+                        <h2 class="truncate text-lg font-extrabold">{{ sponsor.empresa }}</h2>
+                        <p v-if="sponsor.descricao" class="truncate text-sm text-suave">{{ sponsor.descricao }}</p>
+                        <div class="mt-1 flex flex-wrap gap-1.5 text-xs font-bold">
+                            <span class="rounded-full px-2 py-0.5" :class="sponsor.ativo ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo text-suave'">{{ sponsor.ativo ? 'Ativo' : 'Inativo' }}</span>
+                            <span class="rounded-full px-2 py-0.5" :class="sponsor.mostrar_no_slider ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo text-suave'">{{ sponsor.mostrar_no_slider ? 'No slider' : 'Fora do slider' }}</span>
+                            <span class="rounded-full bg-fundo px-2 py-0.5 text-suave">{{ fotosTexto((sponsor.images || []).length) }}</span>
+                            <span class="rounded-full bg-fundo px-2 py-0.5 text-suave">Ordem {{ sponsor.ordem }}</span>
+                        </div>
                     </div>
-
-                    <div class="flex flex-row gap-2 lg:flex-col">
-                        <button type="button" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-bold text-white" @click="atualizar(sponsor)">Guardar</button>
-                        <button type="button" class="rounded-md border border-rose-200 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50" @click="apagar(sponsor)">Apagar</button>
-                    </div>
+                    <button type="button" class="h-11 shrink-0 rounded-[10px] px-4 text-[15px] font-bold" :class="abertoId === sponsor.id ? 'bg-tinta text-white' : 'border border-linha-forte bg-white hover:bg-fundo'" :aria-expanded="abertoId === sponsor.id" @click="alternar(sponsor)">
+                        {{ abertoId === sponsor.id ? 'Fechar' : 'Editar' }}
+                    </button>
                 </div>
 
-                <!-- Secção de imagens do ecrã -->
-                <div class="mt-5 border-t border-slate-100 pt-5">
-                    <h3 class="mb-3 text-sm font-black uppercase tracking-wide text-slate-500">
-                        Fotos para o ecrã
-                        <span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{{ (sponsor.images || []).length }}</span>
-                    </h3>
+                <!-- Edição -->
+                <div v-if="abertoId === sponsor.id" class="flex flex-col gap-4 border-t border-linha-fraca bg-fundo/60 p-4">
+                    <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+                        <label class="rotulo">Empresa<input v-model="sponsor.empresa" class="campo"></label>
+                        <label class="rotulo">Website<input v-model="sponsor.website" type="url" class="campo" placeholder="Website"></label>
+                        <label class="rotulo sm:col-span-2 lg:col-span-4">Descrição<input v-model="sponsor.descricao" class="campo" placeholder="Descrição"></label>
+                        <label class="rotulo">Trocar logótipo<input type="file" accept="image/*,.svg" class="ficheiro" @change="sponsor.novoLogo = $event.target.files[0]"></label>
+                        <label class="rotulo">Ordem<input v-model.number="sponsor.ordem" type="number" min="0" class="campo"></label>
+                        <label class="caixa self-end"><input v-model="sponsor.mostrar_no_slider" type="checkbox" class="chk">Mostrar no slider</label>
+                        <label class="caixa self-end"><input v-model="sponsor.ativo" type="checkbox" class="chk">Ativo</label>
+                    </div>
 
-                    <!-- Miniaturas existentes -->
-                    <div v-if="sponsor.images?.length" class="mb-4 flex flex-wrap gap-3">
-                        <div
-                            v-for="img in sponsor.images"
-                            :key="img.id"
-                            class="group relative h-24 w-36 overflow-hidden rounded-md border border-slate-200 bg-slate-50"
-                        >
-                            <img :src="img.url" :alt="sponsor.empresa" class="h-full w-full object-contain p-1">
-                            <button
-                                type="button"
-                                class="absolute right-1 top-1 hidden rounded bg-rose-600 p-1 text-white group-hover:flex"
-                                title="Remover imagem"
-                                @click="apagarImagem(img)"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
-                            <div class="absolute bottom-0 inset-x-0 bg-black/40 px-1.5 py-0.5 text-center text-xs text-white/80">
-                                #{{ img.ordem }}
+                    <!-- Fotos do ecrã -->
+                    <div class="flex flex-col gap-2.5">
+                        <h3 class="text-[13px] font-extrabold uppercase tracking-[0.06em] text-suave-2">Fotos para o ecrã ({{ (sponsor.images || []).length }})</h3>
+                        <div v-if="sponsor.images?.length" class="flex flex-wrap gap-2.5">
+                            <div v-for="img in sponsor.images" :key="img.id" class="relative h-24 w-36 overflow-hidden rounded-[10px] border border-linha bg-white">
+                                <img :src="img.url" :alt="sponsor.empresa" class="h-full w-full object-contain p-1">
+                                <button type="button" class="absolute right-1 top-1 grid h-11 w-11 place-items-center rounded-[10px] border border-linha-forte bg-white text-perigo hover:bg-perigo-claro" aria-label="Remover imagem" title="Remover imagem" @click="apagarImagem(img)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                                </button>
+                                <span class="absolute bottom-1.5 left-1.5 rounded-full bg-tinta px-1.5 text-[11px] font-extrabold text-white">#{{ img.ordem }}</span>
                             </div>
                         </div>
+                        <div v-else class="rounded-[10px] bg-white p-3 text-sm text-suave-2">Sem fotos adicionadas — no ecrã usa o logótipo.</div>
+
+                        <div class="flex flex-wrap items-end gap-2.5">
+                            <label class="rotulo min-w-48 flex-1">Nova foto<input type="file" accept="image/*,.svg" class="ficheiro" @change="sponsor.novaImagem = $event.target.files[0]"></label>
+                            <label class="rotulo w-24">Ordem<input v-model.number="sponsor.imagemOrdem" type="number" min="0" class="campo"></label>
+                            <button type="button" class="h-12 rounded-[10px] bg-tinta px-4 text-[15px] font-bold text-white hover:bg-escuro-2 disabled:opacity-40" :disabled="!sponsor.novaImagem" @click="adicionarImagem(sponsor)">Adicionar foto</button>
+                        </div>
                     </div>
 
-                    <div v-else class="mb-4 rounded-md bg-slate-50 p-3 text-sm text-slate-400">
-                        Sem fotos adicionadas — no ecrã usa o logótipo.
-                    </div>
-
-                    <!-- Upload nova imagem -->
-                    <div class="flex flex-wrap items-end gap-3">
-                        <div class="flex-1 min-w-48">
-                            <label class="mb-1 block text-xs font-bold text-slate-500">Nova foto</label>
-                            <input
-                                type="file"
-                                accept="image/*,.svg"
-                                class="w-full rounded-md border border-slate-300 p-2 text-sm"
-                                @change="sponsor.novaImagem = $event.target.files[0]"
-                            >
-                        </div>
-                        <div class="w-24">
-                            <label class="mb-1 block text-xs font-bold text-slate-500">Ordem</label>
-                            <input v-model.number="sponsor.imagemOrdem" type="number" min="0" class="w-full rounded-md border-slate-300 text-sm">
-                        </div>
-                        <button
-                            type="button"
-                            class="rounded-md bg-slate-700 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-40"
-                            :disabled="!sponsor.novaImagem"
-                            @click="adicionarImagem(sponsor)"
-                        >
-                            Adicionar
-                        </button>
+                    <div class="flex flex-wrap items-center justify-between gap-2.5 border-t border-linha-fraca pt-4">
+                        <button type="button" class="btn-pri h-[52px] px-6 text-base" @click="atualizar(sponsor)">Guardar</button>
+                        <button type="button" class="btn-sec h-[52px] text-perigo hover:bg-perigo-claro" @click="apagar(sponsor)">Apagar patrocinador</button>
                     </div>
                 </div>
             </article>
         </div>
     </AppLayout>
 </template>
+
+<style scoped>
+.btn-pri { @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-verde px-5 text-[15px] font-bold text-white transition hover:bg-verde-escuro; }
+.btn-sec { @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta transition hover:bg-fundo; }
+.rotulo { @apply flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-suave; }
+.campo { @apply h-12 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-base text-tinta focus:border-verde focus:ring-verde; }
+.ficheiro { @apply min-h-12 w-full rounded-[10px] border border-dashed border-linha-forte bg-white p-2.5 text-sm text-tinta; }
+.caixa { @apply flex h-12 cursor-pointer items-center gap-3 rounded-[10px] border border-linha-forte bg-white px-3.5 text-[15px] font-bold text-tinta; }
+.chk { @apply h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde; }
+</style>

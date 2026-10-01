@@ -111,147 +111,127 @@ function estaNoIntervalo(dateStr) {
         <Head title="Reservar o Salão — ARDC Santana" />
 
         <!-- Hero -->
-        <section class="bg-gradient-to-b from-amber-600 to-amber-700 py-14 text-center text-white">
-            <div class="mx-auto max-w-2xl px-5">
-                <div class="mb-3 text-4xl">🏛️</div>
-                <h1 class="font-display text-3xl font-bold sm:text-4xl">Reservar o Salão</h1>
-                <p class="mt-3 text-base text-amber-100">
+        <section class="bg-verde py-12 text-center text-white sm:py-16">
+            <div class="mx-auto w-full max-w-2xl px-4 sm:px-6">
+                <span class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-verde-escuro">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10l9-6 9 6" /><path d="M5 10v10h14V10" /><path d="M9 20v-6h6v6" /><path d="M3 20h18" /></svg>
+                </span>
+                <h1 class="m-0 text-[clamp(32px,4.4vw,48px)] font-extrabold leading-[1.1] tracking-[-0.01em]">Reservar o Salão</h1>
+                <p class="m-0 mt-4 text-[17px] text-verde-claro2">
                     Preenche o formulário para solicitar uma pré-reserva do espaço da Associação de Santana.
                     Entraremos em contacto para confirmar a disponibilidade e acertar os detalhes.
                 </p>
             </div>
         </section>
 
-        <main class="mx-auto max-w-4xl px-5 py-10 lg:px-8">
+        <main class="mx-auto w-full max-w-[1120px] px-4 py-8 sm:px-6 sm:py-10">
 
             <!-- Sucesso -->
-            <div v-if="enviado" class="mb-8 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-6 text-center">
-                <div class="mb-2 text-4xl">✅</div>
-                <p class="text-lg font-black text-emerald-800">{{ msgSucc }}</p>
-                <p class="mt-1 text-sm text-emerald-700">Guarda este número de contacto caso precises: <strong>ardcsantana@outlook.com</strong></p>
+            <div v-if="enviado" class="mb-8 flex flex-col items-center rounded-[14px] border-2 border-verde bg-verde-claro p-6 text-center" role="status">
+                <span class="flex h-14 w-14 items-center justify-center rounded-full bg-verde text-white">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L19 7" /></svg>
+                </span>
+                <p class="m-0 mt-3 text-lg font-extrabold text-verde-escuro">{{ msgSucc }}</p>
+                <p class="m-0 mt-1 text-[15px] text-verde-escuro">Guarda este número de contacto caso precises: <strong>ardcsantana@outlook.com</strong></p>
             </div>
 
-            <div class="grid gap-8 lg:grid-cols-[1fr_380px]">
+            <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8">
 
                 <!-- Formulário -->
-                <div class="order-2 lg:order-1">
-                    <form @submit.prevent="submeter" class="space-y-6">
+                <div class="order-2 min-w-0 lg:order-1">
+                    <form class="space-y-5" @submit.prevent="submeter">
 
                         <!-- Dados de contacto -->
-                        <div class="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-                            <h2 class="mb-4 font-black text-stone-800">Os seus dados</h2>
+                        <div class="rounded-[14px] border border-linha bg-white p-5 sm:p-6">
+                            <h2 class="m-0 mb-4 flex items-center gap-2.5 text-[21px] font-extrabold"><span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-escuro text-[13px] font-extrabold text-white">1</span>Os seus dados</h2>
                             <div class="grid gap-4 sm:grid-cols-2">
                                 <div class="sm:col-span-2">
-                                    <label class="mb-1 block text-sm font-bold text-stone-700">Nome completo <span class="text-red-500">*</span></label>
-                                    <input
-                                        v-model="form.nome_cliente"
-                                        type="text"
-                                        class="w-full rounded-lg border-stone-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                                        placeholder="Ex: João Silva"
-                                        required
-                                    />
-                                    <p v-if="form.errors.nome_cliente" class="mt-1 text-xs text-red-600">{{ form.errors.nome_cliente }}</p>
+                                    <label class="rotulo" for="pr-nome">Nome completo <span class="text-perigo">*</span></label>
+                                    <input id="pr-nome" v-model="form.nome_cliente" type="text" class="campo" placeholder="Ex: João Silva" required />
+                                    <p v-if="form.errors.nome_cliente" class="erro">{{ form.errors.nome_cliente }}</p>
                                 </div>
                                 <div>
-                                    <label class="mb-1 block text-sm font-bold text-stone-700">Telefone <span class="text-red-500">*</span></label>
-                                    <input
-                                        v-model="form.telefone"
-                                        type="tel"
-                                        class="w-full rounded-lg border-stone-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                                        placeholder="912 345 678"
-                                        required
-                                    />
-                                    <p v-if="form.errors.telefone" class="mt-1 text-xs text-red-600">{{ form.errors.telefone }}</p>
+                                    <label class="rotulo" for="pr-tel">Telefone <span class="text-perigo">*</span></label>
+                                    <input id="pr-tel" v-model="form.telefone" type="tel" class="campo" placeholder="912 345 678" required />
+                                    <p v-if="form.errors.telefone" class="erro">{{ form.errors.telefone }}</p>
                                 </div>
                                 <div>
-                                    <label class="mb-1 block text-sm font-bold text-stone-700">Email</label>
-                                    <input
-                                        v-model="form.email"
-                                        type="email"
-                                        class="w-full rounded-lg border-stone-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                                        placeholder="email@exemplo.com"
-                                    />
-                                    <p v-if="form.errors.email" class="mt-1 text-xs text-red-600">{{ form.errors.email }}</p>
+                                    <label class="rotulo" for="pr-email">Email</label>
+                                    <input id="pr-email" v-model="form.email" type="email" class="campo" placeholder="email@exemplo.com" />
+                                    <p v-if="form.errors.email" class="erro">{{ form.errors.email }}</p>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Datas -->
-                        <div class="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-                            <h2 class="mb-4 font-black text-stone-800">Datas pretendidas</h2>
+                        <div class="rounded-[14px] border border-linha bg-white p-5 sm:p-6">
+                            <h2 class="m-0 mb-4 flex items-center gap-2.5 text-[21px] font-extrabold"><span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-escuro text-[13px] font-extrabold text-white">2</span>Datas pretendidas</h2>
                             <div class="grid gap-4 sm:grid-cols-2">
                                 <div>
-                                    <label class="mb-1 block text-sm font-bold text-stone-700">Data de início <span class="text-red-500">*</span></label>
-                                    <input
-                                        v-model="form.data_inicio"
-                                        type="date"
-                                        :min="hoje"
-                                        class="w-full rounded-lg border-stone-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                                        required
-                                    />
-                                    <p v-if="form.errors.data_inicio" class="mt-1 text-xs text-red-600">{{ form.errors.data_inicio }}</p>
+                                    <label class="rotulo" for="pr-ini">Data de início <span class="text-perigo">*</span></label>
+                                    <input id="pr-ini" v-model="form.data_inicio" type="date" :min="hoje" class="campo" required />
+                                    <p v-if="form.errors.data_inicio" class="erro">{{ form.errors.data_inicio }}</p>
                                 </div>
                                 <div>
-                                    <label class="mb-1 block text-sm font-bold text-stone-700">Data de fim <span class="text-red-500">*</span></label>
-                                    <input
-                                        v-model="form.data_fim"
-                                        type="date"
-                                        :min="form.data_inicio || hoje"
-                                        class="w-full rounded-lg border-stone-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
-                                        required
-                                    />
-                                    <p v-if="form.errors.data_fim" class="mt-1 text-xs text-red-600">{{ form.errors.data_fim }}</p>
+                                    <label class="rotulo" for="pr-fim">Data de fim <span class="text-perigo">*</span></label>
+                                    <input id="pr-fim" v-model="form.data_fim" type="date" :min="form.data_inicio || hoje" class="campo" required />
+                                    <p v-if="form.errors.data_fim" class="erro">{{ form.errors.data_fim }}</p>
                                 </div>
                             </div>
 
                             <!-- Resumo de dias -->
-                            <div v-if="numeroDias" class="mt-3 rounded-lg bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-900">
-                                🗓️ {{ numeroDias }} {{ numeroDias === 1 ? 'dia selecionado' : 'dias selecionados' }}
+                            <div v-if="numeroDias" class="mt-4 flex items-center gap-2.5 rounded-[10px] bg-verde-claro px-4 py-3 text-[15px] font-bold text-verde-escuro">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+                                {{ numeroDias }} {{ numeroDias === 1 ? 'dia selecionado' : 'dias selecionados' }}
                             </div>
 
                             <!-- Aviso de conflito -->
-                            <div v-if="temConflito" class="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3">
-                                <p class="text-sm font-bold text-red-700">⚠️ Estas datas já estão reservadas ou têm uma pré-reserva pendente.</p>
-                                <p class="mt-0.5 text-xs text-red-600">Consulte o calendário ao lado e escolha outras datas.</p>
+                            <div v-if="temConflito" class="mt-4 flex items-start gap-2.5 rounded-[10px] border border-[#F0C4BD] bg-perigo-claro px-4 py-3" role="alert">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-0.5 shrink-0 text-perigo"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>
+                                <div>
+                                    <p class="m-0 text-[15px] font-bold text-perigo-texto">Estas datas já estão reservadas ou têm uma pré-reserva pendente.</p>
+                                    <p class="m-0 mt-0.5 text-sm text-perigo-texto">Consulte o calendário ao lado e escolha outras datas.</p>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Opções -->
-                        <div v-if="opcoes && opcoes.length" class="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-                            <h2 class="mb-1 font-black text-stone-800">Opções pretendidas</h2>
-                            <p class="mb-4 text-xs text-stone-500">Selecione o que necessita. A associação confirmará a disponibilidade de cada item.</p>
-                            <div class="grid gap-2 sm:grid-cols-2">
+                        <div v-if="opcoes && opcoes.length" class="rounded-[14px] border border-linha bg-white p-5 sm:p-6">
+                            <h2 class="m-0 mb-1 flex items-center gap-2.5 text-[21px] font-extrabold"><span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-escuro text-[13px] font-extrabold text-white">3</span>Opções pretendidas</h2>
+                            <p class="m-0 mb-4 text-[15px] text-suave">Selecione o que necessita. A associação confirmará a disponibilidade de cada item.</p>
+                            <div class="grid gap-2.5 sm:grid-cols-2">
                                 <label
                                     v-for="o in opcoes"
                                     :key="o.id"
-                                    class="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition hover:bg-amber-50"
+                                    class="flex min-h-[64px] cursor-pointer items-start gap-3 rounded-[10px] border-2 p-3.5 transition"
                                     :class="form.opcoes.includes(o.id)
-                                        ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-400'
-                                        : 'border-stone-200 bg-white'"
+                                        ? 'border-verde bg-verde-claro'
+                                        : 'border-linha bg-white hover:border-linha-forte'"
                                 >
                                     <input
                                         type="checkbox"
                                         :value="o.id"
                                         :checked="form.opcoes.includes(o.id)"
+                                        class="mt-0.5 h-5 w-5 shrink-0 rounded border-linha-forte text-verde focus:ring-verde"
                                         @change="toggleOpcao(o.id)"
-                                        class="mt-0.5 rounded accent-amber-600"
                                     />
                                     <div class="min-w-0">
-                                        <div class="text-sm font-bold text-stone-800">{{ o.nome }}</div>
-                                        <div v-if="o.descricao" class="mt-0.5 text-xs text-stone-500">{{ o.descricao }}</div>
-                                        <div v-if="o.preco_extra > 0" class="mt-0.5 text-xs font-bold text-amber-700">+{{ Number(o.preco_extra).toFixed(2) }}€</div>
+                                        <div class="text-base font-bold">{{ o.nome }}</div>
+                                        <div v-if="o.descricao" class="mt-0.5 text-sm text-suave">{{ o.descricao }}</div>
+                                        <div v-if="o.preco_extra > 0" class="mt-0.5 text-sm font-bold tabular-nums text-laranja-texto">+{{ Number(o.preco_extra).toFixed(2) }}€</div>
                                     </div>
                                 </label>
                             </div>
                         </div>
 
                         <!-- Notas -->
-                        <div class="rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-                            <h2 class="mb-3 font-black text-stone-800">Informações adicionais</h2>
+                        <div class="rounded-[14px] border border-linha bg-white p-5 sm:p-6">
+                            <h2 class="m-0 mb-4 flex items-center gap-2.5 text-[21px] font-extrabold"><span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-escuro text-[13px] font-extrabold text-white">{{ opcoes && opcoes.length ? 4 : 3 }}</span>Informações adicionais</h2>
                             <textarea
                                 v-model="form.notas"
                                 rows="4"
-                                class="w-full rounded-lg border-stone-300 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                                class="campo campo-area"
+                                aria-label="Informações adicionais"
                                 placeholder="Ex: Número de pessoas previsto, tipo de evento, horário aproximado, necessidades especiais..."
                             ></textarea>
                         </div>
@@ -260,46 +240,64 @@ function estaNoIntervalo(dateStr) {
                         <button
                             type="submit"
                             :disabled="form.processing || temConflito"
-                            class="w-full rounded-xl bg-amber-600 py-3.5 text-base font-black text-white shadow transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="min-h-[60px] w-full rounded-[10px] px-4 py-3 text-lg font-extrabold text-white transition disabled:cursor-not-allowed"
+                            :class="temConflito ? 'bg-perigo opacity-80' : 'bg-verde hover:bg-verde-escuro disabled:opacity-50'"
                         >
                             <span v-if="form.processing">A enviar...</span>
                             <span v-else-if="temConflito">Datas indisponíveis — escolha outras datas</span>
                             <span v-else>Enviar pré-reserva</span>
                         </button>
 
-                        <p class="text-center text-xs text-stone-400">
+                        <p class="m-0 text-center text-sm text-suave">
                             A pré-reserva não é vinculativa. Entraremos em contacto para confirmar e acertar os detalhes.
                         </p>
                     </form>
                 </div>
 
                 <!-- Calendário de disponibilidade -->
-                <div class="order-1 lg:order-2">
-                    <div class="sticky top-24 rounded-xl border border-amber-200 bg-white p-5 shadow-sm">
-                        <h2 class="mb-1 font-black text-stone-800">Disponibilidade</h2>
-                        <p class="mb-4 text-xs text-stone-500">Dias a vermelho já estão ocupados.</p>
+                <div class="order-1 min-w-0 lg:order-2">
+                    <div class="rounded-[14px] border border-linha bg-white p-5 lg:sticky lg:top-24">
+                        <h2 class="m-0 text-[21px] font-extrabold">Disponibilidade</h2>
+                        <p class="m-0 mt-0.5 text-sm text-suave">Dias a vermelho já estão ocupados.</p>
 
-                        <div class="space-y-5">
+                        <!-- Legenda -->
+                        <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[13px] font-semibold text-suave">
+                            <div class="flex items-center gap-1.5">
+                                <span class="h-3.5 w-3.5 rounded-full bg-verde"></span>
+                                <span>Selecionado</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="h-3.5 w-3.5 rounded-full border border-[#F0C4BD] bg-perigo-claro"></span>
+                                <span>Ocupado</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="h-3.5 w-3.5 rounded-full border border-linha-forte bg-white"></span>
+                                <span>Disponível</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 space-y-5">
                             <div v-for="({ ano, mes }) in mesesExibir()" :key="`${ano}-${mes}`">
-                                <div class="mb-2 text-center text-xs font-black uppercase tracking-wide text-stone-600">
+                                <div class="mb-1.5 text-center text-[13px] font-extrabold uppercase tracking-[0.1em] text-suave">
                                     {{ mesesNomes[mes] }} {{ ano }}
                                 </div>
                                 <!-- Cabeçalho dias da semana -->
                                 <div class="grid grid-cols-7 text-center">
-                                    <div v-for="d in ['D','S','T','Q','Q','S','S']" :key="d" class="py-0.5 text-[10px] font-bold text-stone-400">{{ d }}</div>
+                                    <div v-for="(d, k) in ['D','S','T','Q','Q','S','S']" :key="k" class="py-1 text-[11px] font-bold text-suave-2">{{ d }}</div>
                                 </div>
                                 <!-- Dias -->
-                                <div class="grid grid-cols-7 text-center">
+                                <div class="grid grid-cols-7 gap-y-1 text-center">
                                     <div
                                         v-for="(dia, i) in diasDoMes(ano, mes)"
                                         :key="i"
-                                        class="aspect-square flex items-center justify-center rounded-full text-xs"
+                                        class="mx-auto flex aspect-square w-full max-w-[44px] select-none items-center justify-center rounded-full text-sm tabular-nums transition"
                                         :class="dia ? [
-                                            isPast(toDateStr(ano, mes, dia)) ? 'text-stone-300 cursor-default'
-                                            : isDiaBusy(toDateStr(ano, mes, dia)) ? 'bg-red-100 text-red-600 font-bold cursor-not-allowed'
-                                            : estaNoIntervalo(toDateStr(ano, mes, dia)) ? 'bg-amber-500 text-white font-black cursor-pointer'
-                                            : 'text-stone-700 hover:bg-amber-50 cursor-pointer font-medium'
+                                            isPast(toDateStr(ano, mes, dia)) ? 'text-linha-forte cursor-default'
+                                            : isDiaBusy(toDateStr(ano, mes, dia)) ? 'bg-perigo-claro text-perigo-texto font-bold cursor-not-allowed'
+                                            : estaNoIntervalo(toDateStr(ano, mes, dia)) ? 'bg-verde text-white font-extrabold cursor-pointer'
+                                            : 'text-tinta hover:bg-verde-claro cursor-pointer font-semibold'
                                         ] : ''"
+                                        :title="dia && isDiaBusy(toDateStr(ano, mes, dia)) ? 'Ocupado' : undefined"
                                         @click="dia && clicarDia(toDateStr(ano, mes, dia))"
                                     >
                                         {{ dia }}
@@ -308,22 +306,10 @@ function estaNoIntervalo(dateStr) {
                             </div>
                         </div>
 
-                        <!-- Legenda -->
-                        <div class="mt-4 flex flex-wrap gap-3 text-xs text-stone-500">
-                            <div class="flex items-center gap-1.5">
-                                <div class="h-3 w-3 rounded-full bg-amber-500"></div>
-                                <span>Selecionado</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <div class="h-3 w-3 rounded-full bg-red-100 border border-red-300"></div>
-                                <span>Ocupado</span>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <div class="h-3 w-3 rounded-full bg-white border border-stone-200"></div>
-                                <span>Disponível</span>
-                            </div>
-                        </div>
-                        <p class="mt-3 text-[11px] text-stone-400">💡 Clica num dia disponível para preencher as datas automaticamente.</p>
+                        <p class="m-0 mt-4 flex items-start gap-2 border-t border-linha-fraca pt-3 text-[13px] text-suave">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="mt-px shrink-0 text-verde"><path d="M9 18h6M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" /></svg>
+                            Clica num dia disponível para preencher as datas automaticamente.
+                        </p>
                     </div>
                 </div>
 
@@ -331,3 +317,20 @@ function estaNoIntervalo(dateStr) {
         </main>
     </PublicShell>
 </template>
+
+<style scoped>
+.rotulo { display: block; margin-bottom: 6px; font-size: 15px; font-weight: 700; color: #16201C; }
+.campo {
+    width: 100%;
+    height: 50px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid #D5D9D3;
+    background: #FFFFFF;
+    color: #16201C;
+    font-size: 16px;
+}
+.campo-area { height: auto; padding: 12px 14px; resize: vertical; }
+.campo:focus { border-color: #0F6B4F; box-shadow: 0 0 0 3px rgb(15 107 79 / 0.15); outline: none; }
+.erro { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: #A3241A; }
+</style>

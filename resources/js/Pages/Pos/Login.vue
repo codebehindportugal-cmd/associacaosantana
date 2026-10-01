@@ -34,29 +34,29 @@ const terminaisPorTipo = computed(() => (props.terminais ?? []).reduce((acc, t) 
 }, {}));
 
 const posScreens = [
-    { tipo: 'restaurante', icon: '🍽️', label: 'Restaurante' },
-    { tipo: 'reservas',    icon: '📋', label: 'Reservas'    },
-    { tipo: 'bar',         icon: '🍺', label: 'Bares'       },
-    { tipo: 'cafe',        icon: '☕', label: 'Café'        },
-    { tipo: 'cotas',       icon: '💳', label: 'Cotas'       },
+    { tipo: 'restaurante', icon: 'restaurante', label: 'Restaurante' },
+    { tipo: 'reservas',    icon: 'reservas',    label: 'Reservas'    },
+    { tipo: 'bar',         icon: 'bar',         label: 'Bares'       },
+    { tipo: 'cafe',        icon: 'cafe',        label: 'Café'        },
+    { tipo: 'cotas',       icon: 'cotas',       label: 'Cotas'       },
 ];
 
 const ecras = [
-    { href: route('ecra-reservas'),    icon: '📺', label: 'Ecrã Reservas',       desc: 'Ecrã de chamadas'         },
-    { href: route('patrocinios.ecra'), icon: '🏆', label: 'Ecrã Patrocinadores', desc: 'Painel de patrocinadores' },
-    { href: route('precario'),         icon: '📃', label: 'Preçário',             desc: 'Lista de preços'          },
-    { href: route('secao.sala', props.salaEcraCodigo || 'sala'), icon: '🪑', label: 'Ecrã Sala', desc: 'Mapa das mesas' },
+    { href: route('ecra-reservas'),    label: 'Ecrã Reservas',       desc: 'Ecrã de chamadas'         },
+    { href: route('patrocinios.ecra'), label: 'Ecrã Patrocinadores', desc: 'Painel de patrocinadores' },
+    { href: route('precario'),         label: 'Preçário',             desc: 'Lista de preços'          },
+    { href: route('secao.sala', props.salaEcraCodigo || 'sala'), label: 'Ecrã Sala', desc: 'Mapa das mesas' },
 ];
 
 const secoes = [
-    { href: route('secao.bebidas'),         label: 'Bebidas'         },
-    { href: route('secao.frango'),          label: 'Frango'          },
-    { href: route('secao.comida'),          label: 'Comida'          },
-    { href: route('secao.cozinha'),         label: 'Cozinha'         },
-    { href: route('secao.sobremesas'),      label: 'Sobremesas'      },
-    { href: route('secao.acompanhamentos'), label: 'Acompanhamentos' },
-    { href: route('secao.servico'),         label: 'Serviço'         },
-    { href: route('secao.bar'),             label: 'Bar'             },
+    { href: route('secao.bebidas'),         label: 'Bebidas',         cor: 'text-secao-bar' },
+    { href: route('secao.frango'),          label: 'Frango',          cor: 'text-secao-grelhados' },
+    { href: route('secao.comida'),          label: 'Comida',          cor: 'text-secao-cozinha' },
+    { href: route('secao.cozinha'),         label: 'Cozinha',         cor: 'text-secao-cozinha' },
+    { href: route('secao.sobremesas'),      label: 'Sobremesas',      cor: 'text-secao-sobremesas' },
+    { href: route('secao.acompanhamentos'), label: 'Acompanhamentos', cor: 'text-secao-acompanhamentos' },
+    { href: route('secao.servico'),         label: 'Serviço',         cor: 'text-secao-servico' },
+    { href: route('secao.bar'),             label: 'Bar',             cor: 'text-secao-bar' },
 ];
 
 const tituloTipo = (tipo) => ({ bar: 'Bar', cafe: 'Café', restaurante: 'Restaurante', reservas: 'Reservas', cotas: 'Cotas' }[tipo] || tipo);
@@ -72,199 +72,210 @@ const escolher = (item) => {
     if (props.comissao && !outroNome.value) entrar();
 };
 const entrar = () => form.post(route('pos.login.store'));
+
+// ---------------------------------------------------------------------------
+// Teclado numérico do PIN (só UI: escreve no mesmo campo do formulário)
+// ---------------------------------------------------------------------------
+const teclasPin = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clr', '0', 'del'];
+const premirTecla = (alvo, tecla) => {
+    const atual = String(alvo.pin ?? '');
+    if (tecla === 'del') alvo.pin = atual.slice(0, -1);
+    else if (tecla === 'clr') alvo.pin = '';
+    else if (atual.length < 8) alvo.pin = atual + tecla;
+};
+// O painel da direita mostra o login da comissão quando o pedem; senão, o PIN do terminal
+const painelComissao = computed(() => !props.comissao && mostrarComissao.value);
+
 </script>
 
 <template>
-    <div class="pos-hub min-h-screen text-white">
-        <!-- Header -->
-        <header class="hub-header flex items-center justify-between border-b border-white/10 px-6 py-4">
-            <div class="flex items-center gap-3">
-                <img src="/images/santana-logo.png" alt="ARDC Santana" class="h-10 w-10 rounded-full border border-white/20 object-contain p-0.5">
-                <div>
-                    <div class="text-base font-black tracking-wide text-white">ARDC SANTANA</div>
-                    <div class="text-xs font-bold uppercase tracking-widest text-white/50">Sistema de Gestão</div>
+    <div class="flex min-h-screen flex-col bg-fundo font-sans text-tinta tabular-nums">
+        <header class="flex h-16 shrink-0 items-center justify-between gap-3 bg-escuro px-4 text-white sm:px-6">
+            <div class="flex items-center gap-3.5">
+                <img src="/images/santana-logo.png" alt="ARDC Santana" class="h-10 w-10 rounded-full bg-white object-contain p-0.5">
+                <div class="leading-tight">
+                    <span class="block text-lg font-extrabold">ARDC Santana</span>
+                    <span class="block text-xs uppercase tracking-wider text-escuro-inativo">Sistema de Gestão · POS</span>
                 </div>
             </div>
-            <div class="text-xs font-bold text-white/30">POS</div>
+            <button
+                v-if="comissao"
+                type="button"
+                class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white"
+                @click="sairComissao"
+            >Sair do modo comissão</button>
+            <button
+                v-else
+                type="button"
+                class="flex h-11 items-center gap-2 rounded-[10px] px-4 text-[15px] font-bold text-white"
+                :class="mostrarComissao ? 'bg-laranja' : 'bg-escuro-2'"
+                :aria-pressed="mostrarComissao"
+                @click="mostrarComissao = !mostrarComissao"
+            >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                {{ mostrarComissao ? 'Voltar ao PIN do terminal' : 'Sou da comissão' }}
+            </button>
         </header>
 
-        <div class="mx-auto max-w-5xl space-y-8 px-5 py-8">
+        <div class="grid flex-1 gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <section class="flex min-w-0 flex-col gap-6">
+                <!-- Modo comissão ativo -->
+                <div v-if="comissao" class="rounded-[14px] border-2 border-laranja bg-laranja-claro p-4">
+                    <span class="block text-sm font-bold uppercase tracking-wider text-laranja-texto">Modo comissão</span>
+                    <span class="block text-xl font-extrabold">{{ comissaoNome }}</span>
+                    <span class="block text-sm text-suave">Entras em qualquer terminal com 1 toque, sem PIN e sem voltar a escrever o nome.</span>
+                </div>
 
-            <!-- Modo Comissão -->
-            <section v-if="comissao" class="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <div class="text-sm font-black uppercase tracking-wide text-amber-400">Modo Comissão</div>
-                        <div class="text-lg font-black">{{ comissaoNome }}</div>
-                        <div class="text-xs text-white/50">Entras em qualquer terminal com 1 clique, sem PIN e sem voltar a escrever o nome.</div>
+                <!-- Passo 1: tipo de POS -->
+                <div v-if="!comissao">
+                    <h2 class="mb-3 flex items-center gap-2.5 text-[15px] font-bold text-suave"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-escuro text-xs text-white">1</span>Que POS vais usar?</h2>
+                    <div role="group" aria-label="Tipo de terminal" class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+                        <a
+                            v-for="screen in posScreens"
+                            :key="screen.tipo"
+                            :href="route('pos.login', { tipo: screen.tipo })"
+                            class="flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-[14px] text-lg font-bold"
+                            :class="tipoSelecionado === screen.tipo ? 'border-2 border-verde bg-verde text-white hover:text-white' : 'border border-linha bg-white text-tinta hover:text-tinta'"
+                            :aria-current="tipoSelecionado === screen.tipo ? 'true' : undefined"
+                        >
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <template v-if="screen.icon === 'restaurante'"><path d="M7 2v20M4 2v6a3 3 0 0 0 6 0V2" /><path d="M18 22V2c-2 1.5-3 4-3 7s1 4 3 4" /></template>
+                                <template v-else-if="screen.icon === 'reservas'"><rect x="5" y="4" width="14" height="18" rx="2" /><path d="M9 2h6v4H9zM9 11h6M9 15h6" /></template>
+                                <template v-else-if="screen.icon === 'bar'"><path d="M6 6h9v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" /><path d="M15 9h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2M9 10v8M12 10v8" /></template>
+                                <template v-else-if="screen.icon === 'cafe'"><path d="M4 9h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" /><path d="M16 11h2a2 2 0 0 1 0 4h-2M8 2v3M12 2v3" /></template>
+                                <template v-else><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" /></template>
+                            </svg>
+                            {{ screen.label }}
+                        </a>
                     </div>
-                    <button type="button" class="rounded-lg bg-white/10 px-4 py-2 text-sm font-bold hover:bg-white/20" @click="sairComissao">Sair do modo comissão</button>
                 </div>
-            </section>
-            <section v-else>
-                <button type="button" class="rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-bold text-white/70 hover:bg-white/10" @click="mostrarComissao = !mostrarComissao">
-                    👔 Sou da comissão
-                </button>
-                <form v-if="mostrarComissao" class="mt-3 grid max-w-md gap-3 rounded-xl bg-white/5 p-5" @submit.prevent="entrarComissao">
-                    <input v-model="comissaoForm.nome" type="text" class="w-full rounded-lg border-white/10 bg-white/5 p-3 text-center text-lg font-black text-white placeholder-white/30" placeholder="O teu nome">
-                    <input v-model="comissaoForm.pin" type="password" inputmode="numeric" autocomplete="off" class="w-full rounded-lg border-white/10 bg-white/5 p-3 text-center text-2xl font-black text-white placeholder-white/30" placeholder="PIN da comissão">
-                    <div v-if="comissaoForm.errors.nome" class="rounded-lg bg-red-600/80 p-2 text-center text-sm font-bold">{{ comissaoForm.errors.nome }}</div>
-                    <div v-if="comissaoForm.errors.pin" class="rounded-lg bg-red-600/80 p-2 text-center text-sm font-bold">{{ comissaoForm.errors.pin }}</div>
-                    <div v-if="comissaoForm.errors.comissao_pin" class="rounded-lg bg-red-600/80 p-2 text-center text-sm font-bold">{{ comissaoForm.errors.comissao_pin }}</div>
-                    <button class="rounded-xl bg-amber-600 p-3 font-black disabled:opacity-50" :disabled="comissaoForm.processing">VALIDAR</button>
-                </form>
-            </section>
 
-            <!-- Comissão: todos os terminais agrupados por tipo -->
-            <section v-if="comissao">
-                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h2 class="section-label !mb-0">Todos os terminais — 1 clique para entrar</h2>
-                    <label class="flex items-center gap-2 text-xs font-bold text-white/50">
-                        <input v-model="outroNome" type="checkbox" class="rounded border-white/20 bg-white/10">
-                        Entrar com outro nome
-                    </label>
-                </div>
-                <div v-for="(grupo, tipo) in terminaisPorTipo" :key="tipo" class="mb-5">
-                    <div class="mb-2 text-xs font-black uppercase tracking-widest text-white/40">{{ tituloTipo(tipo) }}</div>
-                    <div class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                <!-- Passo 2: terminal -->
+                <div v-if="!comissao && terminais && terminais.length">
+                    <h2 class="mb-3 flex items-center gap-2.5 text-[15px] font-bold text-suave"><span class="flex h-6 w-6 items-center justify-center rounded-full bg-escuro text-xs text-white">2</span>Escolhe o terminal — {{ tituloTipo(tipoSelecionado) }}</h2>
+                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         <button
-                            v-for="item in grupo"
+                            v-for="item in terminais"
                             :key="item.id"
                             type="button"
-                            class="hub-card rounded-xl p-5 text-left transition"
-                            :class="escolhido === item.id ? 'hub-card-active' : ''"
+                            class="flex min-h-[92px] flex-col justify-center rounded-[14px] bg-white px-4 py-3 text-left"
+                            :class="escolhido === item.id ? 'border-[3px] border-verde bg-verde-claro' : 'border border-linha'"
+                            :aria-pressed="escolhido === item.id"
                             @click="escolher(item)"
                         >
-                            <div class="text-xl font-black">{{ item.nome }}</div>
-                            <div class="mt-1 text-sm font-bold text-white/60">{{ item.localizacao }}</div>
-                            <div v-if="item.ultimo_operador" class="mt-2 text-xs text-white/40">Último: {{ item.ultimo_operador }}</div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-suave">{{ tituloTipo(item.tipo) }}</span>
+                            <span class="text-xl font-extrabold">{{ item.nome }}</span>
+                            <span class="text-sm text-suave">{{ item.localizacao }}<template v-if="item.ultimo_operador"> · Último: {{ item.ultimo_operador }}</template></span>
                         </button>
                     </div>
                 </div>
-                <form v-if="terminal && outroNome" class="mx-auto mt-2 max-w-sm rounded-xl bg-white/5 p-6" @submit.prevent="entrar">
-                    <h3 class="mb-4 text-center text-xl font-black">{{ terminal.nome }}</h3>
-                    <input v-model="form.operador_nome" type="text" autocomplete="name" class="w-full rounded-lg border-white/10 bg-white/5 p-4 text-center text-xl font-black text-white placeholder-white/30" placeholder="Nome de quem atende">
-                    <div v-if="form.errors.operador_nome" class="mt-3 rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.operador_nome }}</div>
-                    <div v-if="form.errors.pin" class="mt-3 rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.pin }}</div>
-                    <button class="mt-4 w-full rounded-xl bg-emerald-600 p-4 text-lg font-black disabled:opacity-50" :disabled="form.processing">ENTRAR SEM PIN</button>
-                </form>
-                <p v-else-if="form.processing" class="mt-2 text-center text-sm font-bold text-white/60">A entrar em {{ terminal?.nome }}…</p>
-                <div v-if="!outroNome && form.errors.operador_nome" class="mx-auto mt-2 max-w-sm rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.operador_nome }}</div>
-            </section>
 
-            <!-- POS Terminais -->
-            <section v-if="!comissao">
-                <h2 class="section-label">Terminais POS</h2>
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                    <a
-                        v-for="screen in posScreens"
-                        :key="screen.tipo"
-                        :href="route('pos.login', { tipo: screen.tipo })"
-                        class="hub-card group flex flex-col items-center gap-2 rounded-xl p-5 text-center transition"
-                        :class="tipoSelecionado === screen.tipo ? 'hub-card-active' : ''"
-                    >
-                        <span class="text-3xl">{{ screen.icon }}</span>
-                        <span class="text-sm font-black uppercase tracking-wide">{{ screen.label }}</span>
-                    </a>
-                </div>
-            </section>
-
-            <!-- Selecionar Terminal + PIN -->
-            <section v-if="!comissao && terminais && terminais.length">
-                <h2 class="section-label">Selecionar Terminal — {{ tituloTipo(tipoSelecionado) }}</h2>
-                <div class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                    <button
-                        v-for="item in terminais"
-                        :key="item.id"
-                        type="button"
-                        class="hub-card rounded-xl p-5 text-left transition"
-                        :class="escolhido === item.id ? 'hub-card-active' : ''"
-                        @click="escolher(item)"
-                    >
-                        <div class="text-xl font-black">{{ item.nome }}</div>
-                        <div class="mt-1 text-sm font-bold text-white/60">{{ item.localizacao }}</div>
-                    </button>
-                </div>
-                <form v-if="terminal" class="mx-auto mt-5 max-w-sm rounded-xl bg-white/5 p-6" @submit.prevent="entrar">
-                    <h3 class="mb-4 text-center text-xl font-black">{{ terminal.nome }}</h3>
-                    <input v-model="form.operador_nome" type="text" autocomplete="name" class="mb-3 w-full rounded-lg border-white/10 bg-white/5 p-4 text-center text-xl font-black text-white placeholder-white/30" placeholder="Nome de quem atende">
-                    <input v-model="form.pin" type="password" inputmode="numeric" autocomplete="off" autofocus class="w-full rounded-lg border-white/10 bg-white/5 p-4 text-center text-3xl font-black text-white placeholder-white/30" placeholder="PIN">
-                    <div v-if="form.errors.operador_nome" class="mt-3 rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.operador_nome }}</div>
-                    <div v-if="form.errors.pin" class="mt-3 rounded-lg bg-red-600/80 p-3 text-center font-bold">{{ form.errors.pin }}</div>
-                    <button class="mt-4 w-full rounded-xl bg-emerald-600 p-4 text-lg font-black disabled:opacity-50" :disabled="form.processing">ENTRAR</button>
-                </form>
-            </section>
-
-            <!-- Ecrãs -->
-            <section>
-                <h2 class="section-label">Ecrãs</h2>
-                <div class="grid gap-3 sm:grid-cols-3">
-                    <a
-                        v-for="ecra in ecras"
-                        :key="ecra.href"
-                        :href="ecra.href"
-                        class="hub-card flex items-center gap-4 rounded-xl p-4 transition"
-                    >
-                        <span class="text-2xl">{{ ecra.icon }}</span>
-                        <div>
-                            <div class="font-black">{{ ecra.label }}</div>
-                            <div class="text-xs text-white/50">{{ ecra.desc }}</div>
+                <!-- Modo comissão: todos os terminais por tipo -->
+                <div v-if="comissao">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="text-[15px] font-bold text-suave">Todos os terminais — 1 toque para entrar</h2>
+                        <label class="flex min-h-11 items-center gap-2 text-sm font-semibold text-suave">
+                            <input v-model="outroNome" type="checkbox" class="h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde">
+                            Entrar com outro nome
+                        </label>
+                    </div>
+                    <div v-for="(grupo, tipo) in terminaisPorTipo" :key="tipo" class="mb-5">
+                        <div class="mb-2 text-xs font-bold uppercase tracking-wider text-suave">{{ tituloTipo(tipo) }}</div>
+                        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            <button
+                                v-for="item in grupo"
+                                :key="item.id"
+                                type="button"
+                                class="flex min-h-[92px] flex-col justify-center rounded-[14px] bg-white px-4 py-3 text-left"
+                                :class="escolhido === item.id ? 'border-[3px] border-verde bg-verde-claro' : 'border border-linha'"
+                                :aria-pressed="escolhido === item.id"
+                                @click="escolher(item)"
+                            >
+                                <span class="text-xl font-extrabold">{{ item.nome }}</span>
+                                <span class="text-sm text-suave">{{ item.localizacao }}</span>
+                                <span v-if="item.ultimo_operador" class="text-xs text-suave-2">Último: {{ item.ultimo_operador }}</span>
+                            </button>
                         </div>
-                    </a>
+                    </div>
+                    <p v-if="form.processing && !outroNome" class="text-center text-sm font-semibold text-suave">A entrar em {{ terminal?.nome }}…</p>
+                    <div v-if="!outroNome && form.errors.operador_nome" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-center font-semibold text-perigo-texto">{{ form.errors.operador_nome }}</div>
+                </div>
+
+                <div class="flex-1"></div>
+
+                <!-- Ecrãs e secções -->
+                <div class="grid gap-5 border-t border-linha pt-4 md:grid-cols-2">
+                    <div>
+                        <span class="mb-2 block text-xs font-bold uppercase tracking-wider text-suave">Ecrãs</span>
+                        <div class="flex flex-wrap gap-2">
+                            <a v-for="ecra in ecras" :key="ecra.href" :href="ecra.href" :title="ecra.desc" class="flex h-11 items-center rounded-[10px] border border-linha-forte bg-white px-3.5 text-sm font-semibold text-tinta hover:text-tinta">{{ ecra.label }}</a>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="mb-2 block text-xs font-bold uppercase tracking-wider text-suave">Secções</span>
+                        <div class="flex flex-wrap gap-2">
+                            <a v-for="sec in secoes" :key="sec.href" :href="sec.href" class="flex h-11 items-center rounded-[10px] border border-linha-forte bg-white px-3.5 text-sm font-semibold" :class="sec.cor">{{ sec.label }}</a>
+                        </div>
+                    </div>
                 </div>
             </section>
 
-            <!-- Secções -->
-            <section>
-                <h2 class="section-label">Secções</h2>
-                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <a
-                        v-for="sec in secoes"
-                        :key="sec.href"
-                        :href="sec.href"
-                        class="hub-card rounded-xl px-4 py-3 text-center text-sm font-black uppercase tracking-wide transition"
-                    >
-                        {{ sec.label }}
-                    </a>
-                </div>
-            </section>
+            <!-- Painel de entrada -->
+            <aside v-if="painelComissao || (!comissao && terminais && terminais.length) || (comissao && terminal && outroNome)" aria-label="Entrar" class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-5">
+                <!-- Login da comissão -->
+                <form v-if="painelComissao" class="flex flex-1 flex-col gap-3" @submit.prevent="entrarComissao">
+                    <div>
+                        <span class="block text-lg font-extrabold">Sou da comissão</span>
+                        <span class="block text-sm text-suave">Depois de validar, entras em qualquer terminal com 1 toque, sem PIN e sem voltar a escrever o nome.</span>
+                    </div>
+                    <label class="block text-sm font-semibold text-suave">O teu nome
+                        <input v-model="comissaoForm.nome" type="text" autocomplete="name" class="mt-1 h-14 w-full rounded-[10px] border-linha-forte bg-fundo text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="O teu nome">
+                    </label>
+                    <label class="block text-sm font-semibold text-suave">PIN da comissão
+                        <input v-model="comissaoForm.pin" type="password" inputmode="numeric" autocomplete="off" class="mt-1 h-14 w-full rounded-[10px] border-2 bg-fundo text-center text-3xl font-bold tracking-[0.5em] text-tinta focus:border-verde focus:ring-verde" :class="comissaoForm.errors.pin || comissaoForm.errors.comissao_pin ? 'border-perigo' : 'border-linha-forte'" placeholder="••••">
+                    </label>
+                    <div v-for="erro in [comissaoForm.errors.nome, comissaoForm.errors.pin, comissaoForm.errors.comissao_pin].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-center text-sm font-semibold text-perigo-texto">{{ erro }}</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button v-for="t in teclasPin" :key="t" type="button" class="h-16 rounded-[10px] border border-linha-forte font-bold" :class="['del', 'clr'].includes(t) ? 'bg-fundo text-[17px]' : 'bg-white text-[26px]'" :aria-label="t === 'del' ? 'Apagar' : (t === 'clr' ? 'Limpar PIN' : t)" @click="premirTecla(comissaoForm, t)">{{ t === 'del' ? '←' : (t === 'clr' ? 'Limpar' : t) }}</button>
+                    </div>
+                    <div class="flex-1"></div>
+                    <button class="h-[72px] rounded-[14px] bg-verde text-xl font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="comissaoForm.processing">Validar</button>
+                </form>
 
+                <!-- Comissão: entrar com outro nome (sem PIN) -->
+                <form v-else-if="comissao" class="flex flex-1 flex-col gap-3" @submit.prevent="entrar">
+                    <div>
+                        <span class="block text-xs font-bold uppercase tracking-wider text-suave">Entrar em</span>
+                        <span class="block text-2xl font-extrabold">{{ terminal.nome }}</span>
+                    </div>
+                    <label class="block text-sm font-semibold text-suave">Nome de quem atende
+                        <input v-model="form.operador_nome" type="text" autocomplete="name" class="mt-1 h-14 w-full rounded-[10px] border-linha-forte bg-fundo text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="Nome de quem atende">
+                    </label>
+                    <div v-for="erro in [form.errors.operador_nome, form.errors.pin].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-center font-semibold text-perigo-texto">{{ erro }}</div>
+                    <div class="flex-1"></div>
+                    <button class="h-[72px] rounded-[14px] bg-verde text-xl font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="form.processing">Entrar sem PIN</button>
+                </form>
+
+                <!-- PIN do terminal -->
+                <form v-else class="flex flex-1 flex-col gap-3" @submit.prevent="entrar">
+                    <div>
+                        <span class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-suave"><span class="flex h-5 w-5 items-center justify-center rounded-full bg-escuro text-[11px] text-white">3</span>Entrar em</span>
+                        <span class="block text-2xl font-extrabold">{{ terminal ? terminal.nome : 'Escolhe um terminal' }}</span>
+                    </div>
+                    <label class="block text-sm font-semibold text-suave">Nome de quem atende
+                        <input v-model="form.operador_nome" type="text" autocomplete="name" class="mt-1 h-14 w-full rounded-[10px] border-linha-forte bg-fundo text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="Nome de quem atende">
+                    </label>
+                    <label class="block text-sm font-semibold text-suave">PIN do terminal
+                        <input v-model="form.pin" type="password" inputmode="numeric" autocomplete="off" autofocus class="mt-1 h-14 w-full rounded-[10px] border-2 bg-fundo text-center text-3xl font-bold tracking-[0.5em] text-tinta focus:border-verde focus:ring-verde" :class="form.errors.pin ? 'border-perigo' : 'border-linha-forte'" placeholder="••••">
+                    </label>
+                    <div v-for="erro in [form.errors.operador_nome, form.errors.pin].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-center text-sm font-semibold text-perigo-texto">{{ erro }}</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button v-for="t in teclasPin" :key="t" type="button" class="h-16 rounded-[10px] border border-linha-forte font-bold" :class="['del', 'clr'].includes(t) ? 'bg-fundo text-[17px]' : 'bg-white text-[26px]'" :aria-label="t === 'del' ? 'Apagar' : (t === 'clr' ? 'Limpar PIN' : t)" @click="premirTecla(form, t)">{{ t === 'del' ? '←' : (t === 'clr' ? 'Limpar' : t) }}</button>
+                    </div>
+                    <div class="flex-1"></div>
+                    <button class="h-[72px] rounded-[14px] bg-verde text-xl font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="!terminal || form.processing">Entrar</button>
+                </form>
+            </aside>
         </div>
     </div>
 </template>
-
-<style scoped>
-.pos-hub {
-    background: #111827;
-}
-
-.hub-header {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.section-label {
-    margin-bottom: 0.75rem;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.4);
-}
-
-.hub-card {
-    background: rgba(255, 255, 255, 0.05);
-    color: white;
-    cursor: pointer;
-    text-decoration: none;
-}
-
-.hub-card:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.hub-card-active {
-    background: rgba(16, 185, 129, 0.2);
-    outline: 2px solid rgb(16, 185, 129);
-    outline-offset: 0;
-}
-</style>

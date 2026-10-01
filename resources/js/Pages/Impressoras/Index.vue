@@ -1,12 +1,9 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
+import axios from 'axios'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import PrimaryButton from '@/Components/PrimaryButton.vue'
-import DangerButton from '@/Components/DangerButton.vue'
 import Modal from '@/Components/Modal.vue'
-import InputLabel from '@/Components/InputLabel.vue'
-import TextInput from '@/Components/TextInput.vue'
 import InputError from '@/Components/InputError.vue'
 
 const props = defineProps({
@@ -203,347 +200,348 @@ function desativarPosto(terminal) {
     }
 }
 
+// ── Estado da fila (rota statusJobs) — atualiza sozinho a cada 20s ──────────
+const fila = ref(null)
+let filaTimer = null
+async function carregarFila() {
+    try {
+        const { data } = await axios.get(route('impressoras.status-jobs'))
+        fila.value = data
+    } catch { /* sem estado da fila */ }
+}
+onMounted(() => {
+    carregarFila()
+    filaTimer = setInterval(carregarFila, 20000)
+})
+onBeforeUnmount(() => clearInterval(filaTimer))
+
+// ── Estado por impressora (calculado no servidor: estado_impressao) ─────────
+const agora = ref(Date.now())
+const relogio = setInterval(() => { agora.value = Date.now() }, 30000)
+onBeforeUnmount(() => clearInterval(relogio))
+
+const haQuanto = (iso) => {
+    if (!iso) return null
+    const min = Math.max(0, Math.round((agora.value - new Date(iso).getTime()) / 60000))
+    if (min < 1) return 'agora mesmo'
+    if (min < 60) return `há ${min} min`
+    const h = Math.round(min / 60)
+    if (h < 24) return `há ${h} h`
+    const d = Math.round(h / 24)
+    return d === 1 ? 'há 1 dia' : `há ${d} dias`
+}
+
+const estadoVisual = {
+    ok: { pill: 'bg-verde-claro text-verde-escuro', ponto: 'bg-verde-ok' },
+    erro: { pill: 'bg-perigo-claro text-perigo-texto', ponto: 'bg-perigo' },
+    atencao: { pill: 'bg-laranja-claro text-laranja-texto', ponto: 'bg-laranja' },
+    sem_atividade: { pill: 'bg-fundo text-suave', ponto: 'bg-suave-2' },
+    browser: { pill: 'bg-fundo text-suave', ponto: 'bg-azul' },
+    inativa: { pill: 'bg-fundo text-suave', ponto: 'bg-suave-2/50' },
+}
+const estadoDe = (impressora) => impressora.estado_impressao
+    ?? (impressora.ativa ? { nivel: 'sem_atividade', texto: 'Ativa' } : { nivel: 'inativa', texto: 'Inativa' })
+
+// Cor da barra no topo do cartão, pela secção (sempre com o nome escrito)
+const corSecao = {
+    frango: 'border-t-secao-grelhados text-secao-grelhados',
+    comida: 'border-t-secao-cozinha text-secao-cozinha',
+    cozinha: 'border-t-secao-cozinha text-secao-cozinha',
+    bebidas: 'border-t-secao-bar text-secao-bar',
+    bar: 'border-t-secao-bar text-secao-bar',
+    cafe: 'border-t-secao-bar text-secao-bar',
+    sobremesas: 'border-t-secao-sobremesas text-secao-sobremesas',
+    acompanhamentos: 'border-t-secao-acompanhamentos text-secao-acompanhamentos',
+}
+const classeSecao = (secao) => corSecao[secao] ?? 'border-t-secao-servico text-secao-servico'
+
+const ligacaoCurta = {
+    rede: 'Rede (Raspberry)',
+    usb: 'USB no Raspberry',
+    webusb: 'USB pelo browser',
+    navegador: 'Browser (não corta)',
+}
+
 const retentarForm = useForm({})
 function retentarFalhados() {
-    retentarForm.post(route('impressoras.retentar-falhados'))
+    retentarForm.post(route('impressoras.retentar-falhados'), { onFinish: () => carregarFila() })
 }
 </script>
 
 <template>
     <AppLayout title="Impressoras">
-        <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-slate-800">Impressoras</h2>
-        </template>
-
-        <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-            <!-- Header with Button -->
-            <div class="mb-6 flex items-center justify-between">
-                <p class="text-sm text-slate-600">
-                    Total de impressoras: <span class="font-semibold">{{ impressoras.length }}</span>
-                </p>
-                <div class="flex items-center gap-3">
-                    <a
-                        :href="route('impressoras.teste-usb')"
-                        class="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
+        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 font-sans text-tinta tabular-nums">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-[30px] font-extrabold leading-tight">Impressoras</h1>
+                    <p class="text-[15px] text-suave">Para onde vai cada talão: impressoras por secção e a impressora de cada posto.</p>
+                </div>
+                <div class="flex flex-wrap gap-2.5">
+                    <a :href="route('impressoras.teste-usb')" class="btn-sec h-12">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v14M9 6l3-3 3 3M8 11l-2 2v3M16 9l2 2v3M12 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" /></svg>
                         Teste USB (WebUSB)
                     </a>
-                    <PrimaryButton @click="openCreateModal"> + Nova Impressora </PrimaryButton>
+                    <button type="button" class="btn-pri h-12" @click="openCreateModal">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                        Nova impressora
+                    </button>
                 </div>
             </div>
 
-            <!-- Table -->
-            <div class="overflow-hidden rounded-lg bg-white shadow-sm">
-                <table class="w-full">
-                    <thead class="border-b border-slate-200 bg-slate-50">
-                        <tr>
-                            <th class="px-6 py-4 text-left text-sm font-semibold text-slate-900">Nome</th>
-                            <th class="px-6 py-4 text-left text-sm font-semibold text-slate-900">Secção</th>
-                            <th class="px-6 py-4 text-left text-sm font-semibold text-slate-900">Destino</th>
-                            <th class="px-6 py-4 text-left text-sm font-semibold text-slate-900">Posto</th>
-                            <th class="px-6 py-4 text-center text-sm font-semibold text-slate-900">Status</th>
-                            <th class="px-6 py-4 text-right text-sm font-semibold text-slate-900">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-200">
-                        <tr v-for="impressora in impressoras" :key="impressora.id" class="hover:bg-slate-50">
-                            <td class="px-6 py-4 font-medium text-slate-900">{{ impressora.nome }}</td>
-                            <td class="px-6 py-4 text-slate-600">{{ getSectionName(impressora.secao) }}</td>
-                            <td class="px-6 py-4 font-mono text-sm text-slate-600">{{ destino(impressora) }}</td>
-                            <td class="px-6 py-4 text-sm text-slate-600">{{ impressora.agente || '—' }}</td>
-                            <td class="px-6 py-4 text-center">
-                                <span
-                                    v-if="impressora.ativa"
-                                    class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
-                                >
-                                    ● Ativa
-                                </span>
-                                <span v-else class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                                    ● Inativa
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 text-right">
-                                <button
-                                    @click="openEditModal(impressora)"
-                                    class="mr-2 text-sm text-blue-600 hover:text-blue-900 hover:underline"
-                                >
-                                    Editar
-                                </button>
-                                <button
-                                    @click="deleteImpressora(impressora)"
-                                    class="text-sm text-red-600 hover:text-red-900 hover:underline"
-                                >
-                                    Remover
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <!-- Empty State -->
-                <div v-if="impressoras.length === 0" class="px-6 py-12 text-center">
-                    <p class="text-slate-500">Nenhuma impressora configurada ainda.</p>
+            <!-- Estado da fila de impressão -->
+            <section aria-label="Estado da fila de impressão" class="flex flex-col gap-2">
+                <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div class="cartao p-4">
+                        <div class="text-[13px] font-semibold text-suave">Impressos hoje</div>
+                        <div class="mt-1 text-[28px] font-extrabold leading-none">{{ fila ? fila.impresso : '—' }}</div>
+                    </div>
+                    <div class="cartao p-4">
+                        <div class="text-[13px] font-semibold text-suave">Na fila</div>
+                        <div class="mt-1 text-[28px] font-extrabold leading-none">{{ fila ? fila.pendente : '—' }}</div>
+                    </div>
+                    <div class="cartao p-4">
+                        <div class="text-[13px] font-semibold text-suave">A imprimir</div>
+                        <div class="mt-1 text-[28px] font-extrabold leading-none">{{ fila ? fila.processando : '—' }}</div>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 rounded-[14px] border p-4" :class="fila?.falhado ? 'border-perigo-claro bg-perigo-claro' : 'border-linha bg-white'">
+                        <div>
+                            <div class="text-[13px] font-semibold" :class="fila?.falhado ? 'text-perigo-texto' : 'text-suave'">Falhados</div>
+                            <div class="mt-1 text-[28px] font-extrabold leading-none" :class="fila?.falhado ? 'text-perigo' : ''">{{ fila ? fila.falhado : '—' }}</div>
+                        </div>
+                        <button
+                            type="button"
+                            :disabled="retentarForm.processing"
+                            class="h-11 shrink-0 rounded-[10px] bg-perigo px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+                            @click="retentarFalhados"
+                        >
+                            {{ retentarForm.processing ? 'A processar...' : 'Retentar' }}
+                        </button>
+                    </div>
                 </div>
-            </div>
-        </div>
+                <p class="text-[13px] text-suave">Se o pedido não imprimiu tudo, "Retentar" coloca os jobs falhados de volta na fila.</p>
+            </section>
 
-        <!-- Postos POS -->
-        <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-            <div class="rounded-lg bg-white p-5 shadow-sm">
-                <h3 class="font-semibold text-slate-900">Postos POS</h3>
-                <p class="mt-1 text-sm text-slate-600">
+            <div v-if="postosSemImpressora.length" class="flex items-start gap-3 rounded-[14px] border border-perigo-claro bg-perigo-claro p-4 text-sm text-perigo-texto">
+                <svg class="mt-0.5 shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z" /><path d="M12 10v4M12 17.5v.5" /></svg>
+                <p><strong class="font-extrabold">Sem impressora definida: {{ postosSemImpressora.map((t) => t.nome).join(', ') }}.</strong> Os talões destes postos vão sair na primeira impressora da secção — na prática, no posto do lado.</p>
+            </div>
+
+            <div v-if="impressorasRepetidas.length" class="flex items-start gap-3 rounded-[14px] border border-laranja-claro bg-laranja-claro p-4 text-sm text-laranja-texto">
+                <svg class="mt-0.5 shrink-0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16v.5" /></svg>
+                <p><strong class="font-extrabold">Impressora partilhada por mais do que um posto: {{ impressorasRepetidas.map((i) => i.nome).join(', ') }}.</strong> Se cada posto tem a sua, isto é engano.</p>
+            </div>
+
+            <!-- Impressoras por secção -->
+            <div class="flex flex-wrap items-end justify-between gap-2">
+                <h2 class="text-xl font-extrabold">Impressoras por secção</h2>
+                <p class="text-[13px] text-suave">Total de impressoras: <strong class="text-tinta">{{ impressoras.length }}</strong></p>
+            </div>
+
+            <div v-if="impressoras.length === 0" class="cartao p-10 text-center text-suave-2">Nenhuma impressora configurada ainda.</div>
+
+            <div class="grid gap-3.5 md:grid-cols-2 xl:grid-cols-3">
+                <article v-for="impressora in impressoras" :key="impressora.id" class="flex flex-col gap-3 rounded-[14px] border border-t-4 border-linha bg-white p-4" :class="[classeSecao(impressora.secao), impressora.ativa ? '' : 'opacity-80']">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="text-xs font-extrabold uppercase tracking-[0.08em]">{{ getSectionName(impressora.secao) === '—' ? 'Sem secção' : getSectionName(impressora.secao) }}</p>
+                            <h3 class="text-lg font-extrabold leading-tight text-tinta">{{ impressora.nome }}</h3>
+                        </div>
+                        <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-extrabold" :class="estadoVisual[estadoDe(impressora).nivel]?.pill">
+                            <span class="h-2 w-2 rounded-full" :class="estadoVisual[estadoDe(impressora).nivel]?.ponto"></span>
+                            {{ estadoDe(impressora).texto }}
+                        </span>
+                    </div>
+
+                    <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm text-tinta">
+                        <dt class="text-suave">Ligação</dt>
+                        <dd class="font-semibold">{{ ligacaoCurta[impressora.tipo] ?? impressora.tipo }}</dd>
+                        <dt class="text-suave">Destino</dt>
+                        <dd class="break-words font-mono text-[13px] font-semibold">{{ destino(impressora) }}</dd>
+                        <dt class="text-suave">Posto (agente)</dt>
+                        <dd class="font-semibold">{{ impressora.agente || '—' }}</dd>
+                    </dl>
+
+                    <div v-if="impressora.estado_impressao && impressora.ativa && impressora.estado_impressao.nivel !== 'browser'" class="rounded-[10px] bg-fundo px-3 py-2 text-[13px] text-suave">
+                        <p v-if="impressora.estado_impressao.ultimo_ok_at">Último talão impresso <strong class="text-tinta">{{ haQuanto(impressora.estado_impressao.ultimo_ok_at) }}</strong></p>
+                        <p v-else>Ainda sem talões confirmados pelo agente.</p>
+                        <p v-if="impressora.estado_impressao.pendentes">{{ impressora.estado_impressao.pendentes }} na fila</p>
+                        <p v-if="impressora.estado_impressao.falhados" class="text-perigo-texto">
+                            Último erro {{ haQuanto(impressora.estado_impressao.ultimo_erro_at) }}<span v-if="impressora.estado_impressao.ultimo_erro">: {{ impressora.estado_impressao.ultimo_erro }}</span>
+                        </p>
+                    </div>
+
+                    <div class="mt-auto flex gap-2 border-t border-linha-fraca pt-3">
+                        <button type="button" class="btn-sec h-11 flex-1" @click="openEditModal(impressora)">Editar</button>
+                        <button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-[10px] border border-linha-forte bg-white text-perigo hover:bg-perigo-claro" :aria-label="`Remover a impressora ${impressora.nome}`" title="Remover" @click="deleteImpressora(impressora)">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+                        </button>
+                    </div>
+                </article>
+            </div>
+
+            <!-- Postos POS -->
+            <div class="mt-3 flex flex-col gap-1">
+                <h2 class="text-xl font-extrabold">Postos POS</h2>
+                <p class="max-w-3xl text-sm text-suave">
                     Cada posto tem o seu PIN e a sua impressora. Como qualquer posto pode vender
                     qualquer produto, é a impressora do posto que manda — sem ela definida, o talão
                     sai na primeira impressora da secção, que com vários pontos é quase sempre a errada.
-                    Podes criar aqui um posto novo a meio do evento, um telemóvel a ajudar num pico, por exemplo.
-                    <strong>Como</strong> cada posto imprime vem da impressora que escolheres — agente, WebUSB
+                    <strong class="text-tinta">Como</strong> cada posto imprime vem da impressora que escolheres — agente, WebUSB
                     ou impressão do browser — e não precisa de programação nenhuma.
                 </p>
-
-                <div v-if="postosSemImpressora.length" class="mt-4 rounded-md bg-red-50 p-4 text-sm text-red-800">
-                    <strong>Sem impressora definida:</strong>
-                    {{ postosSemImpressora.map((t) => t.nome).join(', ') }}.
-                    Os talões destes postos vão sair na primeira impressora da secção — na prática,
-                    no posto do lado.
-                </div>
-
-                <div v-if="impressorasRepetidas.length" class="mt-4 rounded-md bg-amber-50 p-4 text-sm text-amber-800">
-                    <strong>Impressora partilhada por mais do que um posto:</strong>
-                    {{ impressorasRepetidas.map((i) => i.nome).join(', ') }}.
-                    Se cada posto tem a sua, isto é engano.
-                </div>
-
-                <div v-if="!terminais.length" class="mt-4 rounded-md bg-slate-50 p-4 text-center text-sm text-slate-500">
-                    Ainda não há postos configurados.
-                </div>
-
-                <div v-else class="mt-4 divide-y divide-slate-100">
-                    <div v-for="terminal in terminais" :key="terminal.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
-                        <div class="min-w-0">
-                            <span class="font-medium text-slate-900">{{ terminal.nome }}</span>
-                            <span class="ml-2 text-xs uppercase text-slate-500">{{ terminal.tipo }}</span>
-                            <span v-if="terminal.localizacao" class="ml-2 text-xs text-slate-500">· {{ terminal.localizacao }}</span>
-                            <span v-if="!terminal.ativo" class="ml-2 text-xs font-semibold text-amber-700">inativo</span>
-                            <span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
-                                {{ comoImprime(terminal) }}
-                            </span>
-                        </div>
-                        <div class="flex flex-wrap items-center gap-3">
-                            <select
-                                class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900"
-                                :value="terminal.impressora_id || ''"
-                                @change="guardarImpressoraDoPosto(terminal, $event.target.value)"
-                            >
-                                <option value="">Pela secção (comportamento antigo)</option>
-                                <option v-for="impressora in impressoras" :key="impressora.id" :value="impressora.id">
-                                    {{ impressora.nome }}
-                                </option>
-                            </select>
-                            <button type="button" class="text-sm font-medium text-blue-600 hover:underline" @click="editarPosto(terminal)">Editar</button>
-                            <button v-if="terminal.ativo" type="button" class="text-sm font-medium text-red-600 hover:underline" @click="desativarPosto(terminal)">Desativar</button>
-                        </div>
-                    </div>
-                </div>
-
-                <form class="mt-5 border-t border-slate-100 pt-5" @submit.prevent="guardarPosto">
-                    <div class="mb-3 flex items-center justify-between">
-                        <h4 class="text-sm font-semibold text-slate-900">
-                            {{ postoEmEdicao ? `Editar posto: ${postoEmEdicao.nome}` : 'Novo posto' }}
-                        </h4>
-                        <button v-if="postoEmEdicao" type="button" class="text-xs font-medium text-slate-500 hover:underline" @click="novoPosto">
-                            Cancelar edição
-                        </button>
-                    </div>
-
-                    <div class="grid gap-3 md:grid-cols-5">
-                        <div>
-                            <InputLabel for="posto_nome" value="Nome *" />
-                            <TextInput id="posto_nome" v-model="postoForm.nome" type="text" class="mt-1 block w-full" placeholder="ex: Pré-pagamento 3" />
-                            <InputError class="mt-1" :message="postoForm.errors.nome" />
-                        </div>
-                        <div>
-                            <InputLabel for="posto_tipo" value="Tipo *" />
-                            <select
-                                id="posto_tipo"
-                                v-model="postoForm.tipo"
-                                class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
-                            >
-                                <option v-for="tipo in tipos" :key="tipo" :value="tipo">{{ tipo }}</option>
-                            </select>
-                            <InputError class="mt-1" :message="postoForm.errors.tipo" />
-                        </div>
-                        <div>
-                            <InputLabel for="posto_local" value="Localização" />
-                            <TextInput id="posto_local" v-model="postoForm.localizacao" type="text" class="mt-1 block w-full" placeholder="ex: Tenda" />
-                            <InputError class="mt-1" :message="postoForm.errors.localizacao" />
-                        </div>
-                        <div>
-                            <InputLabel for="posto_pin" :value="postoEmEdicao ? 'PIN (em branco: mantém)' : 'PIN *'" />
-                            <TextInput id="posto_pin" v-model="postoForm.pin" type="text" class="mt-1 block w-full" placeholder="4 a 12 dígitos" />
-                            <InputError class="mt-1" :message="postoForm.errors.pin" />
-                        </div>
-                        <div>
-                            <InputLabel for="posto_impressora" value="Impressora" />
-                            <select
-                                id="posto_impressora"
-                                v-model="postoForm.impressora_id"
-                                class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900"
-                            >
-                                <option value="">Pela secção</option>
-                                <option v-for="impressora in impressoras" :key="impressora.id" :value="impressora.id">
-                                    {{ impressora.nome }}
-                                </option>
-                            </select>
-                            <InputError class="mt-1" :message="postoForm.errors.impressora_id" />
-                        </div>
-                    </div>
-
-                    <div class="mt-3 flex items-center justify-between gap-4">
-                        <label class="flex items-center gap-2 text-sm text-slate-700">
-                            <input v-model="postoForm.ativo" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
-                            Posto ativo
-                        </label>
-                        <PrimaryButton type="submit" :disabled="postoForm.processing">
-                            {{ postoEmEdicao ? 'Guardar posto' : 'Criar posto' }}
-                        </PrimaryButton>
-                    </div>
-                </form>
             </div>
-        </div>
 
-        <!-- Retentar Falhados -->
-        <div class="mt-6 rounded-lg border border-red-200 bg-red-50 p-5">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <div class="min-w-0">
-                    <h3 class="font-semibold text-red-900">Jobs de impressão falhados</h3>
-                    <p class="mt-1 text-sm text-red-700">
-                        Se o pedido não imprimiu tudo, usa este botão para colocar os jobs falhados de volta na fila.
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    :disabled="retentarForm.processing"
-                    class="shrink-0 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60 transition"
-                    @click="retentarFalhados"
-                >
-                    {{ retentarForm.processing ? 'A processar...' : 'Retentar jobs falhados' }}
-                </button>
+            <div class="cartao overflow-hidden">
+                <div v-if="!terminais.length" class="p-6 text-center text-sm text-suave-2">Ainda não há postos configurados.</div>
+                <template v-else>
+                    <div class="hidden grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)_auto] gap-3 border-b border-linha-fraca px-5 py-3 text-[13px] font-semibold text-suave lg:grid">
+                        <span>Posto</span><span>Impressora deste posto</span><span>Como imprime</span><span class="text-right">Ações</span>
+                    </div>
+                    <ul class="divide-y divide-linha-fraca">
+                        <li v-for="terminal in terminais" :key="terminal.id" class="grid items-center gap-3 px-4 py-3 sm:px-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)_auto]" :class="terminal.ativo && !terminal.impressora_id ? 'bg-perigo-claro/40' : ''">
+                            <div class="min-w-0">
+                                <div class="font-bold">
+                                    {{ terminal.nome }}
+                                    <span v-if="terminal.ativo && !terminal.impressora_id" class="ml-1 text-xs font-bold text-perigo">Sem impressora</span>
+                                    <span v-if="!terminal.ativo" class="ml-1 text-xs font-bold text-laranja-texto">inativo</span>
+                                </div>
+                                <div class="text-[13px] text-suave">{{ terminal.tipo }}<span v-if="terminal.localizacao"> · {{ terminal.localizacao }}</span></div>
+                            </div>
+                            <label class="block min-w-0">
+                                <span class="sr-only">Impressora do posto {{ terminal.nome }}</span>
+                                <select
+                                    class="h-12 w-full rounded-[10px] border bg-white px-3.5 text-[15px] font-semibold text-tinta focus:border-verde focus:ring-verde"
+                                    :class="terminal.ativo && !terminal.impressora_id ? 'border-perigo' : 'border-linha-forte'"
+                                    :value="terminal.impressora_id || ''"
+                                    @change="guardarImpressoraDoPosto(terminal, $event.target.value)"
+                                >
+                                    <option value="">Pela secção (comportamento antigo)</option>
+                                    <option v-for="impressora in impressoras" :key="impressora.id" :value="impressora.id">{{ impressora.nome }}</option>
+                                </select>
+                            </label>
+                            <div><span class="rounded-full bg-fundo px-2.5 py-1 text-xs font-bold text-suave">{{ comoImprime(terminal) }}</span></div>
+                            <div class="flex gap-2 lg:justify-end">
+                                <button type="button" class="btn-sec h-11 flex-1 lg:flex-none" @click="editarPosto(terminal)">Editar</button>
+                                <button v-if="terminal.ativo" type="button" class="btn-sec h-11 flex-1 text-perigo hover:bg-perigo-claro lg:flex-none" @click="desativarPosto(terminal)">Desativar</button>
+                            </div>
+                        </li>
+                    </ul>
+                </template>
             </div>
-        </div>
 
-        <!-- Download Agente -->
-        <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <div class="min-w-0">
-                    <h3 class="font-semibold text-stone-800">Agente de impressão</h3>
-                    <p class="mt-1 text-sm text-stone-600">
+            <form class="cartao flex flex-col gap-3 p-4 sm:p-5" :class="postoEmEdicao ? 'border-verde' : ''" @submit.prevent="guardarPosto">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <h3 class="text-lg font-extrabold">{{ postoEmEdicao ? `Editar posto: ${postoEmEdicao.nome}` : 'Novo posto' }}</h3>
+                        <p class="text-[13px] text-suave">Podes criar aqui um posto novo a meio do evento — um telemóvel a ajudar num pico, por exemplo.</p>
+                    </div>
+                    <button v-if="postoEmEdicao" type="button" class="btn-sec h-11 text-sm" @click="novoPosto">Cancelar edição</button>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <label class="rotulo" for="posto_nome">Nome *
+                        <input id="posto_nome" v-model="postoForm.nome" type="text" class="campo" placeholder="ex: Pré-pagamento 3">
+                        <InputError :message="postoForm.errors.nome" />
+                    </label>
+                    <label class="rotulo" for="posto_tipo">Tipo *
+                        <select id="posto_tipo" v-model="postoForm.tipo" class="campo">
+                            <option v-for="tipo in tipos" :key="tipo" :value="tipo">{{ tipo }}</option>
+                        </select>
+                        <InputError :message="postoForm.errors.tipo" />
+                    </label>
+                    <label class="rotulo" for="posto_local">Localização
+                        <input id="posto_local" v-model="postoForm.localizacao" type="text" class="campo" placeholder="ex: Tenda">
+                        <InputError :message="postoForm.errors.localizacao" />
+                    </label>
+                    <label class="rotulo" for="posto_pin">{{ postoEmEdicao ? 'PIN (em branco: mantém)' : 'PIN *' }}
+                        <input id="posto_pin" v-model="postoForm.pin" type="text" inputmode="numeric" class="campo" placeholder="4 a 12 dígitos">
+                        <InputError :message="postoForm.errors.pin" />
+                    </label>
+                    <label class="rotulo" for="posto_impressora">Impressora
+                        <select id="posto_impressora" v-model="postoForm.impressora_id" class="campo">
+                            <option value="">Pela secção</option>
+                            <option v-for="impressora in impressoras" :key="impressora.id" :value="impressora.id">{{ impressora.nome }}</option>
+                        </select>
+                        <InputError :message="postoForm.errors.impressora_id" />
+                    </label>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <label class="flex h-11 cursor-pointer items-center gap-3 text-[15px] font-bold">
+                        <input v-model="postoForm.ativo" type="checkbox" class="h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde" />
+                        Posto ativo
+                    </label>
+                    <button type="submit" class="btn-pri h-12 px-6 disabled:opacity-60" :disabled="postoForm.processing">
+                        {{ postoEmEdicao ? 'Guardar posto' : 'Criar posto' }}
+                    </button>
+                </div>
+            </form>
+
+            <!-- Agente de impressão -->
+            <section class="cartao flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5">
+                <div class="min-w-0 max-w-3xl">
+                    <h3 class="text-lg font-extrabold">Agente de impressão</h3>
+                    <p class="mt-1 text-sm text-suave">
                         Corre no computador de cada posto: em Windows com as impressoras por USB, ou num
                         Raspberry Pi na rede das impressoras. O script abaixo é para Linux/Raspberry.
                     </p>
-                    <p class="mt-1 text-xs text-stone-500 font-mono">
-                        chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh
-                    </p>
+                    <code class="mt-2 inline-block rounded-md bg-fundo px-2 py-1 font-mono text-xs text-tinta">chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh</code>
                 </div>
-                <a
-                    :href="route('impressoras.download-agente')"
-                    class="shrink-0 rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition"
-                >
-                    ↓ Download setup-pi.sh
+                <a :href="route('impressoras.download-agente')" class="inline-flex h-12 shrink-0 items-center gap-2 rounded-[10px] bg-tinta px-5 text-[15px] font-bold text-white transition hover:bg-escuro-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
+                    Download setup-pi.sh
                 </a>
-            </div>
+            </section>
         </div>
 
         <!-- Modal -->
         <Modal :show="showModal" @close="closeModal">
-            <div class="p-6">
-                <h3 class="mb-4 text-lg font-semibold text-slate-900">{{ modalTitle }}</h3>
+            <div class="p-5 font-sans text-tinta sm:p-6">
+                <h3 class="mb-4 text-xl font-extrabold">{{ modalTitle }}</h3>
 
-                <form @submit.prevent="submit" class="space-y-4">
-                    <div>
-                        <InputLabel for="nome" value="Nome *" />
-                        <TextInput
-                            id="nome"
-                            v-model="form.nome"
-                            type="text"
-                            class="mt-1 block w-full"
-                            placeholder="ex: Impressora Bar"
-                        />
-                        <InputError class="mt-2" :message="form.errors.nome" />
-                    </div>
+                <form class="flex flex-col gap-4" @submit.prevent="submit">
+                    <label class="rotulo" for="nome">Nome *
+                        <input id="nome" v-model="form.nome" type="text" class="campo" placeholder="ex: Impressora Bar">
+                        <InputError :message="form.errors.nome" />
+                    </label>
 
-                    <div>
-                        <InputLabel for="secao" value="Secção" />
-                        <select
-                            id="secao"
-                            v-model="form.secao"
-                            class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                        >
+                    <label class="rotulo" for="secao">Secção
+                        <select id="secao" v-model="form.secao" class="campo">
                             <option value="">Sem secção</option>
-                            <option v-for="(label, value) in secoes" :key="value" :value="value">
-                                {{ label }}
-                            </option>
+                            <option v-for="(label, value) in secoes" :key="value" :value="value">{{ label }}</option>
                         </select>
-                        <InputError class="mt-2" :message="form.errors.secao" />
-                    </div>
+                        <InputError :message="form.errors.secao" />
+                    </label>
 
-                    <div>
-                        <InputLabel for="tipo" value="Ligação *" />
-                        <select
-                            id="tipo"
-                            v-model="form.tipo"
-                            class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-blue-500"
-                        >
+                    <label class="rotulo" for="tipo">Ligação *
+                        <select id="tipo" v-model="form.tipo" class="campo">
                             <option v-for="(label, valor) in tiposImpressora" :key="valor" :value="valor">{{ label }}</option>
                         </select>
-                        <InputError class="mt-2" :message="form.errors.tipo" />
+                        <InputError :message="form.errors.tipo" />
+                    </label>
+
+                    <div v-if="form.tipo === 'rede'" class="grid gap-4 sm:grid-cols-[2fr_1fr]">
+                        <label class="rotulo" for="host">Host/IP *
+                            <input id="host" v-model="form.host" type="text" class="campo" placeholder="ex: 192.168.1.100">
+                            <InputError :message="form.errors.host" />
+                        </label>
+                        <label class="rotulo" for="porta">Porta *
+                            <input id="porta" v-model.number="form.porta" type="number" class="campo" placeholder="ex: 9100" min="1" max="65535">
+                            <InputError :message="form.errors.porta" />
+                        </label>
                     </div>
 
-                    <template v-if="form.tipo === 'rede'">
-                        <div>
-                            <InputLabel for="host" value="Host/IP *" />
-                            <TextInput
-                                id="host"
-                                v-model="form.host"
-                                type="text"
-                                class="mt-1 block w-full"
-                                placeholder="ex: 192.168.1.100"
-                            />
-                            <InputError class="mt-2" :message="form.errors.host" />
-                        </div>
-
-                        <div>
-                            <InputLabel for="porta" value="Porta *" />
-                            <TextInput
-                                id="porta"
-                                v-model.number="form.porta"
-                                type="number"
-                                class="mt-1 block w-full"
-                                placeholder="ex: 9100"
-                                min="1"
-                                max="65535"
-                            />
-                            <InputError class="mt-2" :message="form.errors.porta" />
-                        </div>
-                    </template>
-
-                    <div v-else-if="form.tipo === 'usb'">
-                        <InputLabel for="dispositivo" value="Dispositivo *" />
-                        <TextInput
-                            id="dispositivo"
-                            v-model="form.dispositivo"
-                            type="text"
-                            class="mt-1 block w-full"
-                            placeholder="ex: POS-80C   ou   /dev/usb/lp0"
-                        />
-                        <p class="mt-1 text-xs text-slate-500">
+                    <label v-else-if="form.tipo === 'usb'" class="rotulo" for="dispositivo">Dispositivo *
+                        <input id="dispositivo" v-model="form.dispositivo" type="text" class="campo" placeholder="ex: POS-80C   ou   /dev/usb/lp0">
+                        <span class="text-xs font-normal text-suave">
                             No Raspberry/Linux, o ficheiro do dispositivo, normalmente
-                            <code>/dev/usb/lp0</code>. Esta opção é para uma impressora ligada ao
+                            <code class="font-mono">/dev/usb/lp0</code>. Esta opção é para uma impressora ligada ao
                             computador onde corre o agente, não aos postos.
-                        </p>
-                        <InputError class="mt-2" :message="form.errors.dispositivo" />
-                    </div>
+                        </span>
+                        <InputError :message="form.errors.dispositivo" />
+                    </label>
 
-                    <div v-else-if="form.tipo === 'webusb'" class="rounded-md bg-emerald-50 p-3 text-xs text-emerald-900">
+                    <div v-else-if="form.tipo === 'webusb'" class="rounded-[10px] bg-verde-claro p-3 text-[13px] text-verde-escuro">
                         Não há nada a preencher: a impressora é escolhida uma vez em cada equipamento,
                         na primeira venda ou pela página <strong>Teste USB (WebUSB)</strong>.
                         <span class="mt-1 block">
@@ -557,52 +555,40 @@ function retentarFalhados() {
                         </span>
                     </div>
 
-                    <div v-else class="rounded-md bg-amber-50 p-3 text-xs text-amber-900">
+                    <div v-else class="rounded-[10px] bg-laranja-claro p-3 text-[13px] text-laranja-texto">
                         Impressão normal do browser: serve para impressoras comuns. Numa térmica sai
                         desalinhada e <strong>não corta</strong>, porque o comando de corte não existe no HTML.
                     </div>
 
-                    <div v-if="form.tipo === 'rede' || form.tipo === 'usb'">
-                        <InputLabel for="agente" value="Posto (agente)" />
-                        <TextInput
-                            id="agente"
-                            v-model="form.agente"
-                            type="text"
-                            class="mt-1 block w-full"
-                            placeholder="ex: caixa-1"
-                        />
-                        <p class="mt-1 text-xs text-slate-500">
+                    <label v-if="form.tipo === 'rede' || form.tipo === 'usb'" class="rotulo" for="agente">Posto (agente)
+                        <input id="agente" v-model="form.agente" type="text" class="campo" placeholder="ex: caixa-1">
+                        <span class="text-xs font-normal text-suave">
                             Que computador trata desta impressora. Tem de ser igual ao AGENTE
                             configurado no agente desse posto. Em branco: só um agente sem posto
                             definido a vai buscar.
-                        </p>
-                        <InputError class="mt-2" :message="form.errors.agente" />
-                    </div>
+                        </span>
+                        <InputError :message="form.errors.agente" />
+                    </label>
 
-                    <div class="flex items-center gap-2">
-                         <input
-                            id="ativa"
-                            v-model="form.ativa"
-                            type="checkbox"
-                            class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <label for="ativa" class="text-sm font-medium text-slate-700">Impressora Ativa</label>
-                    </div>
+                    <label for="ativa" class="flex h-12 cursor-pointer items-center gap-3 rounded-[10px] border border-linha-forte px-3.5 text-[15px] font-bold">
+                        <input id="ativa" v-model="form.ativa" type="checkbox" class="h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde" />
+                        Impressora ativa
+                    </label>
 
-                    <div class="flex justify-end gap-3 pt-4">
-                        <button
-                            type="button"
-                            @click="closeModal"
-                            class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                            Cancelar
-                        </button>
-                        <PrimaryButton type="submit" :disabled="form.processing">
-                            {{ isEditing ? 'Atualizar' : 'Criar' }}
-                        </PrimaryButton>
+                    <div class="flex justify-end gap-2.5 pt-2">
+                        <button type="button" class="btn-sec h-12" @click="closeModal">Cancelar</button>
+                        <button type="submit" class="btn-pri h-12 px-6 disabled:opacity-60" :disabled="form.processing">{{ isEditing ? 'Atualizar' : 'Criar' }}</button>
                     </div>
                 </form>
             </div>
         </Modal>
     </AppLayout>
 </template>
+
+<style scoped>
+.btn-pri { @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-verde px-5 text-[15px] font-bold text-white transition hover:bg-verde-escuro; }
+.btn-sec { @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta transition hover:bg-fundo; }
+.cartao { @apply rounded-[14px] border border-linha bg-white; }
+.rotulo { @apply flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-suave; }
+.campo { @apply h-12 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-base font-normal text-tinta focus:border-verde focus:ring-verde; }
+</style>

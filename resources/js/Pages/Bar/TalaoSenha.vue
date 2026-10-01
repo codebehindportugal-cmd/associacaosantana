@@ -57,27 +57,39 @@ onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageS
 </script>
 
 <template>
-    <main class="thermal-ticket-page min-h-screen bg-slate-100 p-4 text-slate-950 print:min-h-0 print:bg-white print:p-0">
-        <section ref="ticketRef" class="thermal-ticket mx-auto max-w-[300px] bg-white p-4 font-mono shadow print:shadow-none">
-            <h1 class="text-center text-lg font-black">Associação de Santana</h1>
-            <div class="text-center font-black">BAR</div>
-            <div class="text-center text-xs font-bold">Operador: {{ operador }}</div>
-            <div class="ticket-token my-4 border-y border-dashed border-slate-400 py-4 text-center"><div class="text-xs uppercase">Número da senha</div><div class="ticket-number text-5xl font-black">#{{ pedido.numero_senha || pedido.id }}</div></div>
-            <div class="ticket-items space-y-2 text-lg font-black">
+    <main class="thermal-ticket-page min-h-screen bg-fundo p-4 text-black tabular-nums print:min-h-0 print:bg-white print:p-0">
+        <section ref="ticketRef" class="thermal-ticket mx-auto max-w-[302px] bg-white px-3 pb-[18px] pt-3.5 font-mono shadow print:shadow-none">
+            <div class="text-center">
+                <h1 class="text-[15px] font-bold">Associação de Santana</h1>
+                <div class="mt-1.5 inline-block bg-black px-3.5 py-0.5 text-[15px] font-bold tracking-[.2em] text-white">BAR</div>
+                <div class="mt-1 text-[11px] font-bold">Operador: {{ operador }}</div>
+            </div>
+            <div class="ticket-token my-3 border-y border-dashed border-black py-2.5 text-center">
+                <div class="text-[11px] uppercase tracking-[.12em]">Número da senha</div>
+                <div class="ticket-number font-sans text-[88px] font-extrabold leading-none tracking-[-.02em]">#{{ pedido.numero_senha || pedido.id }}</div>
+            </div>
+            <div class="ticket-items text-lg font-bold leading-relaxed">
                 <div v-for="item in itemsImpressao" :key="item.printKey" class="flex justify-between gap-2">
                     <span>{{ item.produto?.nome }}</span>
                     <span>1 un.</span>
                 </div>
             </div>
-            <div class="ticket-totals mt-4 border-t border-dashed border-slate-400 pt-3 text-sm">
-                <div class="flex justify-between"><span>Total</span><strong>{{ euros(pedido.total) }}</strong></div>
-                <div class="flex justify-between"><span>Recebido</span><strong>{{ euros(pedido.valor_recebido) }}</strong></div>
-                <div class="flex justify-between"><span>Troco</span><strong>{{ euros(pedido.troco) }}</strong></div>
-                <div v-if="Number(pedido.doacao || 0) > 0" class="flex justify-between"><span>Doação</span><strong>{{ euros(pedido.doacao) }}</strong></div>
+            <div class="ticket-totals mt-2.5 border-t border-dashed border-black pt-2 text-[13px] leading-relaxed">
+                <div class="flex items-baseline justify-between text-lg font-bold"><span>TOTAL</span><span>{{ euros(pedido.total) }}</span></div>
+                <div class="flex justify-between"><span>Recebido</span><span>{{ euros(pedido.valor_recebido) }}</span></div>
+                <div class="flex justify-between font-bold"><span>Troco</span><span>{{ euros(pedido.troco) }}</span></div>
+                <div v-if="Number(pedido.doacao || 0) > 0" class="flex justify-between"><span>Doação</span><span>{{ euros(pedido.doacao) }}</span></div>
             </div>
-            <div class="ticket-date mt-4 text-center text-xs">{{ data() }}</div><div class="ticket-thanks mt-3 text-center font-black">Obrigado!</div>
+            <div class="ticket-date mt-2.5 text-center text-[11px]">{{ data() }}</div>
+            <div class="ticket-thanks mt-1.5 text-center text-[15px] font-bold">Obrigado!</div>
         </section>
-        <div class="no-print mx-auto mt-4 flex max-w-[300px] gap-2 print:hidden"><button class="flex-1 rounded-xl bg-slate-900 px-4 py-3 font-black text-white" @click="printTicket">Imprimir</button><Link :href="route('bar.prepago')" class="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white">Novo Pedido</Link></div>
+        <div class="no-print mx-auto mt-4 flex max-w-[302px] gap-2 font-sans print:hidden">
+            <button class="flex h-14 flex-1 items-center justify-center gap-2 rounded-[10px] bg-escuro px-4 font-extrabold text-white" @click="printTicket">
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                Imprimir
+            </button>
+            <Link :href="route('bar.prepago')" class="flex h-14 flex-1 items-center justify-center rounded-[10px] bg-verde px-4 text-center font-extrabold text-white hover:bg-verde-escuro">Novo pedido</Link>
+        </div>
     </main>
 </template>
 

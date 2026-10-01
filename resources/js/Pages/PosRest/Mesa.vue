@@ -193,8 +193,9 @@ const enviarPedido = () => {
         onError: () => mostrarAviso('Nao foi possivel enviar o pedido. Confirma os produtos e tenta novamente.'),
     });
 };
-const cancelarPedido = () => {
-    if (!props.pedido || !confirm('Cancelar este pedido e libertar a mesa?')) return;
+// `confirmado` = já confirmado no diálogo do ecrã (sem confirm() nativo)
+const cancelarPedido = (confirmado = false) => {
+    if (!props.pedido || (confirmado !== true && !confirm('Cancelar este pedido e libertar a mesa?'))) return;
     mostrarAviso('A cancelar pedido...');
     router.patch(route('pos.rest.pedido.estado', props.pedido.id), { estado: 'cancelado' }, {
         preserveScroll: true,
@@ -286,245 +287,385 @@ onBeforeUnmount(() => {
     window.clearInterval(relogioAnulacaoTimer);
     window.clearTimeout(avisoTimer);
 });
+
+// ---------------------------------------------------------------------------
+// Estado e formatação só para a UI do redesign (não muda a lógica acima)
+// ---------------------------------------------------------------------------
+const modal = ref(null); // 'qrs' | 'extras' | 'cancelar'
+const abaPedido = computed(() => (separadorAtual.value === 'conta' ? 'conta' : 'envio'));
+const irPara = (aba) => { separadorAtual.value = aba; };
+const eur = (v) => Number(v ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const secoesInfo = {
+    cozinha: { label: 'Cozinha', dot: 'bg-secao-cozinha', text: 'text-secao-cozinha', chip: 'border-secao-cozinha/40 text-secao-cozinha' },
+    comida: { label: 'Comida', dot: 'bg-secao-grelhados', text: 'text-secao-grelhados', chip: 'border-secao-grelhados/40 text-secao-grelhados' },
+    frango: { label: 'Frango', dot: 'bg-secao-grelhados', text: 'text-secao-grelhados', chip: 'border-secao-grelhados/40 text-secao-grelhados' },
+    bebidas: { label: 'Bebidas', dot: 'bg-secao-bar', text: 'text-secao-bar', chip: 'border-secao-bar/40 text-secao-bar' },
+    acompanhamentos: { label: 'Acompanhamentos', dot: 'bg-secao-acompanhamentos', text: 'text-secao-acompanhamentos', chip: 'border-secao-acompanhamentos/40 text-secao-acompanhamentos' },
+    sobremesas: { label: 'Sobremesas', dot: 'bg-secao-sobremesas', text: 'text-secao-sobremesas', chip: 'border-secao-sobremesas/40 text-secao-sobremesas' },
+    servico: { label: 'Serviço', dot: 'bg-secao-servico', text: 'text-secao-servico', chip: 'border-secao-servico/40 text-secao-servico' },
+};
+const secaoDe = (produto) => secoesInfo[produto?.categoria?.secao] ?? { label: produto?.categoria?.nome ?? 'Outros', dot: 'bg-suave', text: 'text-suave', chip: 'border-linha-forte text-suave' };
+const corCategoria = (cat) => secaoDe((props.produtos?.[cat] ?? [])[0]).dot;
+const produtosPorId = computed(() => Object.fromEntries(Object.values(props.produtos ?? {}).flat().map((p) => [p.id, p])));
+const qtdNoCarrinho = (produtoId) => carrinho.value.filter((i) => i.produto_id === produtoId).reduce((s, i) => s + Number(i.quantidade), 0);
+const artigosCarrinho = computed(() => carrinho.value.reduce((s, i) => s + Number(i.quantidade), 0));
+const rotasCarrinho = computed(() => Object.values(carrinho.value.reduce((acc, item) => {
+    const info = secaoDe(produtosPorId.value[item.produto_id]);
+    acc[info.label] ??= { ...info, count: 0 };
+    acc[info.label].count += Number(item.quantidade);
+    return acc;
+}, {})));
+const adicionarProduto = (produto) => {
+    addProduto(produto);
+    if (props.pedido) separadorAtual.value = 'envio';
+};
+const alternarObservacao = (item) => { item.obsAberta = !item.obsAberta; };
+const limparCarrinho = () => { carrinho.value = []; };
+const estadoPedidoLabel = computed(() => ({ pendente: 'Pendente', preparacao: 'Em preparação', pronto: 'Pronto' }[props.pedido?.estado] ?? props.pedido?.estado ?? ''));
+const haQuanto = (item) => {
+    const t = new Date(item?.created_at ?? '').getTime();
+    if (Number.isNaN(t)) return '';
+    const min = Math.floor((agora.value - t) / 60000);
+    return min <= 0 ? 'agora mesmo' : `há ${min} min`;
+};
+const artigosConta = computed(() => (props.pedido?.items ?? []).reduce((s, i) => s + Number(i.quantidade), 0));
+const resumoConta = computed(() => Object.values((props.pedido?.items ?? []).reduce((acc, item) => {
+    const chave = `${item.produto_id}|${item.preco_unitario}`;
+    acc[chave] ??= { chave, nome: item.produto?.nome ?? 'Produto', quantidade: 0, total: 0 };
+    acc[chave].quantidade += Number(item.quantidade);
+    acc[chave].total += Number(item.quantidade) * Number(item.preco_unitario);
+    return acc;
+}, {})));
+const mudarLugaresAbrir = (delta) => { lugaresOcupados.value = Math.min(80, Math.max(1, Number(lugaresOcupados.value || 0) + delta)); };
+const mudarLugaresMesa = (delta) => { lugaresAtuais.value = Math.max(1, Number(lugaresAtuais.value || 0) + delta); };
+const textoCapacidade = computed(() => {
+    if (precisaMesasGrupo.value) return `Mais de ${capacidadeMesa.value} pessoas: junta mesas livres ao grupo.`;
+    if (precisaSubmesa.value) return `Menos de ${capacidadeMesa.value} pessoas: a mesa é dividida e fica uma submesa.`;
+    return `A mesa tem ${capacidadeMesa.value} lugares.`;
+});
+
+// Estado "A pagar": pedido aberto em que já se pediu a conta e ainda não foi pago
+const contaPedida = computed(() => !!props.pedido?.conta_pedida_em);
+const horaContaPedida = computed(() => contaPedida.value
+    ? new Date(props.pedido.conta_pedida_em).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+    : '');
+const pedirConta = (pedida = true) => {
+    if (!props.pedido) return;
+    router.patch(route('pos.rest.pedido.pedir-conta', props.pedido.id), { pedida }, {
+        preserveScroll: true,
+        preserveState: true,
+        onError: () => mostrarAviso('Nao foi possivel atualizar o pedido de conta.'),
+    });
+};
+const abrirPagamento = () => {
+    pagamentoAberto.value = true;
+    // Carregar em "Fechar conta" também deixa a mesa "A pagar" até o pagamento ser confirmado
+    if (!contaPedida.value) pedirConta(true);
+};
+const estadoMesa = computed(() => {
+    if (!props.pedido) return { label: 'Livre', classe: 'bg-escuro-2' };
+    if (contaPedida.value) return { label: 'A pagar', classe: 'bg-laranja' };
+    return { label: 'Ocupada', classe: 'bg-verde' };
+});
+const metodosPagamento = [
+    { valor: 'dinheiro', label: 'Dinheiro' },
+    { valor: 'mbway', label: 'MB WAY' },
+    { valor: 'multibanco', label: 'Multibanco' },
+];
+const escolherMetodo = (valor) => {
+    metodo.value = valor;
+    if (valor !== 'dinheiro') recebido.value = '';
+};
+const pessoasNaMesa = computed(() => {
+    const m = props.pedido?.mesa ?? props.mesa;
+    if (m?.lugares_inicio && m?.lugares_fim) return Number(m.lugares_fim) - Number(m.lugares_inicio) + 1;
+    return m?.capacidade ?? null;
+});
+const valoresRapidos = computed(() => [5, 10, 20, 50, 100, 200].filter((v) => v > total.value).slice(0, 3));
+const recebidoFalta = computed(() => recebido.value !== '' && Number(recebido.value) < total.value);
+const visorRecebido = computed(() => (recebido.value === '' ? eur(total.value) : String(recebido.value).replace('.', ',') + ' €'));
+const teclasPagamento = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'del'];
+const confirmarCancelar = () => {
+    modal.value = null;
+    cancelarPedido(true);
+};
 </script>
 
 <template>
     <ChamadaFuncionarioAlert />
     <ComissaoChamadasAlert />
-    <main class="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-gray-900 p-3 text-white sm:p-4">
-        <header class="mb-4 flex items-center justify-between"><Link :href="route('pos.rest.mesas')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">← MESAS</Link><h1 class="text-3xl font-black">MESA {{ mesa.numero }}</h1></header>
-        <div v-if="!pedido" class="min-w-0 space-y-4">
-            <!-- ABRIR MESA PRIMEIRO NO MOBILE -->
-            <section class="min-w-0 rounded-2xl bg-gray-800 p-4 shadow-lg sm:p-5">
-                <h2 class="break-words text-2xl font-black sm:text-3xl">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
-                <p class="mt-2 rounded-lg bg-gray-900 p-3 text-sm font-bold text-gray-300">Antes de escolher produtos, abre o pedido com o número de pessoas.</p>
-                
-                <div v-if="!mesaDividida" class="mt-5 space-y-4">
-                    <div v-if="mesa.reserva_ativa" class="rounded-lg bg-orange-950/80 border border-orange-500 px-3 py-2 text-sm font-bold text-orange-300">
-                        🪑 Reserva: <span class="text-white">{{ mesa.reserva_ativa.nome }}</span> — {{ mesa.reserva_ativa.pessoas }} pessoas
-                    </div>
-                    <label class="block font-black">Número de pessoas
-                        <input v-model="lugaresOcupados" type="number" min="1" max="80" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Obrigatório">
-                    </label>
-                    <label v-if="precisaMesasGrupo" class="block font-black">Mesas do grupo
-                        <input v-model="mesasGrupo" type="text" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black text-white" placeholder="Ex.: 32 33 34">
-                        <div v-if="mesasLivres.length" class="mt-2 flex flex-wrap gap-2">
-                            <button
-                                v-for="m in mesasLivres"
-                                :key="m.id"
-                                type="button"
-                                class="rounded-lg px-3 py-2 text-sm font-black transition"
-                                :class="mesasGrupoSet.has(String(m.numero)) ? 'bg-amber-500 text-gray-950' : 'bg-gray-700 hover:bg-gray-600'"
-                                @click="toggleMesaGrupo(m.numero)"
-                            >{{ m.numero }} <span class="opacity-60">({{ Math.min(10, Number(m.capacidade)) }}p)</span></button>
-                        </div>
-                        <p v-if="mesasGrupoSet.size > 0 && lugaresNumero > 0" class="mt-2 text-sm font-bold" :class="capacidadeGrupoSelecionado >= lugaresNumero ? 'text-emerald-400' : 'text-red-400'">
-                            Capacidade total: {{ capacidadeGrupoSelecionado }} lugares {{ capacidadeGrupoSelecionado >= lugaresNumero ? '✓' : '— precisa de mais mesas' }}
-                        </p>
-                    </label>
-                    <label v-if="precisaLetra" class="block font-black">{{ precisaMesasGrupo ? 'Letra do grupo' : 'Letra da submesa' }}
-                        <select v-model="letraSubmesaNova" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-4 text-2xl font-black uppercase text-white">
-                            <option value="">Escolher letra</option>
-                            <option v-for="letra in submesaLetrasDisponiveis" :key="letra" :value="letra">{{ letra }}</option>
-                        </select>
-                    </label>
-                    <button class="w-full rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-40" :disabled="!podeAbrirPedido || novoForm.processing" @click="abrirPedido()">
-                        {{ novoForm.processing ? 'A ABRIR...' : 'ABRIR PEDIDO' }}
-                    </button>
-                </div>
-                
-                <div v-if="mesa.submesas?.length" class="mt-6 space-y-2">
-                    <p class="mb-3 font-bold text-gray-400">SUBMESAS:</p>
-                    <Link v-for="submesa in mesa.submesas" :key="submesa.id" :href="route('pos.rest.mesa', submesa.id)" class="block rounded-lg p-3 font-black" :class="submesa.estado === 'ocupada' ? 'bg-red-700' : 'bg-gray-700'">
-                        {{ submesa.designacao }} · {{ submesa.capacidade }} lugares · {{ submesa.estado }}
-                    </Link>
-                </div>
-                
-                <div v-if="novoForm.errors.mesa_id" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.mesa_id }}</div>
-                <div v-if="novoForm.errors.submesa_letra" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.submesa_letra }}</div>
-                <div v-if="novoForm.errors.lugares_ocupados" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.lugares_ocupados }}</div>
-                <div v-if="novoForm.errors.mesas_grupo" class="mt-4 rounded bg-red-700 p-3 font-bold">{{ novoForm.errors.mesas_grupo }}</div>
-            </section>
-            
-            <!-- PRODUTOS SECUNDÁRIOS NO MOBILE -->
-            <section class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 opacity-50 sm:p-4">
-                <div class="mb-4 rounded bg-gray-900 p-3 text-center text-sm font-black text-gray-300">Abre o pedido para adicionar produtos.</div>
-                <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-2">
-                    <button v-for="cat in categorias" :key="cat" class="min-h-12 shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
-                </div>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="produto.imagem ? 'bg-gray-900' : secaoClasse(produto)" :style="btnStyle(produto)" @click="addProduto(produto)">
-                        <span class="block text-lg" :style="nomeStyle(produto)">{{ produto.nome }}</span><span class="mt-2 block text-2xl" :style="nomeStyle(produto)">{{ euros(produto.preco) }}</span>
-                    </button>
-                </div>
-            </section>
-        </div>
-        <div v-else class="min-w-0 space-y-4">
-            <nav class="overflow-x-auto rounded-2xl bg-gray-800 p-1">
-                <div class="flex min-w-max gap-2">
-                <button
-                    v-for="separador in separadores"
-                    :key="separador.key"
-                    type="button"
-                    class="min-h-12 min-w-28 shrink-0 rounded-xl px-4 py-2 text-sm font-black"
-                    :class="separadorAtual === separador.key ? 'bg-white text-gray-950' : 'text-gray-200'"
-                    @click="separadorAtual = separador.key"
-                >
-                    {{ separador.label }}
-                    <span v-if="separador.count" class="ml-1 rounded-full bg-emerald-500 px-2 py-0.5 text-xs text-gray-950">{{ separador.count }}</span>
-                </button>
-                </div>
-            </nav>
-            <div v-if="aviso || page.props.flash?.success" class="rounded-xl border border-emerald-500/40 bg-emerald-500/15 p-3 text-sm font-black text-emerald-100">
-                {{ aviso || page.props.flash.success }}
+    <main class="flex min-h-screen w-full max-w-[100vw] flex-col overflow-x-hidden bg-fundo font-sans text-tinta tabular-nums lg:h-screen lg:overflow-hidden">
+        <!-- Barra de topo -->
+        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:flex-nowrap lg:py-0">
+            <div class="flex min-w-0 items-center gap-3">
+                <Link :href="route('pos.rest.mesas')" class="flex h-11 shrink-0 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-semibold text-white hover:text-white">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+                    Mesas
+                </Link>
+                <h1 class="flex h-11 min-w-0 items-center truncate rounded-[10px] px-4 text-[15px] font-bold" :class="estadoMesa.classe">
+                    <span class="truncate">{{ mesa.designacao || `Mesa ${mesa.numero}` }}<template v-if="mesa.localizacao"> · {{ mesa.localizacao }}</template> · {{ estadoMesa.label }}<template v-if="pedido && pessoasNaMesa"> · {{ pessoasNaMesa }} pessoas</template></span>
+                </h1>
             </div>
-
-            <section v-if="separadorAtual === 'produtos'" class="min-w-0 overflow-hidden rounded-lg bg-gray-800 p-3 sm:p-4">
-                <div class="mb-4 flex max-w-full gap-2 overflow-x-auto pb-2">
-                    <button v-for="cat in categorias" :key="cat" class="min-h-12 shrink-0 whitespace-nowrap rounded-lg px-4 py-3 font-black" :class="cat === categoriaAtual ? 'bg-emerald-600' : 'bg-gray-700'" @click="categoriaAtual = cat">{{ cat }}</button>
-                </div>
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-                    <button v-for="produto in lista" :key="produto.id" class="min-h-24 min-w-0 rounded-lg p-4 text-left font-black sm:min-h-28" :class="produto.imagem ? 'bg-gray-900' : secaoClasse(produto)" :style="btnStyle(produto)" @click="addProduto(produto)">
-                        <span class="block break-words text-lg" :style="nomeStyle(produto)">{{ produto.nome }}</span><span class="mt-2 block text-2xl" :style="nomeStyle(produto)">{{ euros(produto.preco) }}</span>
-                    </button>
-                </div>
-            </section>
-
-            <section v-if="separadorAtual === 'envio'" class="min-w-0 rounded-lg border-2 border-emerald-500 bg-gray-800 p-4">
-                <div class="mb-3 flex items-center justify-between gap-2">
-                    <h2 class="text-2xl font-black">Para enviar</h2>
-                    <strong class="text-2xl text-emerald-400">{{ euros(totalCarrinho) }}</strong>
-                </div>
-                <div v-if="!carrinho.length" class="rounded bg-gray-900 p-5 text-center font-bold text-gray-400">
-                    Escolhe produtos no separador Produtos.
-                </div>
-                <div v-for="(item, index) in carrinho" :key="`${item.produto_id}-${index}`" class="mb-2 rounded bg-gray-900 p-3">
-                    <div class="mb-2 flex items-center justify-between gap-2">
-                        <strong>{{ item.nome }}</strong>
-                        <button class="rounded bg-red-700 px-3 py-2 font-black" @click="alterarQuantidadeCarrinho(item, -1)">-</button>
-                    </div>
-                    <div class="flex items-center justify-between gap-2">
-                        <span class="font-mono text-lg">{{ item.quantidade }} x {{ euros(item.preco) }}</span>
-                        <button class="rounded bg-emerald-700 px-3 py-2 font-black" @click="alterarQuantidadeCarrinho(item, 1)">+</button>
-                    </div>
-                    <label class="mt-2 flex items-center gap-2 text-sm font-black text-amber-300">
-                        <input v-model="item.prioridade" type="checkbox" class="rounded border-gray-600 bg-gray-800 text-amber-500">
-                        A terminar
-                    </label>
-                    <textarea
-                        v-model="item.observacoes"
-                        rows="2"
-                        maxlength="255"
-                        class="mt-2 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-sm font-bold text-white placeholder:text-gray-500"
-                        placeholder="Observações: sem cebola, bem passado..."
-                    ></textarea>
-                </div>
-                <div v-if="itemForm.errors.items" class="mt-2 rounded bg-red-700 p-3 text-sm font-bold">{{ itemForm.errors.items }}</div>
-                <button
-                    class="mt-2 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black disabled:opacity-50"
-                    :disabled="!carrinho.length || itemForm.processing"
-                    @click="enviarPedido"
-                >
-                    {{ itemForm.processing ? 'A ENVIAR...' : 'ENVIAR PEDIDO' }}
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" :disabled="!pedido" @click="modal = 'qrs'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3M21 14v7h-7" /></svg>
+                    QRs
                 </button>
-            </section>
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" :disabled="!pedido" @click="modal = 'extras'">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6" /><rect x="6" y="14" width="12" height="7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /></svg>
+                    Pedidos extra
+                </button>
+                <button type="button" class="flex h-11 items-center rounded-[10px] bg-laranja px-4 text-[15px] font-bold text-white" @click="chamandoComissao = true">Chamar comissão</button>
+            </div>
+        </header>
 
-            <section v-if="separadorAtual === 'conta'" class="min-w-0 rounded-lg bg-gray-800 p-4">
-                <h2 class="break-words text-3xl font-black">{{ mesa.designacao || `MESA ${mesa.numero}` }}</h2>
-                <div class="my-4 inline-flex rounded bg-blue-600 px-3 py-1 text-sm font-black uppercase">{{ pedido.estado }}</div>
-                <div class="mb-4 rounded-lg bg-gray-900 p-3">
-                    <div v-if="pedido.nome_reserva" class="mb-2 rounded-lg bg-orange-900/60 px-3 py-2 text-base font-black text-orange-300">
-                        🪑 Reserva: {{ pedido.nome_reserva }}
-                    </div>
-                    <div class="text-sm font-bold text-gray-400">Pedido feito por</div>
-                    <div class="text-xl font-black">{{ pedidoAutor }}</div>
+        <div class="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+            <!-- Produtos -->
+            <section class="flex min-h-0 min-w-0 flex-col gap-3 p-4 sm:p-6 lg:overflow-hidden" :class="pedido ? '' : 'order-2 lg:order-none'">
+                <div v-if="aviso || page.props.flash?.success" role="status" class="shrink-0 rounded-[10px] border border-verde/30 bg-verde-claro px-4 py-3 text-[15px] font-semibold text-verde-escuro">
+                    {{ aviso || page.props.flash.success }}
                 </div>
-                <div class="mb-4 rounded-lg bg-gray-900 p-3">
-                    <label class="block font-black">
-                        Pessoas na mesa
-                        <input v-model="lugaresAtuais" type="number" min="1" class="mt-2 w-full rounded-lg border-gray-700 bg-gray-800 p-3 text-white">
-                    </label>
-                    <button class="mt-2 w-full rounded bg-gray-700 p-3 font-black" @click="atualizarLugares">ATUALIZAR PESSOAS</button>
-                    <div v-if="lugaresForm.errors.lugares_ocupados" class="mt-2 rounded bg-red-700 p-2 text-sm font-bold">{{ lugaresForm.errors.lugares_ocupados }}</div>
+                <div v-if="!pedido" class="shrink-0 rounded-[10px] border border-linha bg-white px-4 py-3 text-[15px] font-semibold text-suave">
+                    Abre o pedido para adicionar produtos.
                 </div>
-                <div class="mb-4 rounded-lg bg-amber-900/40 border border-amber-600 p-3">
-                    <label class="block font-black text-amber-300">
-                        Observações da mesa
-                        <textarea
-                            v-model="obsForm.observacoes"
-                            rows="2"
-                            placeholder="Ex: Banda não foi paga, Desconto especial, NIF 123..."
-                            class="mt-2 w-full rounded-lg border-gray-700 bg-gray-900 p-3 text-sm font-bold text-white placeholder:text-gray-500"
-                        ></textarea>
-                    </label>
-                    <button class="mt-2 w-full rounded bg-amber-700 p-2 text-sm font-black" @click="guardarObservacoes">GUARDAR OBSERVAÇÃO</button>
-                </div>
-                <div class="space-y-3">
-                    <div v-if="erroItem" class="rounded bg-red-700 p-3 text-sm font-black">{{ erroItem }}</div>
-                    <div v-for="item in pedido.items" :key="item.id" class="rounded-lg border bg-gray-900 p-3" :class="item.prioridade ? 'animate-pulse border-amber-500' : 'border-gray-700'">
-                        <div class="flex items-start justify-between gap-3">
-                            <strong>{{ item.produto?.nome }}</strong>
-                            <button v-if="itemDentroPrazoAnulacao(item)" class="rounded bg-red-700 px-3 py-2 font-black" @click="remover(item)">-1</button>
-                        </div>
-                        <div class="mt-3 flex items-center justify-between gap-2">
-                            <div class="font-mono text-lg">{{ item.quantidade }} × {{ euros(item.preco_unitario) }} = {{ euros(item.quantidade * item.preco_unitario) }}</div>
-                            <button class="rounded px-3 py-2 font-black" :class="item.prioridade ? 'bg-amber-600' : 'bg-gray-700'" @click="urgente(item)">Fim</button>
-                        </div>
-                        <div v-if="item.observacoes" class="mt-3 rounded bg-amber-500 px-3 py-2 text-sm font-black text-gray-950">
-                            {{ item.observacoes }}
-                        </div>
-                    </div>
-                </div>
-                <div class="my-5 text-right text-3xl font-black text-emerald-400">{{ euros(total) }}</div>
-                <button class="w-full rounded-lg bg-emerald-600 p-5 text-xl font-black" @click="pagamentoAberto = true">FECHAR CONTA</button>
-                <button class="mt-3 w-full rounded-lg bg-red-700 p-3 font-black" @click="cancelarPedido">CANCELAR PEDIDO</button>
-            </section>
-
-            <section v-if="separadorAtual === 'qrs'" class="grid min-w-0 gap-4 md:grid-cols-2">
-                <article v-if="podeSelfOrder" class="rounded-lg border-2 border-cyan-500 bg-gray-800 p-4">
-                    <h2 class="text-xl font-black">SELF-ORDER DO CLIENTE</h2>
-                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR ao cliente para adicionar itens pelo telemóvel.</p>
-                    <button class="mt-3 w-full rounded-lg bg-cyan-600 p-4 text-lg font-black" @click="mostrarQr">MOSTRAR QR AO CLIENTE</button>
-                    <button class="mt-2 w-full rounded-lg bg-gray-900 p-3 text-sm font-black" @click="copiarLinkCliente">COPIAR LINK</button>
-                </article>
-                <article v-if="podeSelfOrder" class="rounded-lg border-2 border-amber-500 bg-gray-800 p-4">
-                    <h2 class="text-xl font-black">CHAMAR FUNCIONÁRIO</h2>
-                    <p class="mt-1 text-sm font-bold text-gray-300">QR para o cliente chamar um funcionário à mesa, sem fazer pedido.</p>
-                    <button class="mt-3 w-full rounded-lg bg-amber-500 p-4 text-lg font-black text-slate-950" @click="mostrarQrFuncionario">MOSTRAR QR CHAMAR</button>
-                </article>
-                <article class="rounded-lg border-2 border-emerald-500 bg-gray-800 p-4">
-                    <h2 class="text-xl font-black">PREÇÁRIO DO SITE</h2>
-                    <p class="mt-1 text-sm font-bold text-gray-300">Mostra o QR para o cliente consultar produtos e preços.</p>
-                    <button class="mt-3 w-full rounded-lg bg-emerald-600 p-4 text-lg font-black" @click="mostrarQrPrecario">MOSTRAR QR PREÇÁRIO</button>
-                </article>
-            </section>
-        </div>
-            <section v-if="separadorAtual === 'extras'" class="min-w-0 rounded-lg bg-gray-800 p-4">
-                <h2 class="mb-4 text-xl font-black text-gray-200">PEDIDOS EXTRA</h2>
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <nav aria-label="Categorias" class="flex shrink-0 gap-2 overflow-x-auto pb-1">
                     <button
-                        v-for="item in itensPedidoExtra"
-                        :key="item.label"
-                        class="min-h-20 rounded-xl bg-gray-700 p-4 text-center font-black transition hover:bg-gray-600 disabled:opacity-50"
-                        :disabled="extraForm.processing"
-                        @click="pedidoExtra(item.label)"
-                    >
-                        <span class="block text-3xl">{{ item.emoji }}</span>
-                        <span class="mt-2 block text-sm">{{ item.label }}</span>
-                    </button>
-                </div>
-                <p class="mt-4 text-center text-xs font-bold text-gray-500">Imprime na impressora da conta</p>
-
-                <div class="mt-4 border-t border-gray-700 pt-4">
-                    <button
+                        v-for="cat in categorias"
+                        :key="cat"
                         type="button"
-                        class="w-full rounded-xl bg-amber-500 p-4 text-sm font-black text-black transition hover:bg-amber-400"
-                        @click="chamandoComissao = true"
+                        class="flex h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border px-4 text-base font-bold"
+                        :class="cat === categoriaAtual ? 'border-escuro bg-escuro text-white' : 'border-linha bg-white text-tinta'"
+                        :aria-pressed="cat === categoriaAtual"
+                        @click="categoriaAtual = cat"
                     >
-                        🎉 CHAMAR COMISSÃO DE FESTAS
+                        <span class="h-2.5 w-2.5 rounded-full" :class="corCategoria(cat)"></span>{{ cat }}
+                    </button>
+                </nav>
+                <div class="grid min-h-0 auto-rows-min grid-cols-2 gap-3 overflow-y-auto pb-2 sm:grid-cols-3 xl:grid-cols-4" :class="pedido ? '' : 'opacity-45'">
+                    <button
+                        v-for="produto in lista"
+                        :key="produto.id"
+                        type="button"
+                        class="relative flex min-h-[124px] min-w-0 flex-col items-start overflow-hidden rounded-[14px] bg-white p-4 text-left disabled:cursor-not-allowed"
+                        :class="qtdNoCarrinho(produto.id) ? 'border-2 border-verde' : 'border border-linha'"
+                        :disabled="!pedido"
+                        @click="adicionarProduto(produto)"
+                    >
+                        <img v-if="produto.imagem" :src="`/storage/${produto.imagem}`" alt="" class="pointer-events-none absolute bottom-2 right-2 h-14 w-14 rounded-lg object-contain opacity-90">
+                        <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" :class="secaoDe(produto).text">
+                            <span class="h-2 w-2 rounded-full" :class="secaoDe(produto).dot"></span>{{ secaoDe(produto).label }}
+                        </span>
+                        <span class="mt-2 block break-words pr-8 text-lg font-bold leading-tight" :class="produto.imagem ? 'pr-16' : ''">{{ produto.nome }}</span>
+                        <span class="mt-auto pt-3 text-base font-medium text-suave">{{ eur(produto.preco) }}</span>
+                        <span v-if="qtdNoCarrinho(produto.id)" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ qtdNoCarrinho(produto.id) }}</span>
                     </button>
                 </div>
             </section>
+
+            <!-- Painel lateral do pedido -->
+            <aside aria-label="Pedido" class="flex min-h-0 min-w-0 flex-col border-linha bg-white lg:border-l" :class="pedido ? 'border-t lg:border-t-0' : 'order-1 border-b lg:order-none lg:border-b-0'">
+                <!-- Abrir pedido -->
+                <div v-if="!pedido" class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
+                    <div>
+                        <h2 class="text-2xl font-extrabold">Abrir pedido · {{ mesa.designacao || `Mesa ${mesa.numero}` }}</h2>
+                        <p class="mt-1 text-[15px] text-suave">Antes de escolher produtos, abre o pedido com o número de pessoas.</p>
+                    </div>
+                    <template v-if="!mesaDividida">
+                        <div v-if="mesa.reserva_ativa" class="rounded-[10px] border border-azul/30 bg-[#EAF0FB] px-4 py-3 text-[15px] font-semibold text-[#1E4290]">
+                            Reserva: <span class="font-bold text-tinta">{{ mesa.reserva_ativa.nome }}</span> — {{ mesa.reserva_ativa.pessoas }} pessoas
+                        </div>
+                        <div>
+                            <span class="text-sm font-semibold text-suave">Número de pessoas</span>
+                            <div class="mt-2 flex items-center gap-3">
+                                <button type="button" aria-label="Menos uma pessoa" class="h-14 w-14 shrink-0 rounded-[10px] border border-linha-forte bg-fundo text-3xl font-bold" @click="mudarLugaresAbrir(-1)">−</button>
+                                <input v-model="lugaresOcupados" type="number" min="1" max="80" inputmode="numeric" aria-label="Número de pessoas" class="h-14 w-full min-w-0 rounded-[10px] border-linha-forte bg-white text-center text-3xl font-extrabold focus:border-verde focus:ring-verde" placeholder="0">
+                                <button type="button" aria-label="Mais uma pessoa" class="h-14 w-14 shrink-0 rounded-[10px] border border-linha-forte bg-fundo text-3xl font-bold" @click="mudarLugaresAbrir(1)">+</button>
+                            </div>
+                            <span class="mt-2 block text-sm text-suave">{{ textoCapacidade }}</span>
+                        </div>
+                        <div v-if="precisaMesasGrupo">
+                            <label class="text-sm font-semibold text-suave" for="mesas-grupo">Mesas do grupo</label>
+                            <input id="mesas-grupo" v-model="mesasGrupo" type="text" class="mt-2 h-12 w-full rounded-[10px] border-linha-forte text-lg font-bold focus:border-verde focus:ring-verde" placeholder="Ex.: 32 33 34">
+                            <div v-if="mesasLivres.length" class="mt-2 flex flex-wrap gap-2">
+                                <button
+                                    v-for="m in mesasLivres"
+                                    :key="m.id"
+                                    type="button"
+                                    class="h-12 rounded-[10px] px-4 text-base font-bold"
+                                    :class="mesasGrupoSet.has(String(m.numero)) ? 'border-[3px] border-laranja bg-laranja-claro text-laranja-texto' : 'border border-linha-forte bg-white'"
+                                    :aria-pressed="mesasGrupoSet.has(String(m.numero))"
+                                    @click="toggleMesaGrupo(m.numero)"
+                                >{{ m.numero }} <span class="font-medium text-suave">({{ Math.min(10, Number(m.capacidade)) }}p)</span></button>
+                            </div>
+                            <p class="mt-2 text-sm font-semibold" :class="mesasGrupoSet.size > 0 && lugaresNumero > 0 && capacidadeGrupoSelecionado < lugaresNumero ? 'text-perigo' : 'text-verde-escuro'">
+                                <template v-if="mesasGrupoSet.size > 0 && lugaresNumero > 0">Capacidade total: {{ capacidadeGrupoSelecionado }} lugares {{ capacidadeGrupoSelecionado >= lugaresNumero ? '— chega' : '— precisa de mais mesas' }}</template>
+                                <template v-else>Toca nas mesas livres a juntar.</template>
+                            </p>
+                        </div>
+                        <div v-if="precisaLetra">
+                            <span class="text-sm font-semibold text-suave">{{ precisaMesasGrupo ? 'Letra do grupo' : 'Letra da submesa' }}</span>
+                            <div role="group" :aria-label="precisaMesasGrupo ? 'Letra do grupo' : 'Letra da submesa'" class="mt-2 grid grid-cols-4 gap-2">
+                                <button
+                                    v-for="letra in submesaLetras"
+                                    :key="letra"
+                                    type="button"
+                                    class="h-14 rounded-[10px] text-xl font-extrabold disabled:cursor-not-allowed disabled:opacity-45"
+                                    :class="letraSubmesaNova === letra ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                    :aria-pressed="letraSubmesaNova === letra"
+                                    :disabled="!submesaLetrasDisponiveis.includes(letra)"
+                                    @click="letraSubmesaNova = letra"
+                                >{{ letra }}</button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div v-if="mesa.submesas?.length">
+                        <span class="text-sm font-semibold text-suave">Submesas</span>
+                        <div class="mt-2 grid gap-2">
+                            <Link
+                                v-for="submesa in mesa.submesas"
+                                :key="submesa.id"
+                                :href="route('pos.rest.mesa', submesa.id)"
+                                class="flex min-h-14 items-center justify-between gap-3 rounded-[10px] px-4 py-2 text-base font-bold"
+                                :class="submesa.estado === 'ocupada' ? 'bg-verde text-white hover:text-white' : 'border border-linha-forte bg-white text-tinta hover:text-tinta'"
+                            >
+                                <span>{{ submesa.designacao }} · {{ submesa.capacidade }} lugares</span>
+                                <span class="rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider" :class="submesa.estado === 'ocupada' ? 'bg-white/20' : 'bg-fundo text-suave'">{{ submesa.estado === 'ocupada' ? 'Ocupada' : (submesa.estado === 'livre' ? 'Livre' : submesa.estado) }}</span>
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div v-for="erro in [novoForm.errors.mesa_id, novoForm.errors.submesa_letra, novoForm.errors.lugares_ocupados, novoForm.errors.mesas_grupo].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro px-4 py-3 text-[15px] font-semibold text-perigo-texto">{{ erro }}</div>
+
+                    <div class="flex-1"></div>
+                    <button v-if="!mesaDividida" type="button" class="h-16 w-full shrink-0 rounded-[10px] bg-verde text-xl font-bold text-white hover:bg-verde-escuro disabled:cursor-not-allowed disabled:opacity-45" :disabled="!podeAbrirPedido || novoForm.processing" @click="abrirPedido()">
+                        {{ novoForm.processing ? 'A abrir…' : 'Abrir pedido' }}
+                    </button>
+                </div>
+
+                <!-- Pedido aberto -->
+                <template v-else>
+                    <div role="tablist" aria-label="Pedido" class="grid shrink-0 grid-cols-2 gap-2 border-b border-linha p-3">
+                        <button type="button" role="tab" :aria-selected="abaPedido === 'envio'" class="flex h-[52px] items-center justify-center gap-2 rounded-[10px] border text-base font-bold" :class="abaPedido === 'envio' ? 'border-escuro bg-escuro text-white' : 'border-linha-forte bg-white text-tinta'" @click="irPara('envio')">
+                            Para enviar <span v-if="artigosCarrinho" class="flex h-6 min-w-6 items-center justify-center rounded-full bg-verde px-1.5 text-sm text-white">{{ artigosCarrinho }}</span>
+                        </button>
+                        <button type="button" role="tab" :aria-selected="abaPedido === 'conta'" class="flex h-[52px] items-center justify-center gap-2 rounded-[10px] border text-base font-bold" :class="abaPedido === 'conta' ? 'border-escuro bg-escuro text-white' : 'border-linha-forte bg-white text-tinta'" @click="irPara('conta')">
+                            Conta <span class="font-semibold" :class="abaPedido === 'conta' ? 'text-white/80' : 'text-suave'">{{ eur(total) }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Para enviar -->
+                    <template v-if="abaPedido === 'envio'">
+                        <div class="min-h-0 flex-1 overflow-y-auto px-5">
+                            <p v-if="!carrinho.length" class="py-10 text-center text-[15px] text-suave">Toque num produto para o adicionar.</p>
+                            <div v-for="(item, index) in carrinho" :key="`${item.produto_id}-${index}`" class="border-b border-linha-fraca py-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="min-w-0 flex-1">
+                                        <span class="block truncate text-[17px] font-bold">{{ item.nome }}</span>
+                                        <span class="text-sm font-semibold" :class="secaoDe(produtosPorId[item.produto_id]).text">→ {{ secaoDe(produtosPorId[item.produto_id]).label }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button type="button" aria-label="Retirar um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterarQuantidadeCarrinho(item, -1)">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                                        </button>
+                                        <span class="w-7 text-center text-lg font-bold">{{ item.quantidade }}</span>
+                                        <button type="button" aria-label="Adicionar mais um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterarQuantidadeCarrinho(item, 1)">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                                        </button>
+                                    </div>
+                                    <span class="w-20 text-right text-base font-bold">{{ eur(item.preco * item.quantidade) }}</span>
+                                </div>
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    <button type="button" class="h-11 rounded-[10px] px-3 text-sm font-bold" :class="item.prioridade ? 'border-2 border-laranja bg-laranja-claro text-laranja-texto' : 'border border-linha-forte bg-white'" :aria-pressed="!!item.prioridade" @click="item.prioridade = !item.prioridade">A terminar</button>
+                                    <button type="button" class="h-11 max-w-full truncate rounded-[10px] border border-linha-forte bg-white px-3 text-sm font-bold" :aria-pressed="!!item.obsAberta" @click="alternarObservacao(item)">
+                                        {{ item.obsAberta ? 'Esconder observação' : (item.observacoes ? 'Observação: ' + item.observacoes : 'Observação') }}
+                                    </button>
+                                </div>
+                                <label v-if="item.obsAberta" class="mt-2 block text-sm font-semibold text-suave">Observações
+                                    <input v-model="item.observacoes" type="text" maxlength="255" class="mt-1 h-12 w-full rounded-[10px] border-linha-forte bg-fundo text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Sem cebola, bem passado...">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="shrink-0 border-t border-linha bg-fundo p-5">
+                            <div v-if="rotasCarrinho.length" class="mb-2 flex flex-wrap items-center gap-1.5 text-sm">
+                                <span class="font-semibold text-suave">Vai para:</span>
+                                <span v-for="r in rotasCarrinho" :key="r.label" class="rounded-full border bg-white px-2.5 py-0.5 text-sm font-semibold" :class="r.chip">{{ r.label }} ({{ r.count }})</span>
+                            </div>
+                            <div class="flex items-end justify-between gap-2">
+                                <span class="text-[15px] text-suave">{{ artigosCarrinho }} artigos por enviar</span>
+                                <span class="text-3xl font-extrabold">{{ eur(totalCarrinho) }}</span>
+                            </div>
+                            <div v-if="itemForm.errors.items" role="alert" class="mt-2 rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">{{ itemForm.errors.items }}</div>
+                            <div class="mt-3 grid grid-cols-2 gap-3">
+                                <button type="button" class="h-16 rounded-[10px] border border-linha-forte bg-white text-lg font-bold text-perigo disabled:cursor-not-allowed disabled:opacity-45" :disabled="!carrinho.length" @click="limparCarrinho">Limpar</button>
+                                <button type="button" class="h-16 rounded-[10px] bg-verde text-lg font-bold text-white hover:bg-verde-escuro disabled:cursor-not-allowed disabled:opacity-45" :disabled="!carrinho.length || itemForm.processing" @click="enviarPedido">
+                                    {{ itemForm.processing ? 'A enviar…' : 'Enviar pedido' }}
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Conta -->
+                    <template v-else>
+                        <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="rounded-full px-3 py-1 text-sm font-bold" :class="contaPedida ? 'bg-laranja-claro text-laranja-texto' : 'bg-verde-claro text-verde-escuro'">{{ contaPedida ? `A pagar · conta pedida às ${horaContaPedida}` : estadoPedidoLabel }}</span>
+                                <span class="text-sm text-suave">Pedido feito por <strong class="text-tinta">{{ pedidoAutor }}</strong></span>
+                            </div>
+                            <div v-if="pedido.nome_reserva" class="rounded-[10px] border border-azul/30 bg-[#EAF0FB] px-3 py-2 text-sm font-semibold text-[#1E4290]">Reserva: {{ pedido.nome_reserva }}</div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="mr-auto text-sm font-semibold text-suave">Pessoas na mesa</span>
+                                <button type="button" aria-label="Menos uma pessoa" class="h-11 w-11 rounded-[10px] border border-linha-forte bg-fundo text-xl font-bold" @click="mudarLugaresMesa(-1)">−</button>
+                                <input v-model="lugaresAtuais" type="number" min="1" aria-label="Pessoas na mesa" class="h-11 w-16 rounded-[10px] border-linha-forte text-center text-lg font-bold focus:border-verde focus:ring-verde">
+                                <button type="button" aria-label="Mais uma pessoa" class="h-11 w-11 rounded-[10px] border border-linha-forte bg-fundo text-xl font-bold" @click="mudarLugaresMesa(1)">+</button>
+                                <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-3 text-sm font-bold disabled:opacity-45" :disabled="lugaresForm.processing" @click="atualizarLugares">Atualizar</button>
+                            </div>
+                            <div v-if="lugaresForm.errors.lugares_ocupados" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-semibold text-perigo-texto">{{ lugaresForm.errors.lugares_ocupados }}</div>
+                            <label class="block text-sm font-semibold text-suave">Observações da mesa
+                                <span class="mt-1 flex gap-2">
+                                    <input v-model="obsForm.observacoes" type="text" maxlength="500" class="h-11 min-w-0 flex-1 rounded-[10px] border-linha-forte bg-laranja-claro text-[15px] text-tinta focus:border-laranja focus:ring-laranja" placeholder="Ex: Banda não foi paga, Desconto especial, NIF...">
+                                    <button type="button" class="h-11 shrink-0 rounded-[10px] border border-linha-forte bg-white px-3 text-sm font-bold text-tinta disabled:opacity-45" :disabled="obsForm.processing" @click="guardarObservacoes">Guardar</button>
+                                </span>
+                            </label>
+                            <div v-if="erroItem" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">{{ erroItem }}</div>
+                            <div class="divide-y divide-linha-fraca border-y border-linha-fraca">
+                                <div v-for="item in pedido.items" :key="item.id" class="py-2.5" :class="item.prioridade ? 'border-l-4 border-l-laranja pl-2' : ''">
+                                    <div class="flex items-center gap-2">
+                                        <div class="min-w-0 flex-1">
+                                            <span class="block truncate text-base font-bold">{{ item.quantidade }} × {{ item.produto?.nome }}</span>
+                                            <span class="text-xs text-suave">{{ eur(item.preco_unitario) }} · {{ haQuanto(item) }}</span>
+                                        </div>
+                                        <button v-if="itemDentroPrazoAnulacao(item)" type="button" aria-label="Retirar um (só nos primeiros 2 minutos)" class="h-11 w-12 rounded-[10px] bg-perigo-claro text-base font-bold text-perigo-texto" @click="remover(item)">−1</button>
+                                        <button type="button" class="h-11 rounded-[10px] px-2.5 text-xs font-bold" :class="item.prioridade ? 'border-2 border-laranja bg-laranja-claro text-laranja-texto' : 'border border-linha-forte bg-white'" :aria-pressed="!!item.prioridade" @click="urgente(item)">A terminar</button>
+                                        <span class="w-[72px] text-right text-base font-bold">{{ eur(item.quantidade * item.preco_unitario) }}</span>
+                                    </div>
+                                    <span v-if="item.observacoes" class="mt-1.5 inline-block rounded-md bg-laranja-claro px-2 py-1 text-sm font-semibold text-laranja-texto">{{ item.observacoes }}</span>
+                                </div>
+                            </div>
+                            <p class="text-xs text-suave">Um artigo só pode ser retirado aqui nos primeiros 2 minutos. Depois disso, só no backoffice.</p>
+                        </div>
+                        <div class="shrink-0 border-t border-linha bg-fundo p-5">
+                            <div class="flex items-end justify-between gap-2">
+                                <span class="text-[15px] text-suave">Total da mesa</span>
+                                <span class="text-3xl font-extrabold">{{ eur(total) }}</span>
+                            </div>
+                            <span v-if="carrinho.length" class="mt-2 block rounded-[10px] bg-laranja-claro px-3 py-2 text-sm font-semibold text-laranja-texto">Há {{ artigosCarrinho }} artigos por enviar. Envia-os antes de fechar a conta.</span>
+                            <button
+                                type="button"
+                                class="mt-3 h-14 w-full rounded-[10px] border-2 text-base font-bold"
+                                :class="contaPedida ? 'border-linha-forte bg-white text-tinta' : 'border-laranja bg-laranja-claro text-laranja-texto'"
+                                :aria-pressed="contaPedida"
+                                @click="pedirConta(!contaPedida)"
+                            >{{ contaPedida ? 'Anular pedido de conta (volta a Ocupada)' : 'Pedir conta (mesa fica A pagar)' }}</button>
+                            <div class="mt-3 grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
+                                <button type="button" class="h-16 rounded-[10px] border border-linha-forte bg-white text-base font-bold text-perigo" @click="modal = 'cancelar'">Cancelar pedido</button>
+                                <button type="button" class="h-16 rounded-[10px] bg-laranja text-lg font-bold text-white" @click="abrirPagamento">Fechar conta</button>
+                            </div>
+                        </div>
+                    </template>
+                </template>
+            </aside>
+        </div>
 
         <ChamarComissaoModal
             v-if="chamandoComissao"
@@ -532,27 +673,166 @@ onBeforeUnmount(() => {
             @fechar="chamandoComissao = false"
         />
 
-        <div v-if="pagamentoAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
-            <div class="mx-auto max-w-xl">
-                <h2 class="mb-4 text-center text-4xl font-black text-emerald-400">{{ euros(total) }}</h2>
-                <div class="mb-4 grid grid-cols-3 gap-3"><button v-for="m in ['dinheiro','mbway','multibanco']" :key="m" class="rounded-lg p-3 text-sm font-black uppercase leading-tight sm:p-4 sm:text-base" :class="metodo === m ? 'bg-emerald-600' : 'bg-gray-800'" @click="metodo = m">{{ m }}</button></div>
-                <input v-model="recebido" class="mb-3 w-full rounded-lg border-gray-700 bg-gray-800 p-4 text-center text-3xl font-black text-white" placeholder="Recebido">
-                <div class="grid grid-cols-3 gap-2">
-                    <button v-for="n in ['1','2','3','4','5','6','7','8','9','.','0','del']" :key="n" class="rounded-lg bg-gray-800 p-5 text-2xl font-black" @click="tecla(n)">{{ n === 'del' ? '←' : n }}</button>
+        <!-- Modal: QRs da mesa -->
+        <div v-if="modal === 'qrs'" class="fixed inset-0 z-50 flex items-center justify-center bg-escuro/60 p-4" @click.self="modal = null">
+            <div role="dialog" aria-label="QRs da mesa" class="max-h-[92dvh] w-full max-w-4xl overflow-y-auto rounded-[14px] bg-white p-5 sm:p-6">
+                <div class="mb-4 flex items-center justify-between gap-3">
+                    <h2 class="text-2xl font-extrabold">QRs · Mesa {{ mesa.numero }}</h2>
+                    <button type="button" class="h-11 rounded-[10px] border border-linha-forte px-4 font-bold" @click="modal = null">Fechar</button>
                 </div>
-                <div class="my-4 text-center text-2xl font-black text-emerald-400">Troco: {{ euros(troco) }}</div>
-                <button class="w-full rounded-lg bg-emerald-600 p-5 text-xl font-black" @click="fechar">✅ CONFIRMAR PAGAMENTO</button>
-                <button class="mt-3 w-full rounded-lg bg-gray-700 p-4 font-black" @click="pagamentoAberto = false">✕ CANCELAR</button>
+                <div class="grid gap-4 md:grid-cols-3">
+                    <article v-if="podeSelfOrder" class="flex flex-col rounded-[14px] border border-linha p-4">
+                        <h3 class="text-lg font-bold">Self-order do cliente</h3>
+                        <p class="mt-1 flex-1 text-sm text-suave">Mostra o QR ao cliente para adicionar itens pelo telemóvel.</p>
+                        <button type="button" class="mt-3 h-14 rounded-[10px] bg-verde font-bold text-white hover:bg-verde-escuro" @click="modal = null; mostrarQr()">Mostrar QR ao cliente</button>
+                        <button type="button" class="mt-2 h-11 rounded-[10px] border border-linha-forte font-bold" @click="qrLink = clienteUrl; copiarLinkCliente()">Copiar link</button>
+                    </article>
+                    <article v-if="podeSelfOrder" class="flex flex-col rounded-[14px] border border-linha p-4">
+                        <h3 class="text-lg font-bold">Chamar funcionário</h3>
+                        <p class="mt-1 flex-1 text-sm text-suave">QR para o cliente chamar um funcionário à mesa, sem fazer pedido.</p>
+                        <button type="button" class="mt-3 h-14 rounded-[10px] bg-verde font-bold text-white hover:bg-verde-escuro" @click="modal = null; mostrarQrFuncionario()">Mostrar QR chamar</button>
+                    </article>
+                    <article class="flex flex-col rounded-[14px] border border-linha p-4">
+                        <h3 class="text-lg font-bold">Preçário do site</h3>
+                        <p class="mt-1 flex-1 text-sm text-suave">Mostra o QR para o cliente consultar produtos e preços.</p>
+                        <button type="button" class="mt-3 h-14 rounded-[10px] bg-verde font-bold text-white hover:bg-verde-escuro" @click="modal = null; mostrarQrPrecario()">Mostrar QR preçário</button>
+                    </article>
+                </div>
             </div>
         </div>
-        <div v-if="qrAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
-            <div class="mx-auto max-w-md rounded-2xl bg-white p-5 text-center text-slate-950">
-                <h2 class="text-2xl font-black">{{ qrTitulo }}</h2>
-                <p class="mt-1 text-sm font-semibold text-slate-500">{{ qrSubtitulo }}</p>
-                <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR code self-order" class="mx-auto my-5 h-72 w-72 rounded-xl border p-3">
-                <input :value="qrLink" readonly class="w-full rounded-lg border-slate-300 text-xs">
-                <button class="mt-3 w-full rounded-lg bg-slate-900 p-3 font-black text-white" @click="copiarLinkCliente">COPIAR LINK</button>
-                <button class="mt-3 w-full rounded-lg bg-gray-200 p-3 font-black text-slate-950" @click="qrAberto = false">FECHAR</button>
+
+        <!-- Modal: pedidos extra -->
+        <div v-if="modal === 'extras'" class="fixed inset-0 z-50 flex items-center justify-center bg-escuro/60 p-4" @click.self="modal = null">
+            <div role="dialog" aria-label="Pedidos extra" class="w-full max-w-2xl rounded-[14px] bg-white p-5 sm:p-6">
+                <div class="mb-4 flex items-start justify-between gap-3">
+                    <div>
+                        <h2 class="text-2xl font-extrabold">Pedidos extra · Mesa {{ mesa.numero }}</h2>
+                        <span class="text-sm text-suave">Imprime na impressora da conta</span>
+                    </div>
+                    <button type="button" class="h-11 shrink-0 rounded-[10px] border border-linha-forte px-4 font-bold" @click="modal = null">Fechar</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    <button
+                        v-for="item in itensPedidoExtra"
+                        :key="item.label"
+                        type="button"
+                        class="h-[72px] rounded-[10px] border border-linha-forte bg-white text-lg font-bold disabled:opacity-45"
+                        :disabled="extraForm.processing"
+                        @click="pedidoExtra(item.label); modal = null"
+                    >{{ item.label }}</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: cancelar pedido -->
+        <div v-if="modal === 'cancelar'" class="fixed inset-0 z-50 flex items-center justify-center bg-escuro/60 p-4" @click.self="modal = null">
+            <div role="alertdialog" aria-label="Cancelar pedido" class="w-full max-w-md rounded-[14px] bg-white p-6">
+                <h2 class="text-xl font-extrabold">Cancelar este pedido e libertar a mesa?</h2>
+                <p class="mt-2 text-[15px] text-suave">A conta de {{ eur(total) }} é anulada e a Mesa {{ mesa.numero }} fica livre.</p>
+                <div class="mt-5 grid grid-cols-2 gap-3">
+                    <button type="button" class="h-14 rounded-[10px] border border-linha-forte font-bold" @click="modal = null">Não, voltar</button>
+                    <button type="button" class="h-14 rounded-[10px] bg-perigo font-bold text-white" @click="confirmarCancelar">Sim, cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fecho de conta (POS-Pagamento) -->
+        <div v-if="pagamentoAberto" class="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-fundo lg:overflow-hidden">
+            <header class="flex h-16 shrink-0 items-center justify-between gap-3 bg-escuro px-4 text-white sm:px-6">
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-semibold" @click="pagamentoAberto = false">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+                    <span class="hidden sm:inline">Cancelar e voltar à mesa</span><span class="sm:hidden">Voltar</span>
+                </button>
+                <div class="truncate text-base font-bold">Fechar conta · {{ mesa.designacao || `Mesa ${mesa.numero}` }}</div>
+                <div class="hidden text-sm text-escuro-inativo md:block">{{ pedidoAutor }}</div>
+            </header>
+            <div class="grid flex-1 gap-5 p-4 sm:p-6 lg:min-h-0 lg:grid-cols-[360px_minmax(0,1fr)_380px]">
+                <section aria-label="Resumo" class="flex flex-col rounded-[14px] border border-linha bg-white p-5 lg:min-h-0">
+                    <h2 class="text-lg font-bold">Conta da mesa</h2>
+                    <div class="mt-2 min-h-0 flex-1 divide-y divide-linha-fraca overflow-y-auto">
+                        <div v-for="linha in resumoConta" :key="linha.chave" class="flex justify-between gap-3 py-2 text-[15px]">
+                            <span>{{ linha.quantidade }} × {{ linha.nome }}</span><span class="shrink-0">{{ eur(linha.total) }}</span>
+                        </div>
+                    </div>
+                    <div v-if="pedido.observacoes" class="mt-3 rounded-[10px] border border-laranja/30 bg-laranja-claro px-3 py-2">
+                        <span class="block text-sm font-bold text-laranja-texto">Observações da mesa</span>
+                        <span class="text-sm">{{ pedido.observacoes }}</span>
+                    </div>
+                    <div class="mt-3 flex justify-between gap-2 text-sm text-suave"><span><template v-if="pessoasNaMesa">{{ pessoasNaMesa }} pessoas · </template>pedido de {{ pedidoAutor }}</span><span>{{ artigosConta }} artigos</span></div>
+                </section>
+                <section aria-label="Pagamento" class="flex flex-col gap-4">
+                    <div class="flex items-center justify-between gap-3 rounded-[14px] bg-escuro px-6 py-5 text-white">
+                        <span class="text-lg text-escuro-inativo">Total a pagar</span>
+                        <span class="text-4xl font-extrabold sm:text-5xl">{{ eur(total) }}</span>
+                    </div>
+                    <div role="group" aria-label="Método de pagamento" class="grid grid-cols-3 gap-3">
+                        <button
+                            v-for="m in metodosPagamento"
+                            :key="m.valor"
+                            type="button"
+                            class="h-[72px] rounded-[14px] text-lg font-bold"
+                            :class="metodo === m.valor ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                            :aria-pressed="metodo === m.valor"
+                            @click="escolherMetodo(m.valor)"
+                        >{{ m.label }}</button>
+                    </div>
+                    <div class="rounded-[14px] border border-linha bg-white p-5">
+                        <div class="flex justify-between text-sm font-semibold text-suave"><span>Valor recebido</span><span v-if="recebido === ''">Vazio = valor certo</span></div>
+                        <div class="mt-3 grid grid-cols-4 gap-2">
+                            <button type="button" class="h-16 rounded-[10px] text-lg font-bold" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="recebido = ''">Certo</button>
+                            <button
+                                v-for="v in valoresRapidos"
+                                :key="v"
+                                type="button"
+                                class="h-16 rounded-[10px] text-lg font-bold"
+                                :class="String(recebido) === String(v) ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                :aria-pressed="String(recebido) === String(v)"
+                                @click="recebido = String(v)"
+                            >{{ v }} €</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-1 flex-col justify-center rounded-[14px] border-2 border-laranja bg-laranja-claro p-6">
+                        <span class="text-lg font-bold text-laranja-texto">Troco a dar</span>
+                        <span aria-live="polite" class="text-5xl font-extrabold sm:text-6xl">{{ eur(troco) }}</span>
+                        <span v-if="recebidoFalta" class="mt-2 text-[15px] font-semibold text-perigo">O valor recebido é menor que o total.</span>
+                    </div>
+                </section>
+                <section aria-label="Teclado" class="flex flex-col gap-3">
+                    <div class="flex items-center justify-between rounded-[14px] border border-linha bg-white px-5 py-4">
+                        <span class="text-sm font-semibold text-suave">Recebido</span>
+                        <span class="text-3xl font-extrabold" :class="recebido === '' ? 'text-suave-2' : ''">{{ visorRecebido }}</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button
+                            v-for="n in teclasPagamento"
+                            :key="n"
+                            type="button"
+                            class="h-[72px] rounded-[10px] border border-linha-forte text-2xl font-bold"
+                            :class="n === 'del' ? 'bg-fundo' : 'bg-white'"
+                            :aria-label="n === 'del' ? 'Apagar' : (n === '.' ? 'Vírgula' : n)"
+                            @click="tecla(n)"
+                        >{{ n === 'del' ? '←' : (n === '.' ? ',' : n) }}</button>
+                    </div>
+                    <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white font-bold" @click="recebido = ''">Limpar valor</button>
+                    <div class="flex-1"></div>
+                    <div v-if="fecharForm.errors.valor_recebido || fecharForm.errors.metodo_pagamento" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">{{ fecharForm.errors.valor_recebido || fecharForm.errors.metodo_pagamento }}</div>
+                    <p class="text-sm text-suave">O talão sai na impressora da conta ao confirmar.</p>
+                    <button type="button" class="h-[76px] rounded-[14px] bg-verde text-xl font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="fecharForm.processing" @click="fechar">
+                        {{ fecharForm.processing ? 'A confirmar…' : 'Confirmar pagamento' }}
+                    </button>
+                </section>
+            </div>
+        </div>
+
+        <!-- QR em ecrã inteiro -->
+        <div v-if="qrAberto" class="fixed inset-0 z-[60] flex items-center justify-center overflow-auto bg-escuro/80 p-5">
+            <div class="w-full max-w-md rounded-[14px] bg-white p-6 text-center">
+                <h2 class="text-2xl font-extrabold">{{ qrTitulo }}</h2>
+                <p class="mt-1 text-[15px] text-suave">{{ qrSubtitulo }}</p>
+                <img v-if="qrDataUrl" :src="qrDataUrl" :alt="`QR code — ${qrTitulo}`" class="mx-auto my-5 h-72 w-72 rounded-[14px] border border-linha p-3">
+                <input :value="qrLink" readonly aria-label="Link" class="h-11 w-full rounded-[10px] border-linha-forte text-xs">
+                <button type="button" class="mt-3 h-14 w-full rounded-[10px] bg-escuro font-bold text-white" @click="copiarLinkCliente">Copiar link</button>
+                <button type="button" class="mt-2 h-14 w-full rounded-[10px] border border-linha-forte font-bold" @click="qrAberto = false">Fechar</button>
             </div>
         </div>
     </main>

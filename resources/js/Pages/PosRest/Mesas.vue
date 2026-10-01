@@ -33,7 +33,11 @@ const coresGrupo = [
     'bg-teal-600',
 ];
 const pedidoGrupo = (mesa) => (mesa.pedidos_grupo ?? [])[0] ?? ((mesa.submesas ?? []).flatMap((submesa) => submesa.pedidos_grupo ?? []))[0] ?? null;
-const estadoVisual = (mesa) => pedidoGrupo(mesa) ? 'grupo' : (pedidosAtivos(mesa).length ? 'ocupada' : mesa.estado);
+// "A pagar" é derivado: todos os pedidos abertos da mesa já têm a conta pedida
+// (botão "Pedir conta"/"Fechar conta" no pedido da mesa) e ainda não foram pagos.
+const pedidosAPagar = (mesa) => pedidosAtivos(mesa).filter((pedido) => !!pedido.conta_pedida_em);
+const mesaAPagar = (mesa) => pedidosAtivos(mesa).length > 0 && pedidosAPagar(mesa).length === pedidosAtivos(mesa).length;
+const estadoVisual = (mesa) => mesaAPagar(mesa) ? 'apagar' : (pedidoGrupo(mesa) ? 'grupo' : (pedidosAtivos(mesa).length ? 'ocupada' : mesa.estado));
 const total = (mesa) => Number(pedidosAtivos(mesa).reduce((soma, pedido) => soma + Number(pedido.total_calculado ?? pedido.total ?? 0), 0)).toFixed(2) + '€';
 const minutos = (mesa) => Math.max(0, Math.floor((Date.now() - new Date(pedidosAtivos(mesa)[0]?.created_at || Date.now())) / 60000)) + 'min';
 const mesaLivre = (mesa) => !pedidosAtivos(mesa).length && (mesa?.estado ?? 'livre') === 'livre';
@@ -122,142 +126,177 @@ const irSemAssociar = () => {
 
 onMounted(() => { refresh = setInterval(() => router.reload({ only: ['mesas', 'pedidosFechadosHoje'], preserveScroll: true }), 20000); });
 onBeforeUnmount(() => clearInterval(refresh));
+
+// ---------------------------------------------------------------------------
+// Apresentação (redesign)
+// ---------------------------------------------------------------------------
+const estadoTile = (mesa) => {
+    const estado = estadoVisual(mesa);
+    if (estado === 'apagar') return 'apagar';
+    if (estado === 'grupo') return 'grupo';
+    if (estado === 'ocupada') return 'ocupada';
+    if (estado === 'reservada' || (mesa.reserva_ativa && !pedidosAtivos(mesa).length)) return 'reservada';
+    return 'livre';
+};
+const estilosTile = {
+    livre: { tile: 'border-2 border-linha-forte bg-white text-tinta', pill: 'bg-fundo text-tinta', label: 'Livre' },
+    ocupada: { tile: 'border-2 border-verde bg-verde text-white', pill: 'bg-white/20 text-white', label: 'Ocupada' },
+    apagar: { tile: 'border-2 border-laranja bg-laranja text-white', pill: 'bg-white/25 text-white', label: 'A pagar' },
+    reservada: { tile: 'border-2 border-azul bg-azul text-white', pill: 'bg-white/20 text-white', label: 'Reservada' },
+    grupo: { tile: 'border-2 border-roxo bg-roxo text-white', pill: 'bg-white/20 text-white', label: 'Grupo' },
+};
+const estiloTile = (mesa) => estilosTile[estadoTile(mesa)];
+// Faixa de cor por grupo, para distinguir dois grupos diferentes no mapa
+const faixasGrupo = ['#C4B5FD', '#67E8F9', '#F0ABFC', '#BEF264', '#FCD34D', '#93C5FD', '#FDA4AF', '#5EEAD4'];
+const faixaGrupo = (mesa) => {
+    const grupo = pedidoGrupo(mesa);
+    return grupo ? faixasGrupo[Number(grupo.id ?? 0) % faixasGrupo.length] : null;
+};
+const livresNaZona = (lista) => lista.filter((m) => estadoTile(m) === 'livre').length;
+const submesasAPagar = (mesa) => (!mesaAPagar(mesa) && pedidosAPagar(mesa).length) ? pedidosAPagar(mesa).length : 0;
+
 </script>
 
 <template>
     <ChamadaFuncionarioAlert />
     <ComissaoChamadasAlert />
-    <main class="min-h-screen bg-gray-900 p-5 text-white">
-        <header class="mb-5 flex flex-wrap items-center gap-3">
-            <Link :href="route('pos.rest.index')" class="rounded-lg bg-gray-800 px-4 py-3 font-black">←</Link>
-            <h1 class="min-w-0 flex-1 text-2xl font-black sm:text-4xl">MESAS</h1>
-            <button class="rounded-lg bg-amber-500 px-3 py-2 text-sm font-black text-black sm:px-4 sm:py-3" @click="chamandoComissao = true">🎉 COMISSÃO</button>
+    <main class="flex min-h-screen flex-col bg-fundo font-sans text-tinta tabular-nums">
+        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:py-0">
+            <div class="flex items-center gap-3.5">
+                <Link :href="route('pos.rest.index')" aria-label="Voltar ao início do restaurante" class="flex h-11 w-11 items-center justify-center rounded-[10px] bg-escuro-2 text-white hover:text-white">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+                </Link>
+                <h1 class="text-[22px] font-extrabold">Mesas</h1>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button type="button" class="h-11 rounded-[10px] px-4 text-[15px] font-bold text-white" :class="somenteGrupos ? 'bg-roxo' : 'bg-escuro-2'" :aria-pressed="somenteGrupos" @click="somenteGrupos = !somenteGrupos">Só grupos grandes (10+)</button>
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-semibold text-white" @click="mostrarQrPrecario">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3M21 14v7h-7" /></svg>
+                    QR preçário
+                </button>
+                <button type="button" class="h-11 rounded-[10px] bg-laranja px-4 text-[15px] font-bold text-white" @click="chamandoComissao = true">Chamar comissão</button>
+            </div>
         </header>
         <ChamarComissaoModal v-if="chamandoComissao" @fechar="chamandoComissao = false" />
-        <!-- Alerta: mesas com reserva sentada aguardando pedido (mesa mapeada) -->
-        <div v-if="mesasAguardandoPedido.length" class="mb-5 rounded-xl border-2 border-orange-400 bg-orange-950/80 p-4">
-            <p class="mb-2 text-base font-black text-orange-300 uppercase tracking-wide">
-                🔔 {{ mesasAguardandoPedido.length === 1 ? '1 mesa aguarda pedido' : `${mesasAguardandoPedido.length} mesas aguardam pedido` }}
-            </p>
-            <div class="flex flex-wrap gap-2">
-                <Link
-                    v-for="m in mesasAguardandoPedido"
-                    :key="m.id"
-                    :href="route('pos.rest.mesa', m.id)"
-                    class="flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 font-black text-gray-950"
-                >
-                    <span class="text-lg">Mesa {{ m.reserva_ativa.mesa_atribuida || m.numero }}</span>
-                    <span class="text-sm font-bold">· {{ m.reserva_ativa.nome }} · {{ m.reserva_ativa.pessoas }} pess.</span>
-                </Link>
-            </div>
-        </div>
 
-        <!-- Alerta: reservas sentadas sem mesa mapeada (ex: grupos grandes) -->
-        <div v-if="reservasSemMesa.length" class="mb-5 rounded-xl border-2 border-yellow-400 bg-yellow-950/80 p-4">
-            <p class="mb-2 text-base font-black text-yellow-300 uppercase tracking-wide">
-                🪑 {{ reservasSemMesa.length === 1 ? '1 reserva sentada aguarda pedido' : `${reservasSemMesa.length} reservas sentadas aguardam pedido` }}
-            </p>
-            <div class="flex flex-wrap gap-2">
-                <div
-                    v-for="r in reservasSemMesa"
-                    :key="r.id"
-                    class="flex items-center gap-2 rounded-lg bg-yellow-500 px-3 py-2 font-black text-gray-950"
-                >
-                    <span class="text-lg">{{ r.nome }}</span>
-                    <span class="text-sm font-bold">· {{ r.pessoas }} pess.</span>
-                    <span v-if="r.mesa_atribuida" class="text-sm font-bold">· Mesa {{ r.mesa_atribuida }}</span>
+        <div class="flex-1 px-4 pb-6 sm:px-6">
+            <!-- Alertas -->
+            <div v-if="mesasAguardandoPedido.length || reservasSemMesa.length" class="flex flex-col gap-3 pt-3.5 lg:flex-row">
+                <div v-if="mesasAguardandoPedido.length" role="status" class="flex flex-1 flex-wrap items-center gap-3 rounded-xl border-2 border-laranja bg-laranja-claro px-3.5 py-2.5">
+                    <span class="text-[15px] font-bold text-laranja-texto">{{ mesasAguardandoPedido.length === 1 ? '1 mesa aguarda pedido' : `${mesasAguardandoPedido.length} mesas aguardam pedido` }}</span>
+                    <Link
+                        v-for="m in mesasAguardandoPedido"
+                        :key="m.id"
+                        :href="route('pos.rest.mesa', m.id)"
+                        class="flex min-h-11 items-center rounded-[10px] bg-laranja px-3.5 text-[15px] font-bold text-white hover:text-white"
+                    >Mesa {{ m.reserva_ativa.mesa_atribuida || m.numero }} · {{ m.reserva_ativa.nome }} · {{ m.reserva_ativa.pessoas }} pess.</Link>
                 </div>
-            </div>
-        </div>
-
-        <div class="mb-5 flex flex-wrap justify-end gap-3">
-            <button type="button" class="rounded-lg px-4 py-3 font-black" :class="somenteGrupos ? 'bg-amber-500 text-gray-950' : 'bg-gray-700'" @click="somenteGrupos = !somenteGrupos">GRUPOS GRANDES</button>
-            <button type="button" class="rounded-lg bg-emerald-600 px-4 py-3 font-black" @click="mostrarQrPrecario">QR PREÇÁRIO</button>
-        </div>
-        <section v-for="(lista, local) in grupos" :key="local" class="mb-7">
-            <h2 class="mb-3 text-xl font-black uppercase text-gray-300">{{ local }}</h2>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-                <div v-for="mesa in lista" :key="mesa.id" class="flex min-h-[116px] cursor-pointer flex-col items-center justify-center rounded-lg p-3 text-center font-black shadow" :class="cor(mesa)" @click="clicarMesa(mesa)">
-                    <span class="text-2xl sm:text-3xl">{{ mesa.numero }}</span>
-                    <span class="text-xs">Cap. {{ mesa.capacidade }}</span>
-                    <span class="mt-1 rounded bg-black/15 px-2 py-0.5 text-xs">{{ textoLugaresLivres(mesa) }}</span>
-                    <span v-if="mesa.submesas?.length" class="mt-1 text-xs">{{ mesa.submesas.length }} submesas</span>
-                    <span v-if="estadoVisual(mesa) === 'grupo'" class="mt-1 text-xs uppercase">Grupo</span>
-                    <span v-if="['grupo', 'ocupada'].includes(estadoVisual(mesa))" class="mt-1 text-sm">{{ total(mesa) }} · {{ minutos(mesa) }}</span>
-                    <span v-if="mesa.reserva_ativa" class="mt-1 w-full truncate rounded bg-black/25 px-1.5 py-0.5 text-xs">
-                        👤 {{ mesa.reserva_ativa.nome }}
-                        <span v-if="mesa.reserva_ativa.mesa_atribuida !== String(mesa.numero)" class="opacity-75">({{ mesa.reserva_ativa.mesa_atribuida }})</span>
-                    </span>
-                    <span v-else-if="mesa.nome_reserva" class="mt-1 w-full truncate rounded bg-black/25 px-1.5 py-0.5 text-xs">
-                        👤 {{ mesa.nome_reserva }}
-                    </span>
-                    <span v-if="mesa.reserva_ativa && !pedidosAtivos(mesa).length" class="mt-1 w-full animate-pulse rounded bg-orange-500 px-1.5 py-0.5 text-xs font-black text-gray-950">
-                        ⚡ REALIZAR PEDIDO
+                <div v-if="reservasSemMesa.length" role="status" class="flex flex-wrap items-center gap-3 rounded-xl border-2 border-azul bg-[#EAF0FB] px-3.5 py-2.5 lg:max-w-[45%]">
+                    <span class="text-[15px] font-bold text-[#1E4290]">{{ reservasSemMesa.length === 1 ? '1 reserva sentada sem mesa' : `${reservasSemMesa.length} reservas sentadas sem mesa` }}</span>
+                    <span v-for="r in reservasSemMesa" :key="r.id" class="flex min-h-11 items-center rounded-[10px] bg-azul px-3.5 text-[15px] font-bold text-white">
+                        {{ r.nome }} · {{ r.pessoas }} pess.<template v-if="r.mesa_atribuida"> · Mesa {{ r.mesa_atribuida }}</template>
                     </span>
                 </div>
             </div>
-        </section>
-        <!-- Mesas fechadas hoje -->
-        <section v-if="pedidosFechadosOrdenados.length" class="mt-8">
-            <h2 class="mb-3 text-xl font-black uppercase text-gray-400">✅ Fechadas Hoje</h2>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-                <Link
-                    v-for="p in pedidosFechadosOrdenados"
-                    :key="p.id"
-                    :href="route('pos.rest.mesa', p.mesa_id)"
-                    class="flex min-h-[100px] flex-col items-center justify-center rounded-lg bg-gray-700 p-3 text-center font-black shadow opacity-80 hover:opacity-100"
-                >
-                    <span class="text-2xl sm:text-3xl">{{ nomeMesaFechada(p) }}</span>
-                    <span class="mt-1 text-sm font-semibold text-emerald-400">{{ euros(p.total) }}</span>
-                    <span class="mt-0.5 text-xs text-gray-400">{{ horaFechada(p.updated_at) }}</span>
-                    <span v-if="p.observacoes" class="mt-1 rounded bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">OBS</span>
-                </Link>
+
+            <!-- Legenda -->
+            <div class="mt-3.5 flex flex-wrap items-center justify-between gap-2 text-sm text-suave">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span>Legenda:</span>
+                    <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded border-2 border-suave bg-white"></span>Livre</span>
+                    <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded bg-verde"></span>Ocupada</span>
+                    <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded bg-laranja"></span>A pagar</span>
+                    <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded bg-azul"></span>Reservada</span>
+                    <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded bg-roxo"></span>Grupo</span>
+                </div>
+                <span>Toque numa mesa para a abrir</span>
             </div>
-        </section>
+
+            <section v-for="(lista, local) in grupos" :key="local" class="mt-4">
+                <h2 class="mb-2 text-[15px] font-extrabold uppercase tracking-wider text-suave">{{ local }} <span class="font-semibold normal-case tracking-normal">· {{ livresNaZona(lista) }} livres de {{ lista.length }}</span></h2>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+                    <button
+                        v-for="mesa in lista"
+                        :key="mesa.id"
+                        type="button"
+                        class="relative flex min-h-[116px] flex-col items-stretch overflow-hidden rounded-[14px] px-3 py-2.5 text-left"
+                        :class="estiloTile(mesa).tile"
+                        @click="clicarMesa(mesa)"
+                    >
+                        <span v-if="faixaGrupo(mesa)" class="absolute inset-y-0 left-0 w-1.5" :style="{ backgroundColor: faixaGrupo(mesa) }" aria-hidden="true"></span>
+                        <span class="flex items-start justify-between gap-1">
+                            <span class="text-[28px] font-extrabold leading-none">{{ mesa.numero }}</span>
+                            <span class="pt-1 text-right text-xs font-semibold opacity-90"><template v-if="estadoVisual(mesa) === 'grupo' || pedidoGrupo(mesa)">Grupo · </template>Cap. {{ mesa.capacidade }}</span>
+                        </span>
+                        <span class="mt-1.5 self-start rounded-full px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wider" :class="estiloTile(mesa).pill">{{ estiloTile(mesa).label }}</span>
+                        <span v-if="['grupo', 'ocupada', 'apagar'].includes(estadoTile(mesa))" class="mt-1 text-[13px] font-bold">{{ total(mesa) }} · {{ minutos(mesa) }}</span>
+                        <span v-else-if="estadoTile(mesa) === 'livre'" class="mt-1 text-[13px] font-semibold">{{ textoLugaresLivres(mesa) }}</span>
+                        <span v-if="['grupo', 'ocupada', 'apagar'].includes(estadoTile(mesa)) && mesa.submesas?.length" class="text-[13px] font-semibold">{{ textoLugaresLivres(mesa) }}</span>
+                        <span v-if="mesa.submesas?.length" class="text-[13px] font-semibold">{{ mesa.submesas.length }} submesas</span>
+                        <span v-if="submesasAPagar(mesa)" class="mt-0.5 self-start rounded bg-laranja px-1.5 py-0.5 text-xs font-bold text-white">{{ submesasAPagar(mesa) }} a pagar</span>
+                        <span v-if="mesa.reserva_ativa" class="mt-0.5 truncate text-[13px] font-bold">
+                            {{ mesa.reserva_ativa.nome }}
+                            <span v-if="mesa.reserva_ativa.mesa_atribuida !== String(mesa.numero)" class="font-semibold opacity-80">({{ mesa.reserva_ativa.mesa_atribuida }})</span>
+                        </span>
+                        <span v-else-if="mesa.nome_reserva" class="mt-0.5 truncate text-[13px] font-bold">{{ mesa.nome_reserva }}</span>
+                        <span v-if="mesa.reserva_ativa && !pedidosAtivos(mesa).length" class="mt-1 rounded-md bg-laranja-claro px-2 py-1 text-center text-xs font-extrabold text-laranja-texto">Fazer pedido</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Mesas fechadas hoje -->
+            <section v-if="pedidosFechadosOrdenados.length" class="mt-6">
+                <h2 class="mb-2 text-[15px] font-extrabold uppercase tracking-wider text-suave">Fechadas hoje</h2>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+                    <Link
+                        v-for="p in pedidosFechadosOrdenados"
+                        :key="p.id"
+                        :href="route('pos.rest.mesa', p.mesa_id)"
+                        class="flex min-h-[72px] flex-col rounded-[14px] border border-linha bg-[#ECEEEA] px-3 py-2 text-tinta hover:text-tinta"
+                    >
+                        <span class="text-lg font-extrabold leading-tight">{{ nomeMesaFechada(p) }}</span>
+                        <span class="text-[15px] font-bold text-verde-escuro">{{ euros(p.total) }}</span>
+                        <span class="flex items-center justify-between text-xs text-suave">
+                            {{ horaFechada(p.updated_at) }}
+                            <span v-if="p.observacoes" class="font-extrabold text-laranja-texto">OBS</span>
+                        </span>
+                    </Link>
+                </div>
+            </section>
+        </div>
 
         <!-- Modal: associar reserva a mesa -->
-        <div v-if="mesaModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" @click.self="mesaModal = null">
-            <div class="w-full max-w-sm rounded-2xl bg-gray-800 p-5 shadow-2xl">
-                <h2 class="text-xl font-black text-white">MESA {{ mesaModal.numero }}</h2>
-                <p class="mt-1 text-sm font-bold text-gray-400">Associar uma reserva sem mesa?</p>
-
-                <div class="mt-3 space-y-2 max-h-72 overflow-y-auto">
+        <div v-if="mesaModal" class="fixed inset-0 z-50 flex items-center justify-center bg-escuro/60 p-4" @click.self="mesaModal = null">
+            <div role="dialog" aria-label="Associar reserva" class="w-full max-w-sm rounded-[14px] bg-white p-5">
+                <h2 class="text-xl font-extrabold">Mesa {{ mesaModal.numero }}</h2>
+                <p class="mt-1 text-[15px] text-suave">Associar uma reserva sem mesa?</p>
+                <div class="mt-3 max-h-72 space-y-2 overflow-y-auto">
                     <button
                         v-for="r in reservasSemMesa"
                         :key="r.id"
-                        class="w-full rounded-lg bg-gray-900 p-3 text-left hover:bg-gray-700 disabled:opacity-50"
+                        type="button"
+                        class="w-full rounded-[10px] border border-linha-forte bg-white p-3 text-left hover:bg-fundo disabled:opacity-45"
                         :disabled="associandoId === r.id"
                         @click="associarReserva(r)"
                     >
-                        <div class="font-black text-white">{{ r.nome }}</div>
-                        <div class="mt-0.5 text-xs font-bold text-gray-400">{{ r.pessoas }} pessoas · {{ r.hora?.slice(0, 5) }}</div>
-                        <div v-if="r.observacoes" class="mt-0.5 text-xs text-gray-500">{{ r.observacoes }}</div>
+                        <div class="font-bold">{{ r.nome }}</div>
+                        <div class="mt-0.5 text-sm text-suave">{{ r.pessoas }} pessoas<template v-if="r.hora"> · {{ r.hora?.slice(0, 5) }}</template></div>
+                        <div v-if="r.observacoes" class="mt-0.5 text-xs text-suave-2">{{ r.observacoes }}</div>
                     </button>
                 </div>
-
-                <button
-                    class="mt-4 w-full rounded-lg bg-gray-700 p-3 font-black text-white hover:bg-gray-600"
-                    @click="irSemAssociar"
-                >
-                    Ir para a mesa sem associar
-                </button>
-                <button
-                    class="mt-2 w-full rounded-lg bg-transparent p-2 text-sm font-bold text-gray-400 hover:text-white"
-                    @click="mesaModal = null"
-                >
-                    Cancelar
-                </button>
+                <button type="button" class="mt-4 h-14 w-full rounded-[10px] bg-verde font-bold text-white hover:bg-verde-escuro" @click="irSemAssociar">Ir para a mesa sem associar</button>
+                <button type="button" class="mt-2 h-11 w-full rounded-[10px] font-semibold text-suave hover:text-tinta" @click="mesaModal = null">Cancelar</button>
             </div>
         </div>
 
-        <div v-if="qrAberto" class="fixed inset-0 z-50 overflow-auto bg-gray-950 p-5">
-            <div class="mx-auto max-w-md rounded-2xl bg-white p-5 text-center text-slate-950">
-                <h2 class="text-2xl font-black">Preçário</h2>
-                <p class="mt-1 text-sm font-semibold text-slate-500">Produtos e preços disponíveis</p>
-                <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR code do preçário" class="mx-auto my-5 h-72 w-72 rounded-xl border p-3">
-                <input :value="precarioUrl" readonly class="w-full rounded-lg border-slate-300 text-xs">
-                <button class="mt-3 w-full rounded-lg bg-slate-900 p-3 font-black text-white" @click="copiarPrecario">COPIAR LINK</button>
-                <button class="mt-3 w-full rounded-lg bg-gray-200 p-3 font-black text-slate-950" @click="qrAberto = false">FECHAR</button>
+        <div v-if="qrAberto" class="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-escuro/80 p-5">
+            <div class="w-full max-w-md rounded-[14px] bg-white p-6 text-center">
+                <h2 class="text-2xl font-extrabold">Preçário</h2>
+                <p class="mt-1 text-[15px] text-suave">Produtos e preços disponíveis</p>
+                <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR code do preçário" class="mx-auto my-5 h-72 w-72 rounded-[14px] border border-linha p-3">
+                <input :value="precarioUrl" readonly aria-label="Link do preçário" class="h-11 w-full rounded-[10px] border-linha-forte text-xs">
+                <button type="button" class="mt-3 h-14 w-full rounded-[10px] bg-escuro font-bold text-white" @click="copiarPrecario">Copiar link</button>
+                <button type="button" class="mt-2 h-14 w-full rounded-[10px] border border-linha-forte font-bold" @click="qrAberto = false">Fechar</button>
             </div>
         </div>
     </main>

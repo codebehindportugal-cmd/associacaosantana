@@ -109,13 +109,20 @@ class SocioController extends Controller
 
     private function sociosEmAtraso()
     {
-        return Socio::emAtraso()->with(['cotas' => fn ($query) => $query->emAtraso()])->orderBy('nome')->get()
-            ->map(fn (Socio $socio) => [
-                'id' => $socio->id,
-                'numero_socio' => $socio->numero_socio,
-                'nome' => $socio->nome,
-                'meses_atraso' => $socio->cotas->count(),
-                'valor_divida' => (float) $socio->cotas->sum('valor'),
-            ]);
+        // A cota e anual: o atraso conta-se em anos (mesma regra da ficha do
+        // socio e do POS), e a divida e anos x valor da cota anual
+        return Socio::emAtraso()->orderBy('nome')->get()
+            ->map(function (Socio $socio) {
+                $anos = $socio->anos_em_atraso;
+
+                return [
+                    'id' => $socio->id,
+                    'numero_socio' => $socio->numero_socio,
+                    'nome' => $socio->nome,
+                    'morada' => $socio->morada,
+                    'anos_atraso' => $anos,
+                    'valor_divida' => $anos * Socio::VALOR_COTA_ANUAL,
+                ];
+            });
     }
 }

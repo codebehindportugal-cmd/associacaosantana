@@ -12,7 +12,8 @@ const props = defineProps({
 });
 
 // ── Calendário ────────────────────────────────────────────────────────────────
-const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+// Semana começa à segunda-feira (como no calendário português)
+const diasSemana = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const mesesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 const diasDoMes = computed(() => {
@@ -20,8 +21,9 @@ const diasDoMes = computed(() => {
     const ultimo   = new Date(props.ano, props.mes, 0);
     const dias = [];
     // Preencher com nulls até ao primeiro dia da semana
-    for (let i = 0; i < primeiro.getDay(); i++) dias.push(null);
+    for (let i = 0; i < (primeiro.getDay() + 6) % 7; i++) dias.push(null);
     for (let d = 1; d <= ultimo.getDate(); d++) dias.push(d);
+    while (dias.length % 7) dias.push(null);
     return dias;
 });
 
@@ -136,11 +138,42 @@ function toggleDia(dia) {
 
 // ── Cores por estado ──────────────────────────────────────────────────────────
 const estadoCor = {
-    pendente:   'bg-amber-100 text-amber-800 border-amber-300',
-    confirmado: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    cancelado:  'bg-red-100 text-red-700 border-red-300',
-    concluido:  'bg-slate-100 text-slate-600 border-slate-300',
+    pendente:   'bg-laranja-claro text-laranja-texto border-laranja',
+    confirmado: 'bg-verde-claro text-verde-escuro border-verde',
+    cancelado:  'bg-perigo-claro text-perigo-texto border-perigo line-through',
+    concluido:  'bg-fundo text-suave border-suave-2',
 };
+const estadoTexto = {
+    pendente:   'text-laranja-texto',
+    confirmado: 'text-verde-escuro',
+    cancelado:  'text-perigo-texto',
+    concluido:  'text-suave',
+};
+const estadoPill = {
+    pendente:   'bg-laranja-claro text-laranja-texto',
+    confirmado: 'bg-verde-claro text-verde-escuro',
+    cancelado:  'bg-perigo-claro text-perigo-texto',
+    concluido:  'bg-fundo text-suave',
+};
+const estadoBorda = {
+    pendente:   'border-l-laranja',
+    confirmado: 'border-l-verde',
+    cancelado:  'border-l-perigo',
+    concluido:  'border-l-suave-2',
+};
+const estadoPonto = {
+    pendente:   'bg-laranja',
+    confirmado: 'bg-verde',
+    cancelado:  'bg-perigo',
+    concluido:  'bg-suave-2',
+};
+const legenda = [
+    ['Pendente', 'bg-laranja'],
+    ['Confirmado', 'bg-verde'],
+    ['Cancelado', 'bg-perigo'],
+    ['Concluído', 'bg-suave-2'],
+];
+const euros = (v) => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
 const estadoLabel = {
     pendente:   'Pendente',
     confirmado: 'Confirmado',
@@ -159,225 +192,206 @@ const hoje = new Date().toISOString().slice(0, 10);
 
 <template>
     <AppLayout>
-        <!-- Cabeçalho -->
-        <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold">Alugueres do Salão</h1>
-                <p class="mt-1 text-sm text-slate-500">Calendário de reservas do espaço.</p>
-            </div>
-            <div class="flex gap-2">
-                <a :href="route('alugueres.opcoes')" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
-                    ⚙️ Opções
-                </a>
-                <button @click="abrirCriar()" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-bold text-white">
-                    + Novo Aluguer
-                </button>
-            </div>
-        </div>
-
-        <!-- Calendário -->
-        <div class="mb-6 rounded-xl bg-white shadow-sm">
-            <!-- Nav mês -->
-            <div class="flex items-center justify-between border-b px-5 py-3">
-                <button @click="navMes(-1)" class="rounded-md p-2 hover:bg-slate-100">‹</button>
-                <h2 class="text-lg font-black">{{ mesesNomes[mes - 1] }} {{ ano }}</h2>
-                <button @click="navMes(1)" class="rounded-md p-2 hover:bg-slate-100">›</button>
+        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 font-sans text-tinta tabular-nums">
+            <!-- Cabeçalho -->
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-[30px] font-extrabold leading-tight">Alugueres do Salão</h1>
+                    <p class="text-[15px] text-suave">Calendário de reservas do espaço. Toca num dia livre para criar um aluguer.</p>
+                </div>
+                <div class="flex flex-wrap gap-2.5">
+                    <a :href="route('alugueres.opcoes')" class="btn-sec h-12">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+                        Opções do salão
+                    </a>
+                    <button type="button" class="btn-pri h-12" @click="abrirCriar()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                        Novo aluguer
+                    </button>
+                </div>
             </div>
 
-            <!-- Dias da semana -->
-            <div class="grid grid-cols-7 border-b bg-slate-50 text-center text-xs font-bold text-slate-500">
-                <div v-for="d in diasSemana" :key="d" class="py-2">{{ d }}</div>
-            </div>
+            <div class="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+                <!-- Calendário -->
+                <section class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                    <div class="flex items-center justify-between gap-2 border-b border-linha-fraca p-3 sm:p-4">
+                        <button type="button" class="btn-icone" aria-label="Mês anterior" @click="navMes(-1)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+                        </button>
+                        <h2 class="text-xl font-extrabold">{{ mesesNomes[mes - 1] }} {{ ano }}</h2>
+                        <button type="button" class="btn-icone" aria-label="Mês seguinte" @click="navMes(1)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                        </button>
+                    </div>
 
-            <!-- Grid de dias -->
-            <div class="grid grid-cols-7">
-                <div
-                    v-for="(dia, i) in diasDoMes"
-                    :key="i"
-                    class="min-h-[80px] border-b border-r p-1 last:border-r-0"
-                    :class="dia ? 'cursor-pointer hover:bg-slate-50' : 'bg-slate-50/50'"
-                    @click="dia && (alugueresNoDia(dia).length ? toggleDia(dia) : abrirCriar(dia))"
-                >
-                    <template v-if="dia">
-                        <div class="mb-1 flex items-center gap-1">
-                            <span
-                                class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
-                                :class="dateStr(dia) === hoje ? 'bg-slate-900 text-white' : 'text-slate-700'"
-                            >{{ dia }}</span>
-                            <span v-if="alugueresNoDia(dia).length" class="text-[10px] font-bold text-slate-400">
-                                {{ alugueresNoDia(dia).length }}x
-                            </span>
+                    <div class="grid grid-cols-7 border-b border-linha-fraca bg-fundo text-center text-[13px] font-bold text-suave">
+                        <div v-for="d in diasSemana" :key="d" class="py-2">{{ d }}</div>
+                    </div>
+
+                    <div class="grid grid-cols-7">
+                        <div
+                            v-for="(dia, i) in diasDoMes"
+                            :key="i"
+                            class="min-h-[64px] min-w-0 border-b border-r border-linha-fraca p-1 sm:min-h-[92px] sm:p-1.5 [&:nth-child(7n)]:border-r-0"
+                            :class="[
+                                dia ? 'cursor-pointer hover:bg-fundo' : 'bg-fundo/60',
+                                dia && diaExpandido === dia ? 'bg-verde-claro outline outline-2 -outline-offset-2 outline-verde' : '',
+                            ]"
+                            :role="dia ? 'button' : undefined"
+                            :tabindex="dia ? 0 : undefined"
+                            :aria-label="dia ? `${dia} de ${mesesNomes[mes - 1]}: ${alugueresNoDia(dia).length ? alugueresNoDia(dia).length + ' aluguer(es)' : 'livre, criar aluguer'}` : undefined"
+                            @click="dia && (alugueresNoDia(dia).length ? toggleDia(dia) : abrirCriar(dia))"
+                            @keydown.enter="dia && (alugueresNoDia(dia).length ? toggleDia(dia) : abrirCriar(dia))"
+                        >
+                            <template v-if="dia">
+                                <div class="mb-1 flex items-center gap-1 px-0.5">
+                                    <span
+                                        class="flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold"
+                                        :class="dateStr(dia) === hoje ? 'bg-tinta text-white' : 'text-tinta'"
+                                    >{{ dia }}</span>
+                                </div>
+                                <div v-for="a in alugueresNoDia(dia)" :key="a.id" class="mb-0.5">
+                                    <div class="hidden truncate rounded-md border-l-[3px] px-1.5 py-0.5 text-xs font-bold sm:block" :class="estadoCor[a.estado]">{{ a.nome_cliente }}</div>
+                                    <div class="h-1.5 rounded-full sm:hidden" :class="estadoPonto[a.estado]" :title="a.nome_cliente"></div>
+                                </div>
+                            </template>
                         </div>
-                        <div v-for="a in alugueresNoDia(dia)" :key="a.id" class="mb-0.5">
-                            <div
-                                class="truncate rounded px-1 py-0.5 text-[11px] font-bold border"
-                                :class="estadoCor[a.estado]"
-                            >{{ a.nome_cliente }}</div>
+                    </div>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1 px-4 py-3 text-[13px] font-semibold text-suave">
+                        <span v-for="[nome, cor] in legenda" :key="nome" class="inline-flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm" :class="cor"></span>{{ nome }}</span>
+                    </div>
+                </section>
+
+                <div class="flex flex-col gap-5">
+                    <!-- Detalhe do dia expandido -->
+                    <section v-if="diaExpandido" class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="text-lg font-extrabold">Dia {{ diaExpandido }} de {{ mesesNomes[mes - 1] }}</h3>
+                            <div class="flex gap-1.5">
+                                <button type="button" class="btn-sec h-11 px-3 text-sm text-verde" @click="abrirCriar(diaExpandido)">+ Neste dia</button>
+                                <button type="button" class="btn-icone" aria-label="Fechar detalhe do dia" @click="diaExpandido = null">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                                </button>
+                            </div>
                         </div>
-                    </template>
+                        <button
+                            v-for="a in alugueresNoDia(diaExpandido)"
+                            :key="a.id"
+                            type="button"
+                            class="flex flex-col gap-0.5 rounded-[10px] border border-l-4 border-linha p-3 text-left hover:bg-fundo"
+                            :class="estadoBorda[a.estado]"
+                            @click="abrirEditar(a)"
+                        >
+                            <div class="flex w-full items-start justify-between gap-2">
+                                <span class="font-extrabold">{{ a.nome_cliente }}</span>
+                                <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-extrabold" :class="estadoPill[a.estado]">{{ estadoLabel[a.estado] }}</span>
+                            </div>
+                            <span v-if="a.entidade" class="text-[13px] text-suave">{{ a.entidade }}</span>
+                            <span class="text-[13px] font-semibold">{{ formatarData(a.data_inicio) }} → {{ formatarData(a.data_fim) }} · {{ a.numero_dias }} {{ a.numero_dias === 1 ? 'dia' : 'dias' }}</span>
+                            <span v-if="a.opcoes.length" class="text-xs text-suave-2">{{ a.opcoes.map(o => o.nome).join(' · ') }}</span>
+                        </button>
+                    </section>
+
+                    <!-- Próximos alugueres -->
+                    <section v-if="proximos.length" class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                        <h3 class="border-b border-linha-fraca px-4 py-3.5 text-lg font-extrabold">Próximos alugueres</h3>
+                        <ul class="divide-y divide-linha-fraca">
+                            <li v-for="a in proximos" :key="a.id">
+                                <button type="button" class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-fundo" @click="abrirEditar(a)">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="truncate font-bold">{{ a.nome_cliente }}<span v-if="a.entidade" class="font-normal text-suave-2"> · {{ a.entidade }}</span></div>
+                                        <div class="text-[13px] text-suave">{{ formatarData(a.data_inicio) }} → {{ formatarData(a.data_fim) }} · {{ a.numero_dias }} {{ a.numero_dias === 1 ? 'dia' : 'dias' }}</div>
+                                        <div class="text-xs font-bold" :class="estadoTexto[a.estado]">{{ estadoLabel[a.estado] }}</div>
+                                        <div v-if="a.opcoes.length" class="mt-1 flex flex-wrap gap-1">
+                                            <span v-for="o in a.opcoes" :key="o.id" class="rounded-md bg-fundo px-1.5 py-0.5 text-[11px] font-semibold text-suave">{{ o.nome }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="shrink-0 text-right">
+                                        <template v-if="a.preco_total">
+                                            <div class="font-extrabold">{{ euros(a.preco_total) }}</div>
+                                            <div class="text-xs font-bold" :class="a.pago ? 'text-verde' : 'text-laranja-texto'">{{ a.pago ? 'Pago' : 'Por pagar' }}</div>
+                                        </template>
+                                        <span v-else class="text-suave-2">—</span>
+                                    </div>
+                                </button>
+                            </li>
+                        </ul>
+                    </section>
+
+                    <div v-else class="rounded-[14px] border border-linha bg-white p-8 text-center text-suave-2">
+                        Sem alugueres futuros registados.
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Detalhe do dia expandido -->
-        <div v-if="diaExpandido" class="mb-6 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm">
-            <div class="mb-3 flex items-center justify-between">
-                <h3 class="font-black text-slate-800">Dia {{ diaExpandido }} de {{ mesesNomes[mes - 1] }}</h3>
-                <button @click="diaExpandido = null" class="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-                <div
-                    v-for="a in alugueresNoDia(diaExpandido)"
-                    :key="a.id"
-                    class="cursor-pointer rounded-lg border p-3 hover:bg-slate-50"
-                    :class="estadoCor[a.estado]"
-                    @click="abrirEditar(a)"
-                >
-                    <div class="flex items-start justify-between gap-2">
-                        <div>
-                            <div class="font-black">{{ a.nome_cliente }}</div>
-                            <div v-if="a.entidade" class="text-xs">{{ a.entidade }}</div>
-                        </div>
-                        <span class="rounded-full border px-2 py-0.5 text-xs font-bold" :class="estadoCor[a.estado]">
-                            {{ estadoLabel[a.estado] }}
-                        </span>
-                    </div>
-                    <div class="mt-1 text-xs">
-                        {{ formatarData(a.data_inicio) }} → {{ formatarData(a.data_fim) }} · {{ a.numero_dias }} {{ a.numero_dias === 1 ? 'dia' : 'dias' }}
-                    </div>
-                    <div v-if="a.opcoes.length" class="mt-1 flex flex-wrap gap-1">
-                        <span v-for="o in a.opcoes" :key="o.id" class="rounded bg-slate-800/10 px-1.5 py-0.5 text-[10px] font-semibold">{{ o.nome }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Próximos alugueres -->
-        <div v-if="proximos.length" class="rounded-xl bg-white shadow-sm">
-            <div class="border-b px-5 py-3">
-                <h3 class="font-black text-slate-800">Próximos alugueres</h3>
-            </div>
-            <div class="divide-y">
-                <div
-                    v-for="a in proximos"
-                    :key="a.id"
-                    class="flex cursor-pointer flex-wrap items-center gap-3 px-5 py-3 hover:bg-slate-50"
-                    @click="abrirEditar(a)"
-                >
-                    <div class="min-w-0 flex-1">
-                        <div class="font-bold">{{ a.nome_cliente }}<span v-if="a.entidade" class="ml-2 font-normal text-slate-500">· {{ a.entidade }}</span></div>
-                        <div class="text-sm text-slate-500">
-                            {{ formatarData(a.data_inicio) }} → {{ formatarData(a.data_fim) }} · {{ a.numero_dias }} {{ a.numero_dias === 1 ? 'dia' : 'dias' }}
-                        </div>
-                        <div v-if="a.opcoes.length" class="mt-1 flex flex-wrap gap-1">
-                            <span v-for="o in a.opcoes" :key="o.id" class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">{{ o.nome }}</span>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <div v-if="a.preco_total" class="text-right">
-                            <div class="text-sm font-black">{{ Number(a.preco_total).toFixed(2) }}€</div>
-                            <div class="text-xs" :class="a.pago ? 'text-emerald-600 font-bold' : 'text-amber-600'">{{ a.pago ? 'Pago' : 'Por pagar' }}</div>
-                        </div>
-                        <span class="rounded-full border px-2 py-1 text-xs font-bold" :class="estadoCor[a.estado]">{{ estadoLabel[a.estado] }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div v-else class="rounded-xl bg-white p-10 text-center text-slate-400 shadow-sm">
-            Sem alugueres futuros registados.
-        </div>
-
-        <!-- Modal criar/editar ───────────────────────────────────────────────── -->
+        <!-- Modal criar/editar -->
         <Teleport to="body">
-            <div v-if="modal" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-10">
-                <div class="w-full max-w-2xl rounded-xl bg-white shadow-2xl">
-                    <!-- Header modal -->
-                    <div class="flex items-center justify-between border-b px-6 py-4">
-                        <h2 class="text-lg font-black text-slate-900">{{ editing ? 'Editar Aluguer' : 'Novo Aluguer' }}</h2>
-                        <button @click="fecharModal" class="text-slate-400 hover:text-slate-600">✕</button>
+            <div v-if="modal" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-tinta/60 p-3 py-6 font-sans text-tinta sm:p-4 sm:py-10" @click.self="fecharModal">
+                <div class="w-full max-w-2xl rounded-[14px] bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="t-modal-aluguer">
+                    <div class="flex items-center justify-between border-b border-linha-fraca px-4 py-3 sm:px-6">
+                        <h2 id="t-modal-aluguer" class="text-xl font-extrabold">{{ editing ? 'Editar aluguer' : 'Novo aluguer' }}</h2>
+                        <button type="button" class="btn-icone" aria-label="Fechar" @click="fecharModal">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                        </button>
                     </div>
 
-                    <form @submit.prevent="guardar" class="divide-y">
-                        <!-- Dados do cliente -->
-                        <div class="grid gap-4 px-6 py-4 sm:grid-cols-2">
-                            <div class="sm:col-span-2">
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Nome do cliente *</label>
-                                <input v-model="form.nome_cliente" type="text" class="w-full rounded-md border-slate-300 text-sm text-slate-900" required />
-                                <p v-if="form.errors.nome_cliente" class="mt-1 text-xs text-red-600">{{ form.errors.nome_cliente }}</p>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Entidade / Organização</label>
-                                <input v-model="form.entidade" type="text" class="w-full rounded-md border-slate-300 text-sm text-slate-900" />
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Telefone</label>
-                                <input v-model="form.telefone" type="tel" class="w-full rounded-md border-slate-300 text-sm text-slate-900" />
-                            </div>
-                            <div class="sm:col-span-2">
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Email</label>
-                                <input v-model="form.email" type="email" class="w-full rounded-md border-slate-300 text-sm text-slate-900" />
-                            </div>
-                        </div>
+                    <form class="divide-y divide-linha-fraca" @submit.prevent="guardar">
+                        <fieldset class="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-6">
+                            <legend class="legenda">Cliente</legend>
+                            <label class="rotulo sm:col-span-2">Nome do cliente *
+                                <input v-model="form.nome_cliente" type="text" class="campo" required />
+                                <span v-if="form.errors.nome_cliente" class="text-xs text-perigo">{{ form.errors.nome_cliente }}</span>
+                            </label>
+                            <label class="rotulo">Entidade / Organização<input v-model="form.entidade" type="text" class="campo" /></label>
+                            <label class="rotulo">Telefone<input v-model="form.telefone" type="tel" class="campo" /></label>
+                            <label class="rotulo sm:col-span-2">Email<input v-model="form.email" type="email" class="campo" /></label>
+                        </fieldset>
 
-                        <!-- Datas e estado -->
-                        <div class="grid gap-4 px-6 py-4 sm:grid-cols-3">
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Data início *</label>
-                                <input v-model="form.data_inicio" type="date" class="w-full rounded-md border-slate-300 text-sm text-slate-900" required />
-                                <p v-if="form.errors.data_inicio" class="mt-1 text-xs text-red-600">{{ form.errors.data_inicio }}</p>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Data fim *</label>
-                                <input v-model="form.data_fim" type="date" class="w-full rounded-md border-slate-300 text-sm text-slate-900" required :min="form.data_inicio" />
-                                <p v-if="form.errors.data_fim" class="mt-1 text-xs text-red-600">{{ form.errors.data_fim }}</p>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Estado</label>
-                                <select v-model="form.estado" class="w-full rounded-md border-slate-300 text-sm text-slate-900">
+                        <fieldset class="grid gap-4 px-4 py-4 sm:grid-cols-3 sm:px-6">
+                            <legend class="legenda">Datas e estado</legend>
+                            <label class="rotulo">Data início *
+                                <input v-model="form.data_inicio" type="date" class="campo" required />
+                                <span v-if="form.errors.data_inicio" class="text-xs text-perigo">{{ form.errors.data_inicio }}</span>
+                            </label>
+                            <label class="rotulo">Data fim *
+                                <input v-model="form.data_fim" type="date" class="campo" required :min="form.data_inicio" />
+                                <span v-if="form.errors.data_fim" class="text-xs text-perigo">{{ form.errors.data_fim }}</span>
+                            </label>
+                            <label class="rotulo">Estado
+                                <select v-model="form.estado" class="campo">
                                     <option value="pendente">Pendente</option>
                                     <option value="confirmado">Confirmado</option>
                                     <option value="cancelado">Cancelado</option>
                                     <option value="concluido">Concluído</option>
                                 </select>
-                            </div>
-                        </div>
+                            </label>
+                        </fieldset>
 
-                        <!-- Opções do salão -->
-                        <div v-if="opcoes.length" class="px-6 py-4">
-                            <label class="mb-2 block text-sm font-bold text-slate-700">Opções incluídas</label>
+                        <fieldset v-if="opcoes.length" class="px-4 py-4 sm:px-6">
+                            <legend class="legenda">Opções incluídas</legend>
                             <div class="grid gap-2 sm:grid-cols-2">
                                 <label
                                     v-for="o in opcoes.filter(x => x.ativo)"
                                     :key="o.id"
-                                    class="flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 hover:bg-slate-50"
-                                    :class="form.opcoes.includes(o.id) ? 'border-slate-900 bg-slate-50' : 'border-slate-200'"
+                                    class="flex min-h-12 cursor-pointer items-start gap-3 rounded-[10px] border p-3 hover:bg-fundo"
+                                    :class="form.opcoes.includes(o.id) ? 'border-verde bg-verde-claro' : 'border-linha-forte'"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        :value="o.id"
-                                        :checked="form.opcoes.includes(o.id)"
-                                        @change="toggleOpcao(o.id)"
-                                        class="mt-0.5 rounded"
-                                    />
-                                    <div>
-                                        <div class="text-sm font-semibold text-slate-900">{{ o.nome }}</div>
-                                        <div v-if="o.descricao" class="text-xs text-slate-500">{{ o.descricao }}</div>
-                                        <div v-if="o.preco_extra > 0" class="mt-0.5 text-xs font-bold text-emerald-700">+{{ Number(o.preco_extra).toFixed(2) }}€</div>
-                                    </div>
+                                    <input type="checkbox" :value="o.id" :checked="form.opcoes.includes(o.id)" class="chk mt-0.5" @change="toggleOpcao(o.id)" />
+                                    <span>
+                                        <span class="block text-[15px] font-semibold">{{ o.nome }}</span>
+                                        <span v-if="o.descricao" class="block text-xs text-suave">{{ o.descricao }}</span>
+                                        <span v-if="o.preco_extra > 0" class="mt-0.5 block text-xs font-bold text-verde">+{{ euros(o.preco_extra) }}</span>
+                                    </span>
                                 </label>
                             </div>
-                        </div>
+                        </fieldset>
 
-                        <!-- Financeiro -->
-                        <div class="grid gap-4 px-6 py-4 sm:grid-cols-2">
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Preço total (€)</label>
-                                <input v-model="form.preco_total" type="number" step="0.01" min="0" class="w-full rounded-md border-slate-300 text-sm text-slate-900" placeholder="0.00" />
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Método de pagamento</label>
-                                <select v-model="form.metodo_pagamento" class="w-full rounded-md border-slate-300 text-sm text-slate-900">
+                        <fieldset class="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-6">
+                            <legend class="legenda">Pagamento e caução</legend>
+                            <label class="rotulo">Preço total (€)<input v-model="form.preco_total" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /></label>
+                            <label class="rotulo">Método de pagamento
+                                <select v-model="form.metodo_pagamento" class="campo">
                                     <option value="">— Selecionar —</option>
                                     <option value="dinheiro">Dinheiro</option>
                                     <option value="transferencia">Transferência</option>
@@ -385,43 +399,24 @@ const hoje = new Date().toISOString().slice(0, 10);
                                     <option value="multibanco">Multibanco</option>
                                     <option value="cheque">Cheque</option>
                                 </select>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <input v-model="form.pago" type="checkbox" id="pago" class="rounded" />
-                                <label for="pago" class="text-sm font-semibold text-slate-800 cursor-pointer">Pagamento recebido</label>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-sm font-bold text-slate-700">Caução (€)</label>
-                                <input v-model="form.caucao" type="number" step="0.01" min="0" class="w-full rounded-md border-slate-300 text-sm text-slate-900" placeholder="0.00" />
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <input v-model="form.caucao_devolvida" type="checkbox" id="caucao_dev" class="rounded" />
-                                <label for="caucao_dev" class="text-sm font-semibold text-slate-800 cursor-pointer">Caução devolvida</label>
-                            </div>
+                            </label>
+                            <label class="caixa sm:col-span-2"><input v-model="form.pago" type="checkbox" class="chk" />Pagamento recebido</label>
+                            <label class="rotulo">Caução (€)<input v-model="form.caucao" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /></label>
+                            <label class="caixa self-end"><input v-model="form.caucao_devolvida" type="checkbox" class="chk" />Caução devolvida</label>
+                        </fieldset>
+
+                        <div class="px-4 py-4 sm:px-6">
+                            <label class="rotulo">Notas / Observações
+                                <textarea v-model="form.notas" rows="3" class="campo-area" placeholder="Informações adicionais..."></textarea>
+                            </label>
                         </div>
 
-                        <!-- Notas -->
-                        <div class="px-6 py-4">
-                            <label class="mb-1 block text-sm font-bold text-slate-700">Notas / Observações</label>
-                            <textarea v-model="form.notas" rows="3" class="w-full rounded-md border-slate-300 text-sm text-slate-900" placeholder="Informações adicionais..."></textarea>
-                        </div>
-
-                        <!-- Botões -->
-                        <div class="flex items-center justify-between px-6 py-4">
-                            <button
-                                v-if="editing"
-                                type="button"
-                                @click="eliminar"
-                                class="rounded-md border border-red-300 px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50"
-                            >
-                                Eliminar
-                            </button>
+                        <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">
+                            <button v-if="editing" type="button" class="btn-sec h-12 text-perigo hover:bg-perigo-claro" @click="eliminar">Eliminar</button>
                             <div v-else></div>
                             <div class="flex gap-2">
-                                <button type="button" @click="fecharModal" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancelar</button>
-                                <button type="submit" :disabled="form.processing" class="rounded-md bg-slate-900 px-5 py-2 text-sm font-bold text-white disabled:opacity-60">
-                                    {{ editing ? 'Guardar' : 'Criar' }}
-                                </button>
+                                <button type="button" class="btn-sec h-12" @click="fecharModal">Cancelar</button>
+                                <button type="submit" :disabled="form.processing" class="btn-pri h-12 px-6 disabled:opacity-60">{{ editing ? 'Guardar' : 'Criar' }}</button>
                             </div>
                         </div>
                     </form>
@@ -430,3 +425,15 @@ const hoje = new Date().toISOString().slice(0, 10);
         </Teleport>
     </AppLayout>
 </template>
+
+<style scoped>
+.btn-pri { @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-verde px-5 text-[15px] font-bold text-white transition hover:bg-verde-escuro; }
+.btn-sec { @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta transition hover:bg-fundo; }
+.btn-icone { @apply grid h-11 w-11 shrink-0 place-items-center rounded-[10px] border border-linha-forte bg-white text-tinta hover:bg-fundo; }
+.legenda { @apply col-span-full float-left mb-1 w-full text-[13px] font-extrabold uppercase tracking-[0.06em] text-suave-2; }
+.rotulo { @apply flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-suave; }
+.campo { @apply h-12 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-base text-tinta focus:border-verde focus:ring-verde; }
+.campo-area { @apply w-full rounded-[10px] border border-linha-forte bg-white px-3.5 py-3 text-base text-tinta focus:border-verde focus:ring-verde; }
+.caixa { @apply flex h-12 cursor-pointer items-center gap-3 rounded-[10px] border border-linha-forte bg-white px-3.5 text-[15px] font-bold text-tinta; }
+.chk { @apply h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde; }
+</style>

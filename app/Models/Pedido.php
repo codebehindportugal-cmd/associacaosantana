@@ -29,6 +29,7 @@ class Pedido extends Model
         'metodo_pagamento',
         'observacoes',
         'chamado_em',
+        'conta_pedida_em',
     ];
 
     protected $appends = ['total_calculado'];
@@ -40,6 +41,7 @@ class Pedido extends Model
     protected $casts = [
         'pago_antecipado' => 'boolean',
         'chamado_em'      => 'datetime',
+        'conta_pedida_em' => 'datetime',
     ];
 
     protected static function booted(): void

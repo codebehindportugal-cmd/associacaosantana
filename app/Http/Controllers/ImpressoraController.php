@@ -8,6 +8,8 @@ use App\Models\TalaoConfig;
 use App\Models\PrintJob;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -31,8 +33,12 @@ class ImpressoraController extends Controller
 
     public function index(): Response
     {
+        $impressoras = Impressora::orderBy('nome')->get();
+        $estados = $this->estadosImpressoras($impressoras);
+        $impressoras->each(fn (Impressora $impressora) => $impressora->setAttribute('estado_impressao', $estados[$impressora->id] ?? null));
+
         return Inertia::render('Impressoras/Index', [
-            'impressoras' => Impressora::orderBy('nome')->get(),
+            'impressoras' => $impressoras,
             'secoes' => self::SECOES,
             'terminais' => PosSession::orderBy('nome')->get(['id', 'nome', 'tipo', 'localizacao', 'impressora_id', 'impressao_navegador', 'ativo']),
             'tiposTerminal' => ['restaurante', 'reservas', 'bar', 'cafe', 'cotas'],
@@ -103,6 +109,98 @@ class ImpressoraController extends Controller
             'falhado' => PrintJob::where('estado', 'falhado')->count(),
             'impresso' => PrintJob::where('estado', 'impresso')->whereDate('updated_at', today())->count(),
         ]);
+    }
+
+    /**
+     * Estado de cada impressora, derivado do que ja existe: ativa/inativa,
+     * jobs pendentes/falhados recentes da fila print_jobs e a ultima vez que
+     * o agente confirmou um talao (ultimo_ok_at, ou o impresso_em mais recente).
+     * WebUSB/navegador imprimem no proprio browser e nao passam pela fila.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function estadosImpressoras($impressoras): array
+    {
+        $desde = now()->subHours(12);
+        $paradoHa = now()->subMinutes(2);
+
+        $porImpressora = collect();
+        $ultimoImpresso = collect();
+        $ultimoErroMsg = collect();
+
+        try {
+            $porImpressora = PrintJob::query()
+                ->where('created_at', '>=', $desde)
+                ->selectRaw('impressora_id')
+                ->selectRaw("SUM(CASE WHEN estado IN ('pendente', 'processando') THEN 1 ELSE 0 END) as pendentes")
+                ->selectRaw("SUM(CASE WHEN estado IN ('pendente', 'processando') AND created_at < ? THEN 1 ELSE 0 END) as parados", [$paradoHa])
+                ->selectRaw("SUM(CASE WHEN estado = 'falhado' THEN 1 ELSE 0 END) as falhados")
+                ->selectRaw("SUM(CASE WHEN estado = 'impresso' THEN 1 ELSE 0 END) as impressos")
+                ->groupBy('impressora_id')
+                ->get()
+                ->keyBy('impressora_id');
+
+            $ultimoImpresso = PrintJob::query()
+                ->where('estado', 'impresso')
+                ->whereNotNull('impresso_em')
+                ->selectRaw('impressora_id, MAX(impresso_em) as ultimo')
+                ->groupBy('impressora_id')
+                ->pluck('ultimo', 'impressora_id');
+
+            $ultimoErroMsg = PrintJob::query()
+                ->where('estado', 'falhado')
+                ->where('created_at', '>=', $desde)
+                ->orderByDesc('updated_at')
+                ->get(['impressora_id', 'ultimo_erro', 'updated_at'])
+                ->unique('impressora_id')
+                ->keyBy('impressora_id');
+        } catch (\Throwable $e) {
+            Log::warning('Estado das impressoras indisponivel: '.$e->getMessage());
+        }
+
+        $estados = [];
+
+        foreach ($impressoras as $impressora) {
+            $j = $porImpressora->get($impressora->id);
+            $pendentes = (int) ($j->pendentes ?? 0);
+            $parados = (int) ($j->parados ?? 0);
+            $falhados = (int) ($j->falhados ?? 0);
+            $impressos = (int) ($j->impressos ?? 0);
+
+            $okJob = $ultimoImpresso->get($impressora->id);
+            $okJob = $okJob ? Carbon::parse($okJob) : null;
+            $ultimoOk = collect([$impressora->ultimo_ok_at, $okJob])->filter()->max();
+
+            $erroJob = $ultimoErroMsg->get($impressora->id);
+            $ultimoErro = collect([$impressora->ultimo_erro_at, $erroJob?->updated_at])->filter()->max();
+
+            if (! $impressora->ativa) {
+                [$nivel, $texto] = ['inativa', 'Inativa'];
+            } elseif (! $impressora->usaAgente()) {
+                [$nivel, $texto] = ['browser', 'Imprime no browser do posto'];
+            } elseif ($falhados > 0 && (! $ultimoOk || ($ultimoErro && $ultimoErro->gt($ultimoOk)))) {
+                [$nivel, $texto] = ['erro', $falhados === 1 ? '1 falhado' : "$falhados falhados"];
+            } elseif ($parados > 0) {
+                [$nivel, $texto] = ['atencao', 'Fila parada — agente desligado?'];
+            } elseif ($ultimoOk && $ultimoOk->gte($desde)) {
+                [$nivel, $texto] = ['ok', 'A imprimir'];
+            } else {
+                [$nivel, $texto] = ['sem_atividade', 'Sem talões recentes'];
+            }
+
+            $estados[$impressora->id] = [
+                'nivel' => $nivel,
+                'texto' => $texto,
+                'pendentes' => $pendentes,
+                'falhados' => $falhados,
+                'impressos' => $impressos,
+                'ultimo_ok_at' => $ultimoOk?->toIso8601String(),
+                'ultimo_erro_at' => $ultimoErro?->toIso8601String(),
+                'ultimo_erro' => $erroJob?->ultimo_erro,
+            ];
+        }
+
+        return $estados;
     }
 
     public function downloadAgente(): StreamedResponse

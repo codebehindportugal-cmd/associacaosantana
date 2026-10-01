@@ -16,6 +16,16 @@ const form = useForm({
     extra: c.extra || '',
 });
 
+// Link para a página pública correspondente (mesmo mapa da lista de páginas)
+const urlPublica = ({
+    'sobre-nos': 'pages.sobre-nos',
+    patrocinios: 'patrocinios.index',
+    privacidade: 'legal.privacidade',
+    termos: 'legal.termos',
+    cookies: 'legal.cookies',
+}[props.pagina.slug]);
+const linkPublico = urlPublica ? route(urlPublica) : route('home');
+
 const guardar = () => {
     form.put(route('paginas.update', props.pagina.id), {
         preserveScroll: true,
@@ -27,54 +37,75 @@ const guardar = () => {
     <Head :title="`Editar ${pagina.titulo}`" />
 
     <AppLayout>
-        <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <p class="text-sm font-black uppercase tracking-[0.14em] text-slate-400">Página {{ pagina.slug }}</p>
-                <h1 class="text-2xl font-black">{{ pagina.titulo }}</h1>
+        <div class="mx-auto flex max-w-[820px] flex-col gap-5 font-sans text-tinta">
+            <div class="flex flex-wrap items-end justify-between gap-4">
+                <div class="flex min-w-0 flex-col gap-1">
+                    <Link :href="route('paginas.index')" class="inline-flex w-fit items-center gap-1 text-sm font-bold text-verde hover:text-verde-escuro">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+                        Páginas
+                    </Link>
+                    <p class="text-[13px] font-extrabold uppercase tracking-[0.1em] text-suave-2">Página do site <span class="normal-case tracking-normal">· /{{ pagina.slug }}</span></p>
+                    <h1 class="text-[30px] font-extrabold leading-tight">{{ pagina.titulo }}</h1>
+                </div>
+                <a :href="linkPublico" target="_blank" class="btn-sec h-12">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 14v6H4V6h6" /></svg>
+                    Ver página
+                </a>
             </div>
-            <Link :href="route('paginas.index')" class="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold hover:bg-white">Voltar</Link>
+
+            <form class="flex flex-col overflow-hidden rounded-[14px] border border-linha bg-white" @submit.prevent="guardar">
+                <fieldset class="bloco">
+                    <legend class="legenda">Topo da página</legend>
+                    <label class="rotulo">
+                        Nome no backoffice
+                        <input v-model="form.titulo" required class="campo">
+                        <span v-if="form.errors.titulo" class="text-xs font-semibold text-perigo">{{ form.errors.titulo }}</span>
+                        <span class="ajuda">Só aparece aqui no backoffice.</span>
+                    </label>
+                    <label class="rotulo">
+                        Título principal
+                        <input v-model="form.hero_titulo" class="campo text-lg font-bold">
+                    </label>
+                    <label class="rotulo">
+                        Subtítulo / data
+                        <textarea v-model="form.hero_subtitulo" rows="2" class="campo-area"></textarea>
+                    </label>
+                </fieldset>
+
+                <fieldset class="bloco">
+                    <legend class="legenda">Conteúdo</legend>
+                    <label class="rotulo">
+                        Introdução
+                        <textarea v-model="form.introducao" rows="3" class="campo-area"></textarea>
+                    </label>
+                    <label class="rotulo">
+                        Corpo do texto
+                        <textarea v-model="form.corpo" rows="12" class="campo-area leading-relaxed"></textarea>
+                        <span class="ajuda">Usa uma linha em branco para separar parágrafos.</span>
+                    </label>
+                    <label class="rotulo">
+                        Conteúdo extra
+                        <textarea v-model="form.extra" rows="6" class="campo-area"></textarea>
+                        <span class="ajuda">Para blocos em lista, usa o formato: Título|Descrição, uma linha por item.</span>
+                    </label>
+                </fieldset>
+
+                <div class="flex flex-wrap gap-2.5 px-4 py-4 sm:px-6">
+                    <button class="btn-pri h-[52px] px-6 text-base disabled:opacity-60" :disabled="form.processing">Guardar alterações</button>
+                    <Link :href="route('paginas.index')" class="btn-sec h-[52px] px-5 text-base">Cancelar</Link>
+                </div>
+            </form>
         </div>
-
-        <form class="rounded-lg bg-white p-5 shadow-sm" @submit.prevent="guardar">
-            <div class="grid gap-4">
-                <label class="grid gap-1 text-sm font-bold text-slate-700">
-                    Nome no backoffice
-                    <input v-model="form.titulo" required class="rounded-md border-slate-300">
-                    <span v-if="form.errors.titulo" class="text-xs text-rose-600">{{ form.errors.titulo }}</span>
-                </label>
-
-                <label class="grid gap-1 text-sm font-bold text-slate-700">
-                    Título principal
-                    <input v-model="form.hero_titulo" class="rounded-md border-slate-300">
-                </label>
-
-                <label class="grid gap-1 text-sm font-bold text-slate-700">
-                    Subtítulo / data
-                    <textarea v-model="form.hero_subtitulo" rows="2" class="rounded-md border-slate-300"></textarea>
-                </label>
-
-                <label class="grid gap-1 text-sm font-bold text-slate-700">
-                    Introdução
-                    <textarea v-model="form.introducao" rows="3" class="rounded-md border-slate-300"></textarea>
-                </label>
-
-                <label class="grid gap-1 text-sm font-bold text-slate-700">
-                    Corpo do texto
-                    <textarea v-model="form.corpo" rows="12" class="rounded-md border-slate-300"></textarea>
-                    <span class="text-xs font-medium text-slate-500">Usa uma linha em branco para separar parágrafos.</span>
-                </label>
-
-                <label class="grid gap-1 text-sm font-bold text-slate-700">
-                    Conteúdo extra
-                    <textarea v-model="form.extra" rows="6" class="rounded-md border-slate-300"></textarea>
-                    <span class="text-xs font-medium text-slate-500">Para blocos em lista, usa o formato: Título|Descrição, uma linha por item.</span>
-                </label>
-            </div>
-
-            <div class="mt-5 flex flex-wrap gap-2">
-                <button class="rounded-md bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-60" :disabled="form.processing">Guardar alterações</button>
-                <Link :href="route('paginas.index')" class="rounded-md border border-slate-300 px-5 py-3 font-black hover:bg-slate-50">Cancelar</Link>
-            </div>
-        </form>
     </AppLayout>
 </template>
+
+<style scoped>
+.btn-pri { @apply inline-flex items-center justify-center gap-2 rounded-[10px] bg-verde px-5 text-[15px] font-bold text-white transition hover:bg-verde-escuro; }
+.btn-sec { @apply inline-flex items-center justify-center gap-2 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta transition hover:bg-fundo; }
+.bloco { @apply flex flex-col gap-4 border-b border-linha-fraca px-4 py-5 sm:px-6; }
+.legenda { @apply float-left mb-1 w-full text-[13px] font-extrabold uppercase tracking-[0.06em] text-suave-2; }
+.rotulo { @apply flex min-w-0 flex-col gap-1.5 text-[15px] font-bold text-tinta; }
+.ajuda { @apply text-[13px] font-normal text-suave; }
+.campo { @apply h-12 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-base font-normal text-tinta focus:border-verde focus:ring-verde; }
+.campo-area { @apply w-full rounded-[10px] border border-linha-forte bg-white px-3.5 py-3 text-base font-normal text-tinta focus:border-verde focus:ring-verde; }
+</style>

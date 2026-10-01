@@ -197,7 +197,6 @@ defineExpose({ show, hide });
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap');
 
 /* ---------- Ícone ---------- */
 .fc-trigger {
@@ -206,19 +205,19 @@ defineExpose({ show, hide });
     gap: 0.5rem;
     padding: 0.5rem 1rem 0.5rem 0.8rem;
     border-radius: 999px;
-    border: 1px solid rgba(180, 120, 40, 0.35);
-    background: linear-gradient(135deg, #f6e6bf, #e8c47a);
-    color: #5a3d12;
+    min-height: 44px;
+    border: 1px solid #0F6B4F;
+    background: #0F6B4F;
+    color: #ffffff;
     font-weight: 700;
     font-size: 0.9rem;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(120, 80, 20, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    box-shadow: none;
     transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease;
 }
 .fc-trigger:hover {
     transform: translateY(-1px);
-    box-shadow: 0 10px 26px rgba(120, 80, 20, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-    filter: brightness(1.03);
+    background: #0A4D39;
 }
 
 /* ---------- Cena ---------- */
@@ -227,7 +226,7 @@ defineExpose({ show, hide });
     inset: 0;
     z-index: 95;
     overflow: hidden;
-    background: #0a0a0c;
+    background: #16201C;
     isolation: isolate;
 }
 .fc-fill {
@@ -378,7 +377,7 @@ defineExpose({ show, hide });
     align-items: center;
     gap: 0.6rem;
     color: #fff;
-    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-family: 'Archivo', system-ui, sans-serif;
     font-weight: 600;
     font-size: 1.4rem;
     letter-spacing: 0.02em;
@@ -391,7 +390,7 @@ defineExpose({ show, hide });
     object-fit: contain;
     background: rgba(255, 255, 255, 0.92);
     padding: 0.15rem;
-    border: 1px solid rgba(240, 210, 140, 0.5);
+    border: 1px solid rgba(215, 237, 226, 0.6);
 }
 .fc-close {
     display: inline-flex;
@@ -432,7 +431,7 @@ defineExpose({ show, hide });
 }
 .fc-eyebrow {
     margin: 0;
-    color: #ffe1a8;
+    color: #D7EDE2;
     font-size: 0.66rem;
     letter-spacing: 0.34em;
     text-transform: uppercase;
@@ -440,9 +439,8 @@ defineExpose({ show, hide });
 }
 .fc-headline {
     margin: 0.1rem 0 0;
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-weight: 500;
-    font-style: italic;
+    font-family: 'Archivo', system-ui, sans-serif;
+    font-weight: 800;
     font-size: clamp(1.5rem, 3.4vw, 2.5rem);
     line-height: 1.05;
     color: #fff;
@@ -450,7 +448,7 @@ defineExpose({ show, hide });
 }
 .fc-sub {
     margin: 0.25rem 0 0.55rem;
-    color: #eadfca;
+    color: #D6DED9;
     font-size: 0.72rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -465,7 +463,7 @@ defineExpose({ show, hide });
 .fc-secondary button {
     background: none;
     border: none;
-    color: #f0e6d2;
+    color: #D6DED9;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;

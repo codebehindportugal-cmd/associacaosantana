@@ -88,22 +88,22 @@ onUnmounted(() => clearInterval(timer));
 </script>
 
 <template>
-    <div v-if="chamadas.length" class="fixed inset-x-0 top-0 z-[70] bg-red-600 text-white shadow-lg">
+    <div v-if="chamadas.length" class="fixed inset-x-0 top-0 z-[70] bg-perigo font-sans text-white shadow-lg" role="alert">
         <div class="mx-auto flex max-w-4xl flex-col gap-2 px-4 py-3">
             <div v-for="chamada in chamadas" :key="chamada.id" class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
-                    <span class="animate-pulse text-2xl">🔔</span>
+                    <span class="flex h-11 w-11 shrink-0 animate-pulse items-center justify-center rounded-[10px] bg-white/15"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></span>
                     <div>
-                        <div class="text-lg font-black leading-tight">{{ chamada.mesa }} chamou!</div>
-                        <div class="text-xs font-bold text-white/80">{{ chamada.ha_quanto }}</div>
+                        <div class="text-lg font-extrabold leading-tight">{{ chamada.mesa }} chamou!</div>
+                        <div class="text-sm font-semibold text-white/85 tabular-nums">{{ chamada.ha_quanto }}</div>
                     </div>
                 </div>
                 <button
                     type="button"
-                    class="rounded-lg bg-white px-4 py-2 text-sm font-black text-red-700 hover:bg-red-50"
+                    class="h-12 shrink-0 rounded-[10px] bg-white px-5 text-base font-extrabold text-perigo-texto transition hover:bg-perigo-claro"
                     @click="atender(chamada)"
                 >
-                    ATENDIDO
+                    Atendido
                 </button>
             </div>
         </div>

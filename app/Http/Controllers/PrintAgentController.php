@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PrintJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class PrintAgentController extends Controller
 {
@@ -82,6 +83,8 @@ class PrintAgentController extends Controller
             'impresso_em' => now(),
         ]);
 
+        $this->registarEstadoImpressora($printJob, 'ultimo_ok_at');
+
         return response()->json(['ok' => true]);
     }
 
@@ -103,7 +106,26 @@ class PrintAgentController extends Controller
             'reservado_ate' => now()->addSeconds($backoffSegundos),
         ]);
 
+        $this->registarEstadoImpressora($printJob, 'ultimo_erro_at');
+
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Guarda na impressora quando correu bem/mal pela ultima vez (para o
+     * estado no backoffice). Nunca pode falhar a resposta ao agente: se a
+     * coluna ainda nao existir (migration por correr), so fica no log —
+     * senao o agente repetia o job e o talao saia duas vezes.
+     */
+    private function registarEstadoImpressora(PrintJob $printJob, string $coluna): void
+    {
+        try {
+            if ($printJob->impressora_id) {
+                \App\Models\Impressora::whereKey($printJob->impressora_id)->update([$coluna => now()]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Nao foi possivel registar o estado da impressora: '.$e->getMessage());
+        }
     }
 
     private function expirarAntigos(\DateTimeInterface $limite): void
