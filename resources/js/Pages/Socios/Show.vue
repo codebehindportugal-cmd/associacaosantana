@@ -13,7 +13,7 @@ const iniciais = computed(() => String(props.socio?.nome ?? '')
     .join('')
     .toUpperCase());
 
-const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const anosAtraso = (n) => `${n} ${Number(n) === 1 ? 'ano' : 'anos'} em atraso`;
 
 const estados = {

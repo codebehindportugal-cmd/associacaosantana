@@ -76,7 +76,7 @@ const form = useForm({ numero_socio: props.proximoNumero, nome: '', telefone: ''
 
                 <div v-if="Object.keys(form.errors).length" role="alert" class="flex items-center gap-2.5 rounded-[10px] bg-perigo-claro px-4 py-3 text-[15px] font-semibold text-perigo-texto">
                     <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-                    {{ Object.values(form.errors)[0] }}
+                    <div><div v-for="(erro, chave) in form.errors" :key="chave">{{ erro }}</div></div>
                 </div>
 
                 <div class="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">

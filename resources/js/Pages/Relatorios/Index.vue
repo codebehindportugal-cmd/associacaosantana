@@ -3,9 +3,9 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 const props = defineProps({ resumo: Object, top_produtos_hoje: Array, vendas_bar_por_ponto: Array, caixas_por_ponto: Array });
-const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const hoje = new Date().toLocaleDateString('pt-PT');
-const percentagem = (v) => Number(v || 0).toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+const percentagem = (v) => Number(v || 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 
 // "De onde veio o dinheiro": barra empilhada com os 3 tipos de venda
 const tipos = computed(() => {

@@ -1,4 +1,6 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
+import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, ref } from 'vue';
 
@@ -34,8 +36,9 @@ onMounted(() => {
 </script>
 
 <template>
-    <main class="min-h-screen bg-fundo font-sans text-tinta tabular-nums">
-        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <AppLayout>
+    <div class="font-sans text-tinta tabular-nums">
+        <div class="flex flex-col gap-5">
             <Link :href="route('bar.index', pontoBar ? { ponto: pontoBar } : {})" class="inline-flex min-h-11 items-center gap-1.5 self-start text-[15px] font-bold text-verde hover:text-verde-escuro">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
                 Voltar
@@ -73,6 +76,7 @@ onMounted(() => {
                         <h2 id="carrinho-titulo" class="text-xl font-extrabold">Carrinho</h2>
                         <div v-if="!pontoBar" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-bold text-perigo-texto">Define o ponto de venda antes de cobrar.</div>
                     <div v-if="form.errors.ponto_bar" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-bold text-perigo-texto">{{ form.errors.ponto_bar }}</div>
+                    <AvisoErros :errors="form.errors" :excluir="['ponto_bar', 'valor_recebido', 'troco']" />
                         <div class="flex flex-col border-t border-linha-fraca">
                             <div v-for="item in carrinho" :key="item.produto_id" class="flex items-center gap-2.5 border-b border-linha-fraca py-2.5">
                             <span class="min-w-0 flex-grow text-[15px] font-bold">{{ item.nome }}</span>
@@ -119,5 +123,6 @@ onMounted(() => {
                 </form>
             </div>
         </div>
-    </main>
+    </div>
+    </AppLayout>
 </template>

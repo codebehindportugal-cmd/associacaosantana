@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
@@ -429,6 +430,11 @@ const rodapeMesa = (mesa) => {
     if (vazios > 0) return `${vazios} livres`;
     return estadoVisual(mesa) === 'grupo' ? 'Grupo' : 'Cheia';
 };
+const rodapeCurto = (mesa) => {
+    const vazios = lugaresVazios(mesa);
+    if (vazios > 0) return `${vazios} liv.`;
+    return estadoVisual(mesa) === 'grupo' ? 'Grupo' : 'Cheia';
+};
 const zonaFundo = (zona) => ({
     palco: 'bg-[#FBF3E6]',
     balcao: 'bg-[#EEF2FB]',
@@ -467,6 +473,9 @@ const zonaFundo = (zona) => ({
                     </Link>
                 </div>
             </div>
+
+            <!-- Erros de ações sem campo próprio (abrir pedido, guardar mapa, etc.) -->
+            <AvisoErros :excluir="['nome', 'tipo']" />
 
             <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold text-suave">
                 <span class="flex items-center gap-1.5"><span class="h-4 w-4 rounded border-2 border-[#8FA39A] bg-white"></span>Livre</span>
@@ -522,7 +531,7 @@ const zonaFundo = (zona) => ({
                                     :style="{ flex: segmento.capacidade }"
                                 >{{ mesa.submesas?.length ? segmento.label : mesa.numero }}</span>
                             </span>
-                            <span class="w-full truncate border-t border-linha-fraca bg-white py-0.5 text-center text-[11px] font-bold text-suave">{{ rodapeMesa(mesa) }}</span>
+                            <span class="w-full truncate border-t border-linha-fraca bg-white py-0.5 text-center text-[11px] font-bold text-suave" :title="rodapeMesa(mesa)"><span class="sm:hidden">{{ rodapeCurto(mesa) }}</span><span class="hidden sm:inline">{{ rodapeMesa(mesa) }}</span></span>
                         </button>
                     </div>
                 </section>

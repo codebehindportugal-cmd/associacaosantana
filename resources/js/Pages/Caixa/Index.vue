@@ -27,7 +27,7 @@ const totalFundo = computed(() => (props.caixas ?? []).reduce((total, caixa) => 
 const totalVendas = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.vendas || 0), 0));
 const totalEsperado = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.esperado_caixa || 0), 0));
 const totalContado = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.valor_contado || 0), 0));
-const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const hora = (data) => data ? new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
 const diferencaClass = (valor) => Number(valor || 0) === 0 ? 'text-tinta' : Number(valor) > 0 ? 'text-verde' : 'text-perigo';
 const estadoLabel = (caixa) => !caixa ? 'FALTA ABRIR' : caixa.estado === 'fechada' ? 'FECHADA' : 'ABERTA';

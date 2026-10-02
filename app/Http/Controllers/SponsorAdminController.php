@@ -42,6 +42,9 @@ class SponsorAdminController extends Controller
         $data['mostrar_no_slider'] = $request->boolean('mostrar_no_slider');
         $data['ativo'] = $request->boolean('ativo');
 
+        // Sem ficheiro novo, o campo chega vazio: nunca apagar o logótipo atual por isso
+        unset($data['logotipo']);
+
         if ($logo = $this->guardarLogo($request)) {
             $this->apagarLogo($patrocinadore->logotipo);
             $data['logotipo'] = $logo;

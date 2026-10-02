@@ -46,11 +46,14 @@ const textoContagem = computed(() => (totalItems.value === 1 ? '1 pedido por pre
 // Botão "Pronto" por artigo (rota secao.items.pronto: marca o artigo como pronto;
 // se for "Limpar mesa", fecha o pedido e liberta a mesa)
 const aMarcar = ref(new Set());
+const erroPronto = ref('');
 const marcarPronto = (item) => {
     if (aMarcar.value.has(item.id)) return;
     aMarcar.value = new Set([...aMarcar.value, item.id]);
+    erroPronto.value = '';
     router.patch(route('secao.items.pronto', item.id), {}, {
         preserveScroll: true,
+        onError: (erros) => { erroPronto.value = Object.values(erros).join(' ') || 'Não foi possível marcar como pronto.'; },
         onFinish: () => {
             const restantes = new Set(aMarcar.value);
             restantes.delete(item.id);
@@ -102,6 +105,7 @@ const hora = computed(() => ultimaAtualizacao.value.toLocaleTimeString('pt-PT', 
                 <span class="text-4xl font-extrabold xl:text-5xl">{{ hora }}</span>
             </div>
         </header>
+        <div v-if="erroPronto" role="alert" class="mx-6 mt-4 rounded-[10px] bg-perigo-claro p-4 text-2xl font-semibold text-perigo-texto xl:mx-12">{{ erroPronto }}</div>
 
         <section v-if="!itemsPorMesa?.length" class="flex flex-1 flex-col items-center justify-center gap-6 text-[#8FA39A]">
             <svg class="h-28 w-28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>

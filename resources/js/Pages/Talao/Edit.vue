@@ -96,18 +96,28 @@ const criar = () => novoForm.post(route('talao.store'), {
     onSuccess: () => { novoForm.reset(); novoAberto.value = false; },
 });
 
-const usar = (modelo) => router.post(route('talao.usar', modelo.id), {}, { preserveScroll: true });
+// Erros das ações rápidas (usar/apagar modelo, imprimir teste, talões individuais)
+const erroAcao = ref({ onde: '', msg: '' });
+const opcoesAcao = (onde) => {
+    erroAcao.value = { onde: '', msg: '' };
+    return {
+        preserveScroll: true,
+        onError: (erros) => { erroAcao.value = { onde, msg: Object.values(erros).join(' ') }; },
+    };
+};
+
+const usar = (modelo) => router.post(route('talao.usar', modelo.id), {}, opcoesAcao('modelos'));
 
 const apagar = (modelo) => {
     if (confirm('Apagar o modelo "' + modelo.nome + '"?')) {
-        router.post(route('talao.destroy', modelo.id), { _method: 'delete' }, { preserveScroll: true });
+        router.post(route('talao.destroy', modelo.id), { _method: 'delete' }, opcoesAcao('modelos'));
     }
 };
 
 const imprimirTeste = () => router.post(
     route('talao.teste', selecionadoId.value),
     { impressora_id: impressoraId.value },
-    { preserveScroll: true },
+    opcoesAcao('teste'),
 );
 
 // ---------------------------------------------------------------------------
@@ -126,7 +136,7 @@ const alternar = (produtoId) => {
 const guardarProdutos = () => router.post(
     route('talao.produtos'),
     { produtos: individuais.value },
-    { preserveScroll: true },
+    opcoesAcao('produtos'),
 );
 
 const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.produtos || []).length));
@@ -143,6 +153,7 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
             <!-- Modelos -->
             <section class="flex flex-col gap-2.5" aria-labelledby="t-modelos">
                 <h2 id="t-modelos" class="text-[13px] font-extrabold uppercase tracking-[0.06em] text-suave-2">Modelos</h2>
+                <div v-if="erroAcao.onde === 'modelos' && erroAcao.msg" role="alert" class="rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroAcao.msg }}</div>
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <div v-for="modelo in modelos" :key="modelo.id" class="flex flex-col">
                         <button
@@ -172,10 +183,10 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
                         <form v-else class="flex flex-col gap-2 rounded-[14px] border-2 border-verde bg-white p-3" @submit.prevent="criar">
                             <label class="rotulo">Nome do novo modelo<input v-model="novoForm.nome" required class="campo" placeholder="Nome (ex.: Carvalhal Fest)"></label>
                             <label class="rotulo">Evento
-                                <select v-model="novoForm.evento_id" class="campo">
+                                <select :class="{ '!border-perigo': novoForm.errors.evento_id }" v-model="novoForm.evento_id" class="campo">
                                     <option :value="null">Sem evento associado</option>
                                     <option v-for="evento in eventos" :key="evento.id" :value="evento.id">{{ evento.titulo }}</option>
-                                </select>
+                                </select><span v-if="novoForm.errors.evento_id" class="block text-[13px] font-semibold text-perigo-texto">{{ novoForm.errors.evento_id }}</span>
                             </label>
                             <p class="text-xs text-suave">Se escolheres um evento, o título e as datas já vêm preenchidos.</p>
                             <div v-if="novoForm.errors.nome" class="text-xs font-semibold text-perigo">{{ novoForm.errors.nome }}</div>
@@ -287,6 +298,7 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
                                     </select>
                                 </label>
                                 <button type="button" class="btn-sec h-11 disabled:opacity-40" :disabled="!impressoras.length" @click="imprimirTeste">Imprimir teste</button>
+                                <div v-if="erroAcao.onde === 'teste' && erroAcao.msg" role="alert" class="rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroAcao.msg }}</div>
                                 <span v-if="!impressoras.length" class="text-xs text-suave">Não há impressoras ativas.</span>
                             </div>
                         </div>
@@ -384,6 +396,8 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
                         </label>
                     </div>
                 </div>
+
+                <div v-if="erroAcao.onde === 'produtos' && erroAcao.msg" role="alert" class="rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroAcao.msg }}</div>
 
                 <button class="btn-pri h-12 w-fit" @click="guardarProdutos">Guardar talões individuais</button>
             </section>

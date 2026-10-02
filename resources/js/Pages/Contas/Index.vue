@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, reactive, ref } from 'vue';
@@ -51,7 +52,7 @@ const aplicarPeriodo = (periodo) => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const euros = (v) =>
-    Number(v || 0).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+    Number(v || 0).toLocaleString('pt-PT', { useGrouping: 'always', style: 'currency', currency: 'EUR' });
 
 const categoriasParaTipo = (tipo) =>
     tipo === 'entrada' ? props.categoriasEntrada : props.categoriasSaida;
@@ -202,6 +203,7 @@ const campoPequeno = 'h-11 w-full min-w-0 rounded-[10px] border border-linha-for
                     Atualizar saldo — {{ modalSaldo === 'banco' ? 'Conta bancária' : 'Conta a prazo' }}
                 </h3>
                 <form class="flex flex-col gap-3" @submit.prevent="guardarSaldo">
+                    <AvisoErros :errors="saldoForm.errors" :excluir="['data', 'notas', 'valor']" />
                     <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Saldo atual (€) *
                         <input v-model="saldoForm.valor" type="number" step="0.01" min="0" required autofocus inputmode="decimal" placeholder="Ex: 3 500,00" :class="[campo, 'text-lg font-bold']" />
                         <span v-if="saldoForm.errors.valor" class="text-[13px] font-semibold text-perigo">{{ saldoForm.errors.valor }}</span>
@@ -211,7 +213,7 @@ const campoPequeno = 'h-11 w-full min-w-0 rounded-[10px] border border-linha-for
                         <span v-if="saldoForm.errors.data" class="text-[13px] font-semibold text-perigo">{{ saldoForm.errors.data }}</span>
                     </label>
                     <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Notas
-                        <input v-model="saldoForm.notas" type="text" placeholder="Ex: Conferido em julho 2026" :class="[campo, 'text-[15px]']" />
+                        <input v-model="saldoForm.notas" type="text" placeholder="Ex: Conferido em julho 2026" :class="[campo, 'text-[15px]']" /><span v-if="saldoForm.errors.notas" class="block text-[13px] font-semibold text-perigo-texto">{{ saldoForm.errors.notas }}</span>
                     </label>
                     <div class="flex justify-end gap-2 pt-1">
                         <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-4 font-bold text-tinta hover:bg-fundo" @click="modalSaldo = null">Cancelar</button>

@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { useRecaptcha } from '@/composables/useRecaptcha';
 import { computed } from 'vue';
@@ -125,6 +126,7 @@ const submit = async () => {
                         </label>
                         <span v-if="form.errors.aceita_contacto" class="field-error mt-1 block">{{ form.errors.aceita_contacto }}</span>
 
+                        <AvisoErros :errors="form.errors" :excluir="['aceita_contacto', 'email', 'empresa', 'mensagem', 'nome', 'telefone']" class="mt-4" />
                         <button type="submit" class="mt-6 h-[54px] w-full rounded-[10px] bg-verde px-5 text-[17px] font-bold text-white transition hover:bg-verde-escuro disabled:cursor-not-allowed disabled:opacity-60" :disabled="form.processing">
                             {{ form.processing ? 'A enviar...' : 'Enviar proposta' }}
                         </button>

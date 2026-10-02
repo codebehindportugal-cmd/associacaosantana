@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
@@ -141,6 +142,15 @@ const abrirPedido = (mesa = props.mesa, lugares = lugaresOcupados.value) => {
     novoForm.mesas_grupo = mesasGrupo.value || null;
     novoForm.post(route('pos.rest.pedido.novo', mesa.id));
 };
+// Mensagem de erro (vermelha) — usa a mensagem do servidor quando existe
+const erroAviso = ref('');
+let erroTimer;
+const mostrarErro = (erros, alternativa) => {
+    erroAviso.value = Object.values(erros || {}).join(' ') || alternativa;
+    aviso.value = '';
+    window.clearTimeout(erroTimer);
+    erroTimer = window.setTimeout(() => { erroAviso.value = ''; }, 8000);
+};
 const mostrarAviso = (mensagem) => {
     aviso.value = mensagem;
     window.clearTimeout(avisoTimer);
@@ -190,7 +200,7 @@ const enviarPedido = () => {
             itemForm.reset();
             mostrarAviso('Pedido validado e enviado.');
         },
-        onError: () => mostrarAviso('Nao foi possivel enviar o pedido. Confirma os produtos e tenta novamente.'),
+        onError: (erros) => mostrarErro(erros, 'Nao foi possivel enviar o pedido. Confirma os produtos e tenta novamente.'),
     });
 };
 // `confirmado` = já confirmado no diálogo do ecrã (sem confirm() nativo)
@@ -200,7 +210,7 @@ const cancelarPedido = (confirmado = false) => {
     router.patch(route('pos.rest.pedido.estado', props.pedido.id), { estado: 'cancelado' }, {
         preserveScroll: true,
         onSuccess: () => mostrarAviso('Pedido cancelado. A mesa foi libertada.'),
-        onError: () => mostrarAviso('Nao foi possivel cancelar o pedido. Tenta novamente.'),
+        onError: (erros) => mostrarErro(erros, 'Nao foi possivel cancelar o pedido. Tenta novamente.'),
     });
 };
 const remover = (item) => {
@@ -211,10 +221,13 @@ const remover = (item) => {
 
     router.delete(route('pos.rest.pedido.item.remover', [props.pedido.id, item.id]), {
         preserveScroll: true,
-        onError: () => mostrarAviso('Este item ja so pode ser anulado no backoffice.'),
+        onError: (erros) => mostrarErro(erros, 'Este item ja so pode ser anulado no backoffice.'),
     });
 };
-const urgente = (item) => router.patch(route('pos.rest.pedido.item.urgente', [props.pedido.id, item.id]), {}, { preserveScroll: true });
+const urgente = (item) => router.patch(route('pos.rest.pedido.item.urgente', [props.pedido.id, item.id]), {}, {
+    preserveScroll: true,
+    onError: (erros) => mostrarErro(erros, 'Nao foi possivel alterar o item.'),
+});
 const atualizarLugares = () => {
     if (!props.pedido) return;
     lugaresForm.lugares_ocupados = lugaresAtuais.value;
@@ -275,7 +288,7 @@ const pedidoExtra = (descricao) => {
     extraForm.post(route('pos.rest.pedido.extra', props.mesa.id), {
         preserveScroll: true,
         onSuccess: () => mostrarAviso('Pedido enviado: ' + descricao),
-        onError: () => mostrarAviso('Nao foi possivel enviar o pedido.'),
+        onError: (erros) => mostrarErro(erros, 'Nao foi possivel enviar o pedido.'),
     });
 };
 onMounted(() => {
@@ -294,7 +307,7 @@ onBeforeUnmount(() => {
 const modal = ref(null); // 'qrs' | 'extras' | 'cancelar'
 const abaPedido = computed(() => (separadorAtual.value === 'conta' ? 'conta' : 'envio'));
 const irPara = (aba) => { separadorAtual.value = aba; };
-const eur = (v) => Number(v ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const eur = (v) => Number(v ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const secoesInfo = {
     cozinha: { label: 'Cozinha', dot: 'bg-secao-cozinha', text: 'text-secao-cozinha', chip: 'border-secao-cozinha/40 text-secao-cozinha' },
     comida: { label: 'Comida', dot: 'bg-secao-grelhados', text: 'text-secao-grelhados', chip: 'border-secao-grelhados/40 text-secao-grelhados' },
@@ -354,7 +367,7 @@ const pedirConta = (pedida = true) => {
     router.patch(route('pos.rest.pedido.pedir-conta', props.pedido.id), { pedida }, {
         preserveScroll: true,
         preserveState: true,
-        onError: () => mostrarAviso('Nao foi possivel atualizar o pedido de conta.'),
+        onError: (erros) => mostrarErro(erros, 'Nao foi possivel atualizar o pedido de conta.'),
     });
 };
 const abrirPagamento = () => {
@@ -424,6 +437,9 @@ const confirmarCancelar = () => {
             <section class="flex min-h-0 min-w-0 flex-col gap-3 p-4 sm:p-6 lg:overflow-hidden" :class="pedido ? '' : 'order-2 lg:order-none'">
                 <div v-if="aviso || page.props.flash?.success" role="status" class="shrink-0 rounded-[10px] border border-verde/30 bg-verde-claro px-4 py-3 text-[15px] font-semibold text-verde-escuro">
                     {{ aviso || page.props.flash.success }}
+                </div>
+                <div v-if="erroAviso" role="alert" class="shrink-0 rounded-[10px] bg-perigo-claro px-4 py-3 text-[15px] font-semibold text-perigo-texto">
+                    {{ erroAviso }}
                 </div>
                 <div v-if="!pedido" class="shrink-0 rounded-[10px] border border-linha bg-white px-4 py-3 text-[15px] font-semibold text-suave">
                     Abre o pedido para adicionar produtos.
@@ -627,6 +643,7 @@ const confirmarCancelar = () => {
                                     <button type="button" class="h-11 shrink-0 rounded-[10px] border border-linha-forte bg-white px-3 text-sm font-bold text-tinta disabled:opacity-45" :disabled="obsForm.processing" @click="guardarObservacoes">Guardar</button>
                                 </span>
                             </label>
+                            <span v-if="obsForm.errors.observacoes" class="block text-[13px] font-semibold text-perigo-texto">{{ obsForm.errors.observacoes }}</span>
                             <div v-if="erroItem" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">{{ erroItem }}</div>
                             <div class="divide-y divide-linha-fraca border-y border-linha-fraca">
                                 <div v-for="item in pedido.items" :key="item.id" class="py-2.5" :class="item.prioridade ? 'border-l-4 border-l-laranja pl-2' : ''">
@@ -815,7 +832,7 @@ const confirmarCancelar = () => {
                     </div>
                     <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white font-bold" @click="recebido = ''">Limpar valor</button>
                     <div class="flex-1"></div>
-                    <div v-if="fecharForm.errors.valor_recebido || fecharForm.errors.metodo_pagamento" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">{{ fecharForm.errors.valor_recebido || fecharForm.errors.metodo_pagamento }}</div>
+                    <AvisoErros :errors="fecharForm.errors" />
                     <p class="text-sm text-suave">O talão sai na impressora da conta ao confirmar.</p>
                     <button type="button" class="h-[76px] rounded-[14px] bg-verde text-xl font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="fecharForm.processing" @click="fechar">
                         {{ fecharForm.processing ? 'A confirmar…' : 'Confirmar pagamento' }}

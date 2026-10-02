@@ -297,3 +297,10 @@
         transition-duration: 1ms !important;
     }
 }
+
+/* Scroll da sidebar escura do backoffice */
+.nav-escura { scrollbar-width: thin; scrollbar-color: #2B3833 transparent; }
+.nav-escura::-webkit-scrollbar { width: 8px; }
+.nav-escura::-webkit-scrollbar-track { background: transparent; }
+.nav-escura::-webkit-scrollbar-thumb { background: #2B3833; border-radius: 8px; }
+.nav-escura::-webkit-scrollbar-thumb:hover { background: #3C4C46; }

@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
@@ -205,6 +206,7 @@ const enviarPedido = () => {
                     <div v-if="form.errors.pedido" role="alert" class="rounded-xl bg-perigo-claro px-3.5 py-2.5 text-[15px] font-bold text-perigo-texto">
                         {{ form.errors.pedido }}
                     </div>
+                    <AvisoErros :errors="form.errors" :excluir="['pedido']" class="text-[15px]" />
                     <div v-if="aviso" role="status" class="rounded-xl bg-verde-claro px-3.5 py-2.5 text-[15px] font-bold text-verde-escuro">
                         {{ aviso }}
                     </div>

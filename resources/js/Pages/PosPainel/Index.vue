@@ -18,11 +18,23 @@ onUnmounted(() => clearInterval(timer));
 
 const tituloTipo = (tipo) => ({ bar: 'Bar', cafe: 'Café', restaurante: 'Restaurante', reservas: 'Reservas', cotas: 'Cotas' }[tipo] || tipo);
 
-const atenderComissao = (chamada) => {
-    fetch(route('comissao.atender', chamada.id), {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '' },
-    }).then(() => router.reload({ only: ['chamadasComissao'] }));
+const erroAtender = ref('');
+const atenderComissao = async (chamada) => {
+    erroAtender.value = '';
+    try {
+        const res = await fetch(route('comissao.atender', chamada.id), {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '' },
+        });
+        if (!res.ok) {
+            const corpo = await res.json().catch(() => ({}));
+            const msgs = corpo.errors ? Object.values(corpo.errors).flat() : [];
+            erroAtender.value = msgs.join(' ') || `Não foi possível marcar como atendida (erro ${res.status}). Atualiza a página e tenta de novo.`;
+        }
+    } catch {
+        erroAtender.value = 'Erro de ligação. Verifica a rede e tenta novamente.';
+    }
+    router.reload({ only: ['chamadasComissao'] });
 };
 
 const mostrarPin = ref(false);
@@ -63,13 +75,15 @@ const numeroMesa = (texto) => String(texto ?? '').replace(/\D/g, '') || '—';
             <section v-if="mostrarPin" class="mb-5 rounded-[14px] border border-linha bg-white p-5">
                 <form class="flex flex-wrap items-end gap-3" @submit.prevent="guardarPin">
                     <label class="block min-w-[200px] flex-1 text-sm font-semibold text-suave sm:max-w-xs">Novo PIN (4 a 8 dígitos)
-                        <input v-model="pinForm.pin" type="password" inputmode="numeric" class="mt-1 h-11 w-full rounded-[10px] border-linha-forte text-tinta focus:border-verde focus:ring-verde" placeholder="****">
+                        <input v-model="pinForm.pin" type="password" inputmode="numeric" class="mt-1 h-11 w-full rounded-[10px] text-tinta focus:border-verde focus:ring-verde" :class="pinForm.errors.pin ? 'border-perigo' : 'border-linha-forte'" placeholder="****">
                     </label>
                     <button class="h-11 rounded-[10px] bg-verde px-5 font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="pinForm.processing">Guardar</button>
                     <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-5 font-bold" @click="mostrarPin = false">Cancelar</button>
                 </form>
-                <div v-if="pinForm.errors.pin" role="alert" class="mt-2 text-sm font-semibold text-perigo">{{ pinForm.errors.pin }}</div>
+                <div v-if="pinForm.errors.pin" role="alert" class="mt-2 text-[13px] font-semibold text-perigo-texto">{{ pinForm.errors.pin }}</div>
             </section>
+
+            <div v-if="erroAtender" role="alert" class="mb-5 rounded-[10px] bg-perigo-claro p-3 text-perigo-texto font-semibold">{{ erroAtender }}</div>
 
             <div class="mb-5 grid gap-5 xl:grid-cols-2">
                 <!-- Chamadas à comissão -->

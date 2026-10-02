@@ -42,6 +42,13 @@ class AppServiceProvider extends ServiceProvider
     {
         Vite::prefetch(concurrency: 3);
 
+        // A aplicação é toda em português: se o .env ainda tiver o "en" de origem,
+        // as mensagens de validação passam a sair em português (lang/pt_PT).
+        if (config('app.locale') === 'en') {
+            config(['app.locale' => 'pt_PT']);
+            app()->setLocale('pt_PT');
+        }
+
         collect([
             CaixaDiaria::class,
             Categoria::class,

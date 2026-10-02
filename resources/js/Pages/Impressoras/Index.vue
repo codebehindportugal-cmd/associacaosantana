@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import axios from 'axios'
@@ -136,9 +137,14 @@ const comoImprime = (terminal) => {
 
 const terminais = computed(() => props.terminais ?? [])
 
+const erroPostos = ref('')
 function guardarImpressoraDoPosto(terminal, impressoraId) {
+    erroPostos.value = ''
     useForm({ impressora_id: impressoraId || null })
-        .post(route('terminais.impressora', terminal.id), { preserveScroll: true })
+        .post(route('terminais.impressora', terminal.id), {
+            preserveScroll: true,
+            onError: (erros) => { erroPostos.value = Object.values(erros).join(' ') },
+        })
 }
 
 const tipos = computed(() => props.tiposTerminal ?? [])
@@ -196,7 +202,11 @@ function guardarPosto() {
 
 function desativarPosto(terminal) {
     if (confirm(`Desativar o posto "${terminal.nome}"? Deixa de aparecer no login do POS.`)) {
-        useForm({ _method: 'delete' }).post(route('terminais.destroy', terminal.id), { preserveScroll: true })
+        erroPostos.value = ''
+        useForm({ _method: 'delete' }).post(route('terminais.destroy', terminal.id), {
+            preserveScroll: true,
+            onError: (erros) => { erroPostos.value = Object.values(erros).join(' ') },
+        })
     }
 }
 
@@ -429,7 +439,10 @@ function retentarFalhados() {
                 </template>
             </div>
 
+            <div v-if="erroPostos" role="alert" class="rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroPostos }}</div>
+
             <form class="cartao flex flex-col gap-3 p-4 sm:p-5" :class="postoEmEdicao ? 'border-verde' : ''" @submit.prevent="guardarPosto">
+                <AvisoErros :errors="postoForm.errors" :excluir="['impressora_id', 'localizacao', 'nome', 'pin', 'tipo']" />
                 <div class="flex flex-wrap items-start justify-between gap-2">
                     <div>
                         <h3 class="text-lg font-extrabold">{{ postoEmEdicao ? `Editar posto: ${postoEmEdicao.nome}` : 'Novo posto' }}</h3>
@@ -500,6 +513,7 @@ function retentarFalhados() {
                 <h3 class="mb-4 text-xl font-extrabold">{{ modalTitle }}</h3>
 
                 <form class="flex flex-col gap-4" @submit.prevent="submit">
+                    <AvisoErros :errors="form.errors" :excluir="['agente', 'dispositivo', 'host', 'nome', 'porta', 'secao', 'tipo']" />
                     <label class="rotulo" for="nome">Nome *
                         <input id="nome" v-model="form.nome" type="text" class="campo" placeholder="ex: Impressora Bar">
                         <InputError :message="form.errors.nome" />

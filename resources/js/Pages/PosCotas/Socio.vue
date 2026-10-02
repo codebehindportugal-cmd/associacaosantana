@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { Link, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -207,6 +208,8 @@ const submit = () => {
                     </span>
                     <span class="text-[40px] font-extrabold text-tinta">{{ euros(total) }}</span>
                 </div>
+
+                <AvisoErros :errors="form.errors" class="text-[15px]" />
 
                 <button
                     class="flex h-[72px] items-center justify-center gap-2.5 rounded-xl bg-verde text-[21px] font-extrabold text-white hover:bg-verde-escuro disabled:cursor-not-allowed disabled:bg-[#9AA59F]"

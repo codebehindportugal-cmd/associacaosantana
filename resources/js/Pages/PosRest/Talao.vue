@@ -9,7 +9,7 @@ const mesaLabel = computed(() => props.pedido.mesa?.designacao ?? 'Para levar');
 // Número da mesa em grande (sem o prefixo "Mesa"); nome livre ou "Para levar" em tamanho menor
 const mesaGrande = computed(() => props.pedido.mesa?.nome || props.pedido.mesa?.numero || mesaLabel.value);
 const mesaCurta = computed(() => String(mesaGrande.value).length <= 4);
-const agora = new Date().toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const agora = new Date().toLocaleString('pt-PT', { useGrouping: 'always', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const euros = (v) => Number(v ?? 0).toFixed(2) + ' EUR';
 const items = computed(() => Object.values((props.pedido.items ?? []).reduce((grupos, item) => {
     const chave = [item.produto?.id, item.produto?.nome, item.preco_unitario, item.secao].join('|');

@@ -45,7 +45,7 @@ const editForm = useForm({
     observacoes: '',
 });
 
-const euros = (valor) => Number(valor || 0).toLocaleString('pt-PT', {
+const euros = (valor) => Number(valor || 0).toLocaleString('pt-PT', { useGrouping: 'always',
     style: 'currency',
     currency: 'EUR',
 });
@@ -148,7 +148,7 @@ const dataCurta = (data) => data ? new Date(String(data).slice(0, 10) + 'T00:00:
 const edicaoAssocId = ref(null);
 const linkCopiado = ref(false);
 
-const percentagemFmt = (valor) => Number(valor || 0).toLocaleString('pt-PT', {
+const percentagemFmt = (valor) => Number(valor || 0).toLocaleString('pt-PT', { useGrouping: 'always',
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
 }) + '%';
@@ -201,9 +201,14 @@ const apagarAssociacao = (associacao) => {
     }
 };
 
+const erroIgualar = ref('');
 const igualarPercentagens = () => {
     if (confirm('Dividir 100% em partes iguais por todas as associacoes ativas?')) {
-        router.post(route('contas-festa.associacoes.igualar'), {}, { preserveScroll: true });
+        erroIgualar.value = '';
+        router.post(route('contas-festa.associacoes.igualar'), {}, {
+            preserveScroll: true,
+            onError: (erros) => { erroIgualar.value = Object.values(erros).join(' '); },
+        });
     }
 };
 
@@ -333,6 +338,8 @@ const campoPequeno = 'h-11 w-full min-w-0 rounded-[10px] border border-linha-for
                     </div>
                     <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-sm font-bold text-tinta hover:bg-fundo" @click="igualarPercentagens">Igualar percentagens</button>
                 </div>
+
+                <div v-if="erroIgualar" role="alert" class="mx-5 mb-3.5 rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroIgualar }}</div>
 
                 <div v-if="!divisao.percentagens_ok" role="status" class="mx-5 mb-3.5 flex items-center gap-2.5 rounded-[10px] bg-laranja-claro px-3.5 py-3 text-[15px] font-semibold text-laranja-texto">
                     <svg class="shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l10 18H2z" /><path d="M12 10v5M12 18v.01" /></svg>

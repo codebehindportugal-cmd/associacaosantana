@@ -41,7 +41,7 @@ const alternarConfirmacao = (inscricao) => {
     router.post(route('eventos.inscricoes.confirmar', inscricao.id), {}, { preserveScroll: true });
 };
 
-const euros = (v) => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+const euros = (v) => Number(v).toLocaleString('pt-PT', { useGrouping: 'always', style: 'currency', currency: 'EUR' });
 const filtros = computed(() => [
     { valor: 'todas', label: `Todas (${props.totais.inscricoes})` },
     { valor: 'por_confirmar', label: `Por confirmar (${props.totais.inscricoes - props.totais.confirmadas})` },

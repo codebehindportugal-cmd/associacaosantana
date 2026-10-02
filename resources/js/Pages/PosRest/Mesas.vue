@@ -73,7 +73,7 @@ const copiarPrecario = async () => {
         await navigator.clipboard.writeText(precarioUrl.value);
     }
 };
-const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const horaFechada = (ts) => ts ? new Date(ts).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
 const nomeMesaFechada = (p) => {
     const mp = p.mesa?.mesa_principal ?? p.mesa;
@@ -93,13 +93,16 @@ const associandoId = ref(null);    // reserva que está a ser associada
 const clicarMesa = (mesa) => {
     if (props.reservasSemMesa?.length) {
         mesaModal.value = mesa;
+        erroAssociar.value = '';
     } else {
         router.visit(route('pos.rest.mesa', mesa.id));
     }
 };
 
+const erroAssociar = ref('');
 const associarReserva = (reserva) => {
     if (!mesaModal.value) return;
+    erroAssociar.value = '';
     associandoId.value = reserva.id;
     const mesaNum = mesaModal.value.numero;
     const mesaId  = mesaModal.value.id;
@@ -113,7 +116,10 @@ const associarReserva = (reserva) => {
                 associandoId.value = null;
                 router.visit(route('pos.rest.mesa', mesaId));
             },
-            onError: () => { associandoId.value = null; },
+            onError: (erros) => {
+                associandoId.value = null;
+                erroAssociar.value = Object.values(erros).join(' ') || 'Não foi possível associar a reserva.';
+            },
         }
     );
 };
@@ -270,6 +276,7 @@ const submesasAPagar = (mesa) => (!mesaAPagar(mesa) && pedidosAPagar(mesa).lengt
             <div role="dialog" aria-label="Associar reserva" class="w-full max-w-sm rounded-[14px] bg-white p-5">
                 <h2 class="text-xl font-extrabold">Mesa {{ mesaModal.numero }}</h2>
                 <p class="mt-1 text-[15px] text-suave">Associar uma reserva sem mesa?</p>
+                <div v-if="erroAssociar" role="alert" class="mt-3 rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">{{ erroAssociar }}</div>
                 <div class="mt-3 max-h-72 space-y-2 overflow-y-auto">
                     <button
                         v-for="r in reservasSemMesa"

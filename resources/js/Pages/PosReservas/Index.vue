@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
@@ -383,7 +384,7 @@ const mudarPessoas = (delta) => { form.pessoas = Math.max(1, Number(form.pessoas
                                 <div v-if="sentarReservaId === reserva.id" class="mt-3">
                                     <label class="block text-sm font-bold text-verde-escuro">
                                         {{ reserva.estado === 'sentada' ? `Mudar mesa (atual: ${reserva.mesa_atribuida || '—'})` : 'Nº da mesa' }}
-                                        <input v-model="sentarForm.mesa_numero" type="number" min="1" placeholder="Nº da mesa (opcional)" class="mt-1 h-14 w-full max-w-xs rounded-[10px] border-linha-forte text-xl font-bold text-tinta focus:border-verde focus:ring-verde" autofocus>
+                                        <input :class="{ '!border-perigo': sentarForm.errors.mesa_numero }" v-model="sentarForm.mesa_numero" type="number" min="1" placeholder="Nº da mesa (opcional)" class="mt-1 h-14 w-full max-w-xs rounded-[10px] border-linha-forte text-xl font-bold text-tinta focus:border-verde focus:ring-verde" autofocus><span v-if="sentarForm.errors.mesa_numero" class="block text-[13px] font-semibold text-perigo-texto">{{ sentarForm.errors.mesa_numero }}</span>
                                     </label>
                                     <span v-if="!sentarForm.mesa_numero" class="mt-1.5 block rounded-lg bg-laranja-claro px-2.5 py-1.5 text-sm font-semibold text-laranja-texto">Sem nº de mesa não saberás onde está a pessoa se sair sem pagar.</span>
                                 </div>
@@ -394,6 +395,7 @@ const mudarPessoas = (delta) => { form.pessoas = Math.max(1, Number(form.pessoas
                                 <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white font-bold disabled:opacity-45" :disabled="editForm.processing" @click="cancelarEdicao">Fechar</button>
                             </div>
                             <div v-else-if="sentarReservaId === reserva.id" class="grid grid-cols-2 gap-2 self-start">
+                                <AvisoErros :errors="sentarForm.errors" :excluir="['mesa_numero']" class="col-span-2" />
                                 <button type="button" class="h-14 rounded-[10px] bg-verde font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="sentarForm.processing" @click="confirmarSentar(reserva)">Confirmar</button>
                                 <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white font-bold" @click="sentarReservaId = null">Cancelar</button>
                             </div>

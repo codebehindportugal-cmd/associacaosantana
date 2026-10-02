@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -52,7 +53,10 @@ const categoriasFiltradas = computed(() => (props.categorias ?? [])
     }))
     .filter((categoria) => categoria.produtosVisiveis.length > 0));
 
+// Erros de validação da edição em linha, por produto
+const errosProduto = ref({});
 const atualizarProduto = (produto) => {
+    errosProduto.value[produto.id] = {};
     const data = {
         _method: 'PUT',
         categoria_id: produto.categoria_id,
@@ -70,6 +74,7 @@ const atualizarProduto = (produto) => {
         preserveScroll: true,
         forceFormData: true,
         onSuccess: () => { delete imagensPendentes.value[produto.id]; },
+        onError: (erros) => { errosProduto.value[produto.id] = erros; },
     });
 };
 
@@ -227,6 +232,7 @@ const filtrosAtivo = [['', 'Todos'], ['ativos', 'Ativos'], ['inativos', 'Inativo
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3" /></svg>
                         </button>
                     </div>
+                    <AvisoErros :errors="errosProduto[produto.id] || {}" class="col-span-full" />
                 </div>
             </section>
         </div>

@@ -36,6 +36,10 @@ const chamar = async () => {
             // CSRF token expirado — recarregar a página renova o token
             erro.value = 'Sessão expirada. A recarregar a página...';
             setTimeout(() => window.location.reload(), 1500);
+        } else if (res.status === 422) {
+            const corpo = await res.json().catch(() => ({}));
+            const msgs = corpo.errors ? Object.values(corpo.errors).flat() : [];
+            erro.value = msgs.join(' ') || corpo.message || 'Dados inválidos. Verifica e tenta novamente.';
         } else {
             erro.value = 'Erro ' + res.status + '. Tente novamente.';
         }

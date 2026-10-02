@@ -11,12 +11,12 @@ const props = defineProps({
 
 const filtros = reactive({ ...props.filters });
 
-const euros = (valor) => Number(valor || 0).toLocaleString('pt-PT', {
+const euros = (valor) => Number(valor || 0).toLocaleString('pt-PT', { useGrouping: 'always',
     style: 'currency',
     currency: 'EUR',
 });
 
-const percentagem = (valor) => Number(valor || 0).toLocaleString('pt-PT', {
+const percentagem = (valor) => Number(valor || 0).toLocaleString('pt-PT', { useGrouping: 'always',
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
 }) + '%';

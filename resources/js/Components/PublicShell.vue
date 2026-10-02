@@ -1,6 +1,8 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import CookieBanner from './CookieBanner.vue';
+
+const page = usePage();
 
 const associationLogo = '/images/santana-logo.png';
 const contactEmail = 'ardcsantana@outlook.com';
@@ -86,6 +88,10 @@ const legalLinks = [
                 </Link>
             </nav>
         </header>
+
+        <div v-if="page.props.flash?.error" class="mx-auto mt-4 w-full max-w-[1120px] px-4 sm:px-6">
+            <div role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-[15px] font-semibold text-perigo-texto">{{ page.props.flash.error }}</div>
+        </div>
 
         <slot />
 

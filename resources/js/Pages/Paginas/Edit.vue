@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
@@ -54,6 +55,7 @@ const guardar = () => {
             </div>
 
             <form class="flex flex-col overflow-hidden rounded-[14px] border border-linha bg-white" @submit.prevent="guardar">
+                <AvisoErros :errors="form.errors" :excluir="['corpo', 'extra', 'hero_subtitulo', 'hero_titulo', 'introducao', 'titulo']" class="mx-4 mt-4 sm:mx-6" />
                 <fieldset class="bloco">
                     <legend class="legenda">Topo da página</legend>
                     <label class="rotulo">
@@ -64,11 +66,11 @@ const guardar = () => {
                     </label>
                     <label class="rotulo">
                         Título principal
-                        <input v-model="form.hero_titulo" class="campo text-lg font-bold">
+                        <input :class="{ '!border-perigo': form.errors.hero_titulo }" v-model="form.hero_titulo" class="campo text-lg font-bold"><span v-if="form.errors.hero_titulo" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.hero_titulo }}</span>
                     </label>
                     <label class="rotulo">
                         Subtítulo / data
-                        <textarea v-model="form.hero_subtitulo" rows="2" class="campo-area"></textarea>
+                        <textarea :class="{ '!border-perigo': form.errors.hero_subtitulo }" v-model="form.hero_subtitulo" rows="2" class="campo-area"></textarea><span v-if="form.errors.hero_subtitulo" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.hero_subtitulo }}</span>
                     </label>
                 </fieldset>
 
@@ -76,16 +78,16 @@ const guardar = () => {
                     <legend class="legenda">Conteúdo</legend>
                     <label class="rotulo">
                         Introdução
-                        <textarea v-model="form.introducao" rows="3" class="campo-area"></textarea>
+                        <textarea :class="{ '!border-perigo': form.errors.introducao }" v-model="form.introducao" rows="3" class="campo-area"></textarea><span v-if="form.errors.introducao" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.introducao }}</span>
                     </label>
                     <label class="rotulo">
                         Corpo do texto
-                        <textarea v-model="form.corpo" rows="12" class="campo-area leading-relaxed"></textarea>
+                        <textarea :class="{ '!border-perigo': form.errors.corpo }" v-model="form.corpo" rows="12" class="campo-area leading-relaxed"></textarea><span v-if="form.errors.corpo" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.corpo }}</span>
                         <span class="ajuda">Usa uma linha em branco para separar parágrafos.</span>
                     </label>
                     <label class="rotulo">
                         Conteúdo extra
-                        <textarea v-model="form.extra" rows="6" class="campo-area"></textarea>
+                        <textarea :class="{ '!border-perigo': form.errors.extra }" v-model="form.extra" rows="6" class="campo-area"></textarea><span v-if="form.errors.extra" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.extra }}</span>
                         <span class="ajuda">Para blocos em lista, usa o formato: Título|Descrição, uma linha por item.</span>
                     </label>
                 </fieldset>

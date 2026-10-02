@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { useRecaptcha } from '@/composables/useRecaptcha';
 import { computed, ref } from 'vue';
@@ -110,26 +111,26 @@ async function submitForm() {
 
         <!-- Menu próprio da Home -->
         <header class="sticky top-0 z-40 border-b border-linha bg-white">
-            <div class="mx-auto flex h-[72px] w-full max-w-[1120px] items-center justify-between gap-4 px-4 sm:px-6">
-                <a class="flex items-center gap-3 text-tinta no-underline" href="#inicio" @click.prevent="scrollTo('#inicio')">
+            <div class="mx-auto flex h-[72px] w-full max-w-[1280px] items-center justify-between gap-4 px-4 sm:px-6">
+                <a class="flex shrink-0 items-center gap-3 whitespace-nowrap text-tinta no-underline" href="#inicio" @click.prevent="scrollTo('#inicio')">
                     <img :src="associationLogo" alt="ARDC Santana" class="h-11 w-11 rounded-full border border-linha bg-white object-contain p-1" />
                     <span class="flex flex-col leading-tight">
                         <b class="text-lg font-extrabold">ARDC Santana</b>
                         <small class="text-[11px] font-semibold uppercase tracking-[0.12em] text-suave-2">Recreio · Desporto · Cultura</small>
                     </span>
                 </a>
-                <nav aria-label="Principal" class="hidden items-center gap-0.5 min-[1141px]:flex">
-                    <a v-for="link in navLinks" :key="link[0]" :href="link[1]" class="flex h-11 items-center rounded-[10px] px-3 text-[15px] font-semibold text-suave no-underline transition hover:bg-fundo hover:text-tinta" @click.prevent="scrollTo(link[1])">{{ link[0] }}</a>
-                    <Link class="ml-2 inline-flex h-11 items-center rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta no-underline transition hover:border-verde hover:text-verde" :href="r('salao.pre-reserva', '/reserva-salao')">Reservar salão</Link>
-                    <Link class="ml-2 inline-flex h-11 items-center rounded-[10px] bg-verde px-4 text-[15px] font-bold text-white no-underline transition hover:bg-verde-escuro hover:text-white" :href="r('patrocinios.index', '/patrocinios')">Ser sócio</Link>
+                <nav aria-label="Principal" class="hidden items-center gap-0.5 min-[1281px]:flex">
+                    <a v-for="link in navLinks" :key="link[0]" :href="link[1]" class="flex h-11 items-center whitespace-nowrap rounded-[10px] px-3 text-[15px] font-semibold text-suave no-underline transition hover:bg-fundo hover:text-tinta" @click.prevent="scrollTo(link[1])">{{ link[0] }}</a>
+                    <Link class="ml-2 inline-flex h-11 items-center whitespace-nowrap rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-tinta no-underline transition hover:border-verde hover:text-verde" :href="r('salao.pre-reserva', '/reserva-salao')">Reservar salão</Link>
+                    <Link class="ml-2 inline-flex h-11 items-center whitespace-nowrap rounded-[10px] bg-verde px-4 text-[15px] font-bold text-white no-underline transition hover:bg-verde-escuro hover:text-white" :href="r('patrocinios.index', '/patrocinios')">Ser sócio</Link>
                 </nav>
-                <button type="button" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha text-tinta min-[1141px]:hidden" :aria-expanded="menuOpen" aria-label="Menu" @click="menuOpen = !menuOpen">
+                <button type="button" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha text-tinta min-[1281px]:hidden" :aria-expanded="menuOpen" aria-label="Menu" @click="menuOpen = !menuOpen">
                     <svg v-if="!menuOpen" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
                     <svg v-else width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
                 </button>
             </div>
             <Transition name="drop">
-                <div v-if="menuOpen" class="border-t border-linha-fraca bg-white min-[1141px]:hidden">
+                <div v-if="menuOpen" class="border-t border-linha-fraca bg-white min-[1281px]:hidden">
                     <div class="mx-auto flex w-full max-w-[1120px] flex-col gap-1 px-4 pb-5 pt-3 sm:px-6">
                         <a v-for="link in navLinks" :key="link[0]" :href="link[1]" class="flex h-11 items-center rounded-[10px] px-3 text-base font-semibold text-tinta no-underline hover:bg-fundo" @click.prevent="scrollTo(link[1])">{{ link[0] }}</a>
                         <Link class="mt-2 flex h-12 items-center justify-center rounded-[10px] border border-linha-forte bg-white text-base font-bold text-tinta no-underline" :href="r('salao.pre-reserva', '/reserva-salao')">Reservar o salão</Link>
@@ -419,6 +420,7 @@ async function submitForm() {
                                     <textarea v-model="form.message" rows="4" placeholder="Como podemos ajudar?" class="resize-y rounded-[10px] border border-linha-forte bg-white px-3.5 py-3 text-base font-normal text-tinta focus:border-verde focus:ring-verde"></textarea>
                                     <small v-if="errors.message" class="text-sm font-semibold text-perigo">{{ errors.message }}</small>
                                 </label>
+                                <AvisoErros :errors="errors" :excluir="['name', 'email', 'phone', 'message']" />
                                 <button type="submit" class="h-[54px] rounded-[10px] bg-verde text-[17px] font-bold text-white transition hover:bg-verde-escuro disabled:cursor-not-allowed disabled:opacity-60" :disabled="form.processing">{{ form.processing ? 'A enviar…' : 'Enviar mensagem' }}</button>
                             </form>
                         </div>

@@ -229,7 +229,7 @@ onBeforeUnmount(() => clearInterval(polling));
         <!-- Sidebar desktop -->
         <aside class="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col bg-escuro px-3 pb-3 pt-5 text-white min-[901px]:flex">
             <Link :href="route('dashboard')" class="block px-3 pb-2 pt-1 text-[19px] font-extrabold text-white no-underline hover:text-white">ARDC Santana</Link>
-            <nav aria-label="Menu" class="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-1 pb-4">
+            <nav aria-label="Menu" class="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 nav-escura overflow-y-auto overscroll-contain px-1 pb-4">
                 <template v-for="grupo in gruposVisiveis" :key="grupo.label || 'inicio'">
                     <div v-if="grupo.label" class="px-3 pb-1.5 pt-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8FA39A]">{{ grupo.label }}</div>
                     <Link
@@ -281,7 +281,7 @@ onBeforeUnmount(() => clearInterval(polling));
                     Fechar
                 </button>
             </div>
-            <nav aria-label="Menu" class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-3 pb-28">
+            <nav aria-label="Menu" class="flex min-h-0 flex-1 flex-col gap-0.5 nav-escura overflow-y-auto overscroll-contain px-3 pb-28">
                 <template v-for="grupo in gruposVisiveis" :key="grupo.label || 'inicio'">
                     <div v-if="grupo.label" class="px-3 pb-1.5 pt-4 text-xs font-bold uppercase tracking-[0.08em] text-[#8FA39A]">{{ grupo.label }}</div>
                     <Link
@@ -351,7 +351,7 @@ onBeforeUnmount(() => clearInterval(polling));
                 <div
                     v-for="chamada in chamadas"
                     :key="chamada.id"
-                    class="flex max-w-[1200px] items-center justify-between gap-3 px-4 py-2.5 min-[901px]:px-[clamp(16px,3vw,40px)]"
+                    class="mx-auto flex max-w-[1320px] items-center justify-between gap-3 px-4 py-2.5 min-[901px]:px-[clamp(16px,3vw,40px)]"
                 >
                     <div class="flex min-w-0 items-center gap-3 text-[15px] text-laranja-texto">
                         <span class="flex h-9 w-9 shrink-0 animate-pulse items-center justify-center rounded-[10px] bg-laranja text-white">
@@ -373,7 +373,7 @@ onBeforeUnmount(() => clearInterval(polling));
                 </div>
             </div>
 
-            <div class="w-full max-w-[1200px] px-4 pt-4 min-[901px]:px-[clamp(16px,3vw,40px)] min-[901px]:pt-6">
+            <div class="mx-auto w-full max-w-[1320px] px-4 pt-4 min-[901px]:px-[clamp(16px,3vw,40px)] min-[901px]:pt-6">
                 <!-- Barra superior: telemóvel (marca + menu) -->
                 <div class="flex h-[52px] items-center justify-between gap-3 rounded-[14px] bg-escuro pl-4 pr-1.5 text-white min-[901px]:hidden">
                     <span class="truncate font-extrabold">ARDC Santana</span>
@@ -400,7 +400,7 @@ onBeforeUnmount(() => clearInterval(polling));
                 </div>
             </div>
 
-            <section class="w-full max-w-[1200px] px-4 pb-8 pt-4 min-[901px]:px-[clamp(16px,3vw,40px)]">
+            <section class="mx-auto w-full max-w-[1320px] px-4 pb-8 pt-4 min-[901px]:px-[clamp(16px,3vw,40px)]">
                 <div v-if="page.props.flash?.success" class="mb-4 rounded-[14px] border border-verde-claro2 bg-verde-claro px-4 py-3 text-[15px] font-bold text-verde-escuro" role="status">
                     {{ page.props.flash.success }}
                 </div>
@@ -409,7 +409,7 @@ onBeforeUnmount(() => clearInterval(polling));
                 </div>
                 <slot />
             </section>
-            <footer class="w-full max-w-[1200px] px-4 pb-6 text-center text-[13px] text-suave-2 min-[901px]:px-[clamp(16px,3vw,40px)]">
+            <footer class="mx-auto w-full max-w-[1320px] px-4 pb-6 text-center text-[13px] text-suave-2 min-[901px]:px-[clamp(16px,3vw,40px)]">
                 <span>Copyright © {{ year }} Associação de Santana.</span>
                 <span class="mx-2">·</span>
                 <a href="https://ateneya.com/" target="_blank" rel="noopener" class="font-semibold text-suave hover:text-verde">#CreatingDevelopingImproving4you</a>

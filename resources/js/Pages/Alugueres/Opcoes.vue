@@ -45,7 +45,7 @@ function guardarOpcao(id) {
     });
 }
 
-const euros = (v) => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+const euros = (v) => Number(v).toLocaleString('pt-PT', { useGrouping: 'always', style: 'currency', currency: 'EUR' });
 
 function eliminarOpcao(id) {
     if (!confirm('Eliminar esta opção?')) return;
@@ -89,11 +89,11 @@ function eliminarOpcao(id) {
                                 <input v-model="editForm.nome" type="text" class="campo" required />
                                 <span v-if="editForm.errors.nome" class="text-xs text-perigo">{{ editForm.errors.nome }}</span>
                             </label>
-                            <label class="rotulo sm:col-span-3">Descrição<input v-model="editForm.descricao" type="text" class="campo" /></label>
-                            <label class="rotulo">Preço extra (€)<input v-model="editForm.preco_extra" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /></label>
-                            <label class="rotulo">Ordem<input v-model="editForm.ordem" type="number" min="0" class="campo" /></label>
+                            <label class="rotulo sm:col-span-3">Descrição<input :class="{ '!border-perigo': editForm.errors.descricao }" v-model="editForm.descricao" type="text" class="campo" /><span v-if="editForm.errors.descricao" class="block text-[13px] font-semibold text-perigo-texto">{{ editForm.errors.descricao }}</span></label>
+                            <label class="rotulo">Preço extra (€)<input :class="{ '!border-perigo': editForm.errors.preco_extra }" v-model="editForm.preco_extra" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /><span v-if="editForm.errors.preco_extra" class="block text-[13px] font-semibold text-perigo-texto">{{ editForm.errors.preco_extra }}</span></label>
+                            <label class="rotulo">Ordem<input :class="{ '!border-perigo': editForm.errors.ordem }" v-model="editForm.ordem" type="number" min="0" class="campo" /><span v-if="editForm.errors.ordem" class="block text-[13px] font-semibold text-perigo-texto">{{ editForm.errors.ordem }}</span></label>
                             <label class="flex h-12 cursor-pointer items-center gap-3 rounded-[10px] border border-linha-forte bg-white px-3.5 text-[15px] font-bold sm:col-span-3">
-                                <input v-model="editForm.ativo" type="checkbox" class="h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde" />
+                                <input :class="{ '!border-perigo': editForm.errors.ativo }" v-model="editForm.ativo" type="checkbox" class="h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde" /><span v-if="editForm.errors.ativo" class="block text-[13px] font-semibold text-perigo-texto">{{ editForm.errors.ativo }}</span>
                                 Opção ativa (visível ao criar aluguer)
                             </label>
                             <div class="flex flex-wrap items-center gap-2 sm:col-span-3">
@@ -116,9 +116,9 @@ function eliminarOpcao(id) {
                             <input v-model="novaForm.nome" type="text" class="campo" placeholder="Ex: Com climatização" required />
                             <span v-if="novaForm.errors.nome" class="text-xs text-perigo">{{ novaForm.errors.nome }}</span>
                         </label>
-                        <label class="rotulo sm:col-span-3">Descrição (opcional)<input v-model="novaForm.descricao" type="text" class="campo" placeholder="Breve descrição da opção" /></label>
-                        <label class="rotulo">Preço extra (€)<input v-model="novaForm.preco_extra" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /></label>
-                        <label class="rotulo">Ordem<input v-model="novaForm.ordem" type="number" min="0" class="campo" placeholder="0" /></label>
+                        <label class="rotulo sm:col-span-3">Descrição (opcional)<input :class="{ '!border-perigo': novaForm.errors.descricao }" v-model="novaForm.descricao" type="text" class="campo" placeholder="Breve descrição da opção" /><span v-if="novaForm.errors.descricao" class="block text-[13px] font-semibold text-perigo-texto">{{ novaForm.errors.descricao }}</span></label>
+                        <label class="rotulo">Preço extra (€)<input :class="{ '!border-perigo': novaForm.errors.preco_extra }" v-model="novaForm.preco_extra" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /><span v-if="novaForm.errors.preco_extra" class="block text-[13px] font-semibold text-perigo-texto">{{ novaForm.errors.preco_extra }}</span></label>
+                        <label class="rotulo">Ordem<input :class="{ '!border-perigo': novaForm.errors.ordem }" v-model="novaForm.ordem" type="number" min="0" class="campo" placeholder="0" /><span v-if="novaForm.errors.ordem" class="block text-[13px] font-semibold text-perigo-texto">{{ novaForm.errors.ordem }}</span></label>
                     </div>
                     <div class="border-t border-linha-fraca bg-fundo/60 px-4 py-4 sm:px-5">
                         <button type="submit" :disabled="novaForm.processing" class="btn-pri h-[52px] px-6 text-base disabled:opacity-60">Adicionar opção</button>

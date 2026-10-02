@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { computed, reactive, watch } from 'vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
@@ -29,7 +30,7 @@ watch(filtros, () => {
     form.apenas_relatorios = filtros.apenas_relatorios;
 }, { deep: true });
 
-const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', style: 'currency', currency: 'EUR' });
 
 const tiposApagar = [
     ['ambos', 'Pedidos e caixas'],
@@ -175,6 +176,7 @@ const apagar = () => {
                         <label class="sr-only" for="confirmacao-apagar">Confirmação</label>
                         <input id="confirmacao-apagar" v-model="form.confirmacao" type="text" autocomplete="off" class="h-[52px] w-full rounded-[10px] border border-perigo/40 bg-white px-3.5 text-lg font-bold tracking-[0.06em] text-tinta focus:border-perigo focus:ring-perigo" placeholder="APAGAR DADOS">
                         <div v-if="form.errors.confirmacao" class="text-sm font-bold text-perigo-texto">{{ form.errors.confirmacao }}</div>
+                        <AvisoErros :errors="form.errors" :excluir="['confirmacao']" class="bg-white" />
                         <button type="submit" class="h-[52px] w-full rounded-[10px] px-4 text-base font-extrabold text-white transition disabled:opacity-50" :class="confirmado ? 'bg-perigo hover:opacity-90' : 'bg-perigo/50'" :disabled="form.processing">
                             {{ form.processing ? 'A apagar...' : textoBotaoApagar }}
                         </button>

@@ -38,7 +38,7 @@ class ReceitaFesta
             ],
             [
                 'categoria' => 'doacoes',
-                'label' => 'Doacoes',
+                'label' => 'Doações',
                 'valor' => (float) $pedidos->sum('doacao'),
                 'origem' => 'automatico',
             ],
@@ -73,10 +73,10 @@ class ReceitaFesta
             'restaurante' => 'Restaurante',
             'bar' => 'Bar',
             'bar_manual' => 'Bar (manual)',
-            'cafe' => 'Cafe',
+            'cafe' => 'Café',
             'quermesse' => 'Quermesse',
-            'patrocinios' => 'Patrocinios',
-            'doacoes' => 'Doacoes',
+            'patrocinios' => 'Patrocínios',
+            'doacoes' => 'Doações',
             'donativos_manuais' => 'Donativos manuais',
         ][$categoria] ?? ucfirst(str_replace('_', ' ', $categoria));
     }

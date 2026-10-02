@@ -2,7 +2,7 @@
 import AppLayout from '@/Layouts/AppLayout.vue';
 import Paginacao from '@/Components/Paginacao.vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 const props = defineProps({ cotas: Object, totais: Object, socios: Array, filters: Object });
 
 // Vindo da ficha do sócio ("Registar cota"), o sócio já vem escolhido
@@ -19,11 +19,16 @@ const podeGerar = computed(
     () => (usePage().props.auth?.permissions ?? []).includes('cotas.gerar'),
 );
 
+const erroGerar = ref('');
 const gerarCotas = () => {
     const ano = filtros.ano || new Date().getFullYear();
 
     if (confirm(`Gerar a cota anual de ${ano} (5€) para todos os sócios ativos que ainda não a tenham?`)) {
-        router.post(route('cotas.gerar'), { ano }, { preserveScroll: true });
+        erroGerar.value = '';
+        router.post(route('cotas.gerar'), { ano }, {
+            preserveScroll: true,
+            onError: (erros) => { erroGerar.value = Object.values(erros).join(' '); },
+        });
     }
 };
 
@@ -47,7 +52,7 @@ const corEstado = {
 
 const corFiltro = { '': 'text-tinta', pago: 'text-verde-escuro', pendente: 'text-laranja-texto', em_atraso: 'text-perigo-texto' };
 
-const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 
 const filtrar = () => router.get(route('cotas.index'), {
     ano: filtros.ano || undefined,
@@ -82,6 +87,8 @@ const campo = 'h-12 w-full min-w-0 rounded-[10px] border border-linha-forte bg-w
                     </button>
                 </div>
             </div>
+
+            <div v-if="erroGerar" role="alert" class="rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroGerar }}</div>
 
             <section aria-label="Totais" class="grid gap-3 sm:grid-cols-2">
                 <div class="rounded-[14px] border border-l-[5px] border-linha border-l-verde-ok bg-white p-[18px]">

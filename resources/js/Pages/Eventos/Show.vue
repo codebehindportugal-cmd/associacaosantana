@@ -19,15 +19,18 @@ const dataEvento = (evento) => {
 
 const estadoLabel = (estado) => ({ publicado: 'Publicado', rascunho: 'Rascunho' }[estado] ?? estado);
 
+const erroMedia = ref('');
 const uploadMedia = (event) => {
     const ficheiros = Array.from(event.target.files ?? []);
     if (!ficheiros.length) return;
+    erroMedia.value = '';
 
     const data = new FormData();
     ficheiros.forEach((ficheiro) => data.append('ficheiros[]', ficheiro));
 
     router.post(route('eventos.media.store', props.evento.id), data, {
         preserveScroll: true,
+        onError: (erros) => { erroMedia.value = Object.values(erros).join(' '); },
         onFinish: () => {
             event.target.value = '';
         },
@@ -148,6 +151,8 @@ const mediaSeguinte = () => {
                         <input type="file" multiple accept="image/*,video/mp4,video/webm,video/quicktime" class="hidden" @change="uploadMedia">
                     </label>
                 </div>
+
+                <div v-if="erroMedia" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-perigo-texto font-semibold">{{ erroMedia }}</div>
 
                 <template v-if="evento.media?.length">
                     <div class="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 lg:grid-cols-4">

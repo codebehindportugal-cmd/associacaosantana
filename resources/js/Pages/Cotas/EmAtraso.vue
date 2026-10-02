@@ -4,7 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 const props = defineProps({ socios: Array });
 
-const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 // Decisão: o atraso conta-se em anos (a cota é anual)
 const anosAtraso = (n) => `${n} ${Number(n) === 1 ? 'ano' : 'anos'} em atraso`;
 const dividaTotal = computed(() => (props.socios ?? []).reduce((total, socio) => total + Number(socio.valor_divida || 0), 0));

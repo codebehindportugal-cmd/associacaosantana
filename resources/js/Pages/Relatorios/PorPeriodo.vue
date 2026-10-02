@@ -21,7 +21,7 @@ const props = defineProps({
 const filtros = reactive({ ...props.filters });
 const max = computed(() => Math.max(1, ...(props.vendas_por_dia ?? []).map((d) => Number(d.total))));
 const maxHora = computed(() => Math.max(1, ...(props.vendas_por_hora ?? []).map((h) => Number(h.total))));
-const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const filtrar = () => router.get(route('relatorios.periodo'), filtros, { preserveState: true });
 const pdf = () => { window.location = route('relatorios.pdf', filtros); };
 const mostrarTodosProdutos = ref(false);
@@ -30,8 +30,8 @@ const totalFestaReceitas = computed(() => (props.festa_receitas ?? []).reduce((s
 const totalFestaCustos = computed(() => (props.festa_custos ?? []).reduce((s, c) => s + Number(c.valor), 0));
 
 // --- Só para a apresentação ---
-const percentagem = (v) => Number(v || 0).toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
-const eurosCurto = (v) => Math.round(Number(v || 0)).toLocaleString('pt-PT') + ' €';
+const percentagem = (v) => Number(v || 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+const eurosCurto = (v) => Math.round(Number(v || 0)).toLocaleString('pt-PT', { useGrouping: 'always' }) + ' €';
 const sinal = (v) => (Number(v) > 0 ? '+' : '') + euros(v);
 const corDiferenca = (v) => Number(v || 0) === 0 ? 'text-tinta' : Number(v) > 0 ? 'text-verde' : 'text-perigo';
 const diaCurto = (data) => {
@@ -107,7 +107,7 @@ const campo = 'h-12 w-full min-w-0 rounded-[10px] border border-linha-forte bg-w
                 </div>
                 <div class="rounded-[14px] border border-linha bg-white p-[18px]">
                     <div class="text-sm font-bold text-suave-2">N.º de pedidos</div>
-                    <strong class="text-[30px] font-extrabold">{{ Number(resumo.total_pedidos ?? 0).toLocaleString('pt-PT') }}</strong>
+                    <strong class="text-[30px] font-extrabold">{{ Number(resumo.total_pedidos ?? 0).toLocaleString('pt-PT', { useGrouping: 'always' }) }}</strong>
                 </div>
             </section>
 

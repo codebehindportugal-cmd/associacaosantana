@@ -63,6 +63,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
                 'avisoCliente' => fn () => $request->session()->get('avisoCliente'),
                 'avisoFuncionario' => fn () => $request->session()->get('avisoFuncionario'),
                 // POS com WebUSB/navegador: o que imprimir no proprio ecra de venda

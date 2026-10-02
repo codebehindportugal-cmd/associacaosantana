@@ -1,4 +1,5 @@
 <script setup>
+import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -209,8 +210,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <main class="min-h-screen bg-fundo font-sans text-tinta tabular-nums">
-        <div class="mx-auto flex max-w-[1400px] flex-col gap-[18px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <AppLayout>
+    <div class="font-sans text-tinta tabular-nums">
+        <div class="flex flex-col gap-[18px]">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex flex-col gap-1.5">
                     <h1 class="text-[30px] font-extrabold leading-tight">Sala ao vivo</h1>
@@ -267,5 +269,6 @@ onBeforeUnmount(() => {
                 </div>
             </section>
         </div>
-    </main>
+    </div>
+    </AppLayout>
 </template>

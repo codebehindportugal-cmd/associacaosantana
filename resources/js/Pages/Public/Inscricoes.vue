@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import PublicShell from '@/Components/PublicShell.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { onMounted, ref } from 'vue';
@@ -52,7 +53,7 @@ const obterToken = () => new Promise((resolve) => {
     });
 });
 
-const euros = (v) => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+const euros = (v) => Number(v).toLocaleString('pt-PT', { useGrouping: 'always', style: 'currency', currency: 'EUR' });
 
 const precoOpcao = (evento) => {
     if (!form.opcao) return null;
@@ -123,6 +124,10 @@ const submeter = async (evento) => {
         <div class="mx-auto w-full max-w-[760px] px-4 pb-16 pt-10 sm:px-6 sm:pt-14">
             <h1 class="m-0 text-[clamp(32px,4vw,44px)] font-extrabold leading-[1.1] tracking-[-0.01em]">Inscrições</h1>
             <p class="m-0 mt-2 text-[17px] text-suave">Inscreve-te nos próximos eventos da Associação de Santana.</p>
+
+            <!-- Mensagens do regresso do pagamento online (redirect com success / erro 'pagamento') -->
+            <p v-if="page.props.flash?.success && !sucesso" role="status" class="m-0 mt-5 rounded-[10px] border border-verde-claro2 bg-verde-claro p-3.5 text-[15px] font-semibold text-verde-escuro">{{ page.props.flash.success }}</p>
+            <AvisoErros :apenas="['pagamento']" class="mt-5 text-[15px]" />
 
             <div v-if="!eventos.length" class="mt-8 flex flex-col items-center rounded-[14px] border border-linha bg-white p-8 text-center">
                 <span class="flex h-14 w-14 items-center justify-center rounded-[14px] bg-verde-claro text-verde">

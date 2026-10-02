@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -87,7 +88,10 @@ const adicionarProduto = (produto) => {
 };
 
 const alternarUrgente = (item) => {
-    router.patch(route('pedido-items.update', item.id), { prioridade: !item.prioridade }, { preserveScroll: true });
+    router.patch(route('pedido-items.update', item.id), { prioridade: !item.prioridade }, {
+        preserveScroll: true,
+        onError: (erros) => mostrarAviso(Object.values(erros).join(' ') || 'Nao foi possivel alterar o item.'),
+    });
 };
 
 const anularItem = (item) => {
@@ -224,6 +228,7 @@ onMounted(() => {
 
             <!-- Novo pedido -->
             <form v-if="!pedido" class="flex w-full max-w-xl flex-col gap-4 rounded-[14px] border border-linha bg-white p-5 sm:p-6" @submit.prevent="criarPedido">
+                <AvisoErros :errors="pedidoForm.errors" :excluir="['lugares_ocupados', 'mesa_id', 'observacoes', 'submesa_letra']" />
                 <div role="radiogroup" aria-label="Tipo de atendimento" class="grid grid-cols-2 gap-2">
                     <button type="button" role="radio" :aria-checked="pedidoForm.tipo_atendimento === 'mesa'" class="h-12 rounded-[10px] text-base font-bold transition" :class="pedidoForm.tipo_atendimento === 'mesa' ? 'bg-escuro text-white' : 'border border-linha-forte bg-white text-tinta hover:bg-fundo'" @click="escolherTipoAtendimento('mesa')">Mesa</button>
                     <button type="button" role="radio" :aria-checked="pedidoForm.tipo_atendimento === 'para_levar'" class="h-12 rounded-[10px] text-base font-bold transition" :class="pedidoForm.tipo_atendimento === 'para_levar' ? 'bg-escuro text-white' : 'border border-linha-forte bg-white text-tinta hover:bg-fundo'" @click="escolherTipoAtendimento('para_levar')">Para levar</button>
@@ -241,7 +246,7 @@ onMounted(() => {
 
                 <label v-if="pedidoForm.tipo_atendimento === 'mesa'" class="flex flex-col gap-1.5">
                     <span class="text-sm font-bold text-suave">Lugares ocupados</span>
-                    <input v-model="pedidoForm.lugares_ocupados" type="number" min="1" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Vazio = mesa completa">
+                    <input :class="{ '!border-perigo': pedidoForm.errors.lugares_ocupados }" v-model="pedidoForm.lugares_ocupados" type="number" min="1" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Vazio = mesa completa"><span v-if="pedidoForm.errors.lugares_ocupados" class="block text-[13px] font-semibold text-perigo-texto">{{ pedidoForm.errors.lugares_ocupados }}</span>
                 </label>
 
                 <label v-if="pedidoForm.tipo_atendimento === 'mesa' && pedidoForm.lugares_ocupados" class="flex flex-col gap-1.5">
@@ -255,7 +260,7 @@ onMounted(() => {
 
                 <label class="flex flex-col gap-1.5">
                     <span class="text-sm font-bold text-suave">Observações</span>
-                    <textarea v-model="pedidoForm.observacoes" rows="3" class="w-full rounded-[10px] border-linha-forte px-3.5 py-3 text-base focus:border-verde focus:ring-verde" placeholder="Observações"></textarea>
+                    <textarea :class="{ '!border-perigo': pedidoForm.errors.observacoes }" v-model="pedidoForm.observacoes" rows="3" class="w-full rounded-[10px] border-linha-forte px-3.5 py-3 text-base focus:border-verde focus:ring-verde" placeholder="Observações"></textarea><span v-if="pedidoForm.errors.observacoes" class="block text-[13px] font-semibold text-perigo-texto">{{ pedidoForm.errors.observacoes }}</span>
                 </label>
                 <button type="submit" :disabled="pedidoForm.processing" class="h-[52px] rounded-[10px] bg-verde text-base font-bold text-white hover:bg-verde-escuro disabled:opacity-60">Criar pedido</button>
             </form>
@@ -294,6 +299,7 @@ onMounted(() => {
 
                     <section aria-labelledby="adicionar-titulo" class="flex flex-col gap-4 rounded-[14px] border border-linha bg-white p-5">
                         <h2 id="adicionar-titulo" class="text-lg font-extrabold">Adicionar produtos</h2>
+                            <AvisoErros :errors="itemForm.errors" />
                         <div class="flex flex-wrap items-end gap-3">
                             <div class="flex flex-col gap-1.5">
                                 <span id="qtd-rotulo" class="text-sm font-bold text-suave">Quantidade</span>
@@ -352,15 +358,16 @@ onMounted(() => {
                 </div>
 
                 <aside class="flex flex-col gap-4">
+                    <AvisoErros :errors="cancelamentoForm.errors" />
                     <form class="flex flex-col gap-3 rounded-[14px] border border-linha bg-white p-[18px]" @submit.prevent="estadoForm.patch(route('pedidos.estado', pedido.id))">
                         <label class="flex flex-col gap-1.5">
                             <span class="text-sm font-bold text-suave">Estado do pedido</span>
-                            <select v-model="estadoForm.estado" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde font-semibold">
+                            <select :class="{ '!border-perigo': estadoForm.errors.estado }" v-model="estadoForm.estado" class="h-12 w-full rounded-[10px] border-linha-forte px-3.5 text-base text-tinta focus:border-verde focus:ring-verde font-semibold">
                                 <option value="pendente">Pendente</option>
                                 <option value="preparacao">Em preparação</option>
                                 <option value="entregue">Entregue</option>
                                 <option value="cancelado">Cancelado</option>
-                            </select>
+                            </select><span v-if="estadoForm.errors.estado" class="block text-[13px] font-semibold text-perigo-texto">{{ estadoForm.errors.estado }}</span>
                         </label>
                         <button type="submit" :disabled="estadoForm.processing" class="h-11 rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold text-tinta hover:bg-fundo disabled:opacity-60">Mudar estado</button>
                     </form>

@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import PublicShell from '@/Components/PublicShell.vue';
 import { useRecaptcha } from '@/Composables/useRecaptcha';
@@ -227,15 +228,16 @@ function estaNoIntervalo(dateStr) {
                         <!-- Notas -->
                         <div class="rounded-[14px] border border-linha bg-white p-5 sm:p-6">
                             <h2 class="m-0 mb-4 flex items-center gap-2.5 text-[21px] font-extrabold"><span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-escuro text-[13px] font-extrabold text-white">{{ opcoes && opcoes.length ? 4 : 3 }}</span>Informações adicionais</h2>
-                            <textarea
+                            <textarea :class="{ '!border-perigo': form.errors.notas }"
                                 v-model="form.notas"
                                 rows="4"
                                 class="campo campo-area"
                                 aria-label="Informações adicionais"
                                 placeholder="Ex: Número de pessoas previsto, tipo de evento, horário aproximado, necessidades especiais..."
-                            ></textarea>
+                            ></textarea><span v-if="form.errors.notas" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.notas }}</span>
                         </div>
 
+                        <AvisoErros :errors="form.errors" :excluir="['data_fim', 'data_inicio', 'email', 'nome_cliente', 'notas', 'telefone']" class="text-[15px]" />
                         <!-- Botão enviar -->
                         <button
                             type="submit"

@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
@@ -184,7 +185,7 @@ onBeforeUnmount(() => {
 // ---------------------------------------------------------------------------
 // Apresentação (redesign) — só formatação e atalhos que escrevem nos mesmos campos
 // ---------------------------------------------------------------------------
-const eur = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const eur = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const artigos = computed(() => carrinho.value.reduce((soma, item) => soma + item.quantidade, 0));
 const secoesInfo = {
     cozinha: { label: 'Cozinha', dot: 'bg-secao-cozinha', text: 'text-secao-cozinha' },
@@ -360,7 +361,7 @@ const limparSenha = () => {
                         :disabled="troco <= 0"
                         @click="alternarDoacao"
                     >{{ doouTroco ? 'Cliente doou o troco — anular' : 'Cliente doa o troco' }}</button>
-                    <div v-if="form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-semibold text-perigo-texto">{{ form.errors.ponto_bar || form.errors.valor_recebido || form.errors.troco }}</div>
+                    <AvisoErros :errors="form.errors" class="!p-2" />
                     <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || form.processing" @click="cobrar">
                         Cobrar e tirar senha
                     </button>

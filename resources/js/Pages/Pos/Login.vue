@@ -251,7 +251,7 @@ const painelComissao = computed(() => !props.comissao && mostrarComissao.value);
                     <label class="block text-sm font-semibold text-suave">Nome de quem atende
                         <input v-model="form.operador_nome" type="text" autocomplete="name" class="mt-1 h-14 w-full rounded-[10px] border-linha-forte bg-fundo text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="Nome de quem atende">
                     </label>
-                    <div v-for="erro in [form.errors.operador_nome, form.errors.pin].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-center font-semibold text-perigo-texto">{{ erro }}</div>
+                    <div v-for="erro in [form.errors.operador_nome, form.errors.pin, form.errors.terminal_id].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-center font-semibold text-perigo-texto">{{ erro }}</div>
                     <div class="flex-1"></div>
                     <button class="h-[72px] rounded-[14px] bg-verde text-xl font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="form.processing">Entrar sem PIN</button>
                 </form>
@@ -268,7 +268,7 @@ const painelComissao = computed(() => !props.comissao && mostrarComissao.value);
                     <label class="block text-sm font-semibold text-suave">PIN do terminal
                         <input v-model="form.pin" type="password" inputmode="numeric" autocomplete="off" autofocus class="mt-1 h-14 w-full rounded-[10px] border-2 bg-fundo text-center text-3xl font-bold tracking-[0.5em] text-tinta focus:border-verde focus:ring-verde" :class="form.errors.pin ? 'border-perigo' : 'border-linha-forte'" placeholder="••••">
                     </label>
-                    <div v-for="erro in [form.errors.operador_nome, form.errors.pin].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-center text-sm font-semibold text-perigo-texto">{{ erro }}</div>
+                    <div v-for="erro in [form.errors.operador_nome, form.errors.pin, form.errors.terminal_id].filter(Boolean)" :key="erro" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-center text-sm font-semibold text-perigo-texto">{{ erro }}</div>
                     <div class="grid grid-cols-3 gap-2">
                         <button v-for="t in teclasPin" :key="t" type="button" class="h-16 rounded-[10px] border border-linha-forte font-bold" :class="['del', 'clr'].includes(t) ? 'bg-fundo text-[17px]' : 'bg-white text-[26px]'" :aria-label="t === 'del' ? 'Apagar' : (t === 'clr' ? 'Limpar PIN' : t)" @click="premirTecla(form, t)">{{ t === 'del' ? '←' : (t === 'clr' ? 'Limpar' : t) }}</button>
                     </div>

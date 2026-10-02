@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -173,7 +174,7 @@ const legenda = [
     ['Cancelado', 'bg-perigo'],
     ['Concluído', 'bg-suave-2'],
 ];
-const euros = (v) => Number(v).toLocaleString('pt-PT', { style: 'currency', currency: 'EUR' });
+const euros = (v) => Number(v).toLocaleString('pt-PT', { useGrouping: 'always', style: 'currency', currency: 'EUR' });
 const estadoLabel = {
     pendente:   'Pendente',
     confirmado: 'Confirmado',
@@ -337,15 +338,16 @@ const hoje = new Date().toISOString().slice(0, 10);
                     </div>
 
                     <form class="divide-y divide-linha-fraca" @submit.prevent="guardar">
+                        <AvisoErros :errors="form.errors" :excluir="['caucao', 'caucao_devolvida', 'data_fim', 'data_inicio', 'email', 'entidade', 'estado', 'metodo_pagamento', 'nome_cliente', 'notas', 'pago', 'preco_total', 'telefone']" class="mx-4 mt-4 sm:mx-6" />
                         <fieldset class="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-6">
                             <legend class="legenda">Cliente</legend>
                             <label class="rotulo sm:col-span-2">Nome do cliente *
                                 <input v-model="form.nome_cliente" type="text" class="campo" required />
                                 <span v-if="form.errors.nome_cliente" class="text-xs text-perigo">{{ form.errors.nome_cliente }}</span>
                             </label>
-                            <label class="rotulo">Entidade / Organização<input v-model="form.entidade" type="text" class="campo" /></label>
-                            <label class="rotulo">Telefone<input v-model="form.telefone" type="tel" class="campo" /></label>
-                            <label class="rotulo sm:col-span-2">Email<input v-model="form.email" type="email" class="campo" /></label>
+                            <label class="rotulo">Entidade / Organização<input :class="{ '!border-perigo': form.errors.entidade }" v-model="form.entidade" type="text" class="campo" /><span v-if="form.errors.entidade" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.entidade }}</span></label>
+                            <label class="rotulo">Telefone<input :class="{ '!border-perigo': form.errors.telefone }" v-model="form.telefone" type="tel" class="campo" /><span v-if="form.errors.telefone" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.telefone }}</span></label>
+                            <label class="rotulo sm:col-span-2">Email<input :class="{ '!border-perigo': form.errors.email }" v-model="form.email" type="email" class="campo" /><span v-if="form.errors.email" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.email }}</span></label>
                         </fieldset>
 
                         <fieldset class="grid gap-4 px-4 py-4 sm:grid-cols-3 sm:px-6">
@@ -359,12 +361,12 @@ const hoje = new Date().toISOString().slice(0, 10);
                                 <span v-if="form.errors.data_fim" class="text-xs text-perigo">{{ form.errors.data_fim }}</span>
                             </label>
                             <label class="rotulo">Estado
-                                <select v-model="form.estado" class="campo">
+                                <select :class="{ '!border-perigo': form.errors.estado }" v-model="form.estado" class="campo">
                                     <option value="pendente">Pendente</option>
                                     <option value="confirmado">Confirmado</option>
                                     <option value="cancelado">Cancelado</option>
                                     <option value="concluido">Concluído</option>
-                                </select>
+                                </select><span v-if="form.errors.estado" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.estado }}</span>
                             </label>
                         </fieldset>
 
@@ -389,25 +391,25 @@ const hoje = new Date().toISOString().slice(0, 10);
 
                         <fieldset class="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-6">
                             <legend class="legenda">Pagamento e caução</legend>
-                            <label class="rotulo">Preço total (€)<input v-model="form.preco_total" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /></label>
+                            <label class="rotulo">Preço total (€)<input :class="{ '!border-perigo': form.errors.preco_total }" v-model="form.preco_total" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /><span v-if="form.errors.preco_total" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.preco_total }}</span></label>
                             <label class="rotulo">Método de pagamento
-                                <select v-model="form.metodo_pagamento" class="campo">
+                                <select :class="{ '!border-perigo': form.errors.metodo_pagamento }" v-model="form.metodo_pagamento" class="campo">
                                     <option value="">— Selecionar —</option>
                                     <option value="dinheiro">Dinheiro</option>
                                     <option value="transferencia">Transferência</option>
                                     <option value="mbway">MB Way</option>
                                     <option value="multibanco">Multibanco</option>
                                     <option value="cheque">Cheque</option>
-                                </select>
+                                </select><span v-if="form.errors.metodo_pagamento" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.metodo_pagamento }}</span>
                             </label>
-                            <label class="caixa sm:col-span-2"><input v-model="form.pago" type="checkbox" class="chk" />Pagamento recebido</label>
-                            <label class="rotulo">Caução (€)<input v-model="form.caucao" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /></label>
-                            <label class="caixa self-end"><input v-model="form.caucao_devolvida" type="checkbox" class="chk" />Caução devolvida</label>
+                            <label class="caixa sm:col-span-2"><input :class="{ '!border-perigo': form.errors.pago }" v-model="form.pago" type="checkbox" class="chk" /><span v-if="form.errors.pago" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.pago }}</span>Pagamento recebido</label>
+                            <label class="rotulo">Caução (€)<input :class="{ '!border-perigo': form.errors.caucao }" v-model="form.caucao" type="number" step="0.01" min="0" class="campo" placeholder="0.00" /><span v-if="form.errors.caucao" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.caucao }}</span></label>
+                            <label class="caixa self-end"><input :class="{ '!border-perigo': form.errors.caucao_devolvida }" v-model="form.caucao_devolvida" type="checkbox" class="chk" /><span v-if="form.errors.caucao_devolvida" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.caucao_devolvida }}</span>Caução devolvida</label>
                         </fieldset>
 
                         <div class="px-4 py-4 sm:px-6">
                             <label class="rotulo">Notas / Observações
-                                <textarea v-model="form.notas" rows="3" class="campo-area" placeholder="Informações adicionais..."></textarea>
+                                <textarea :class="{ '!border-perigo': form.errors.notas }" v-model="form.notas" rows="3" class="campo-area" placeholder="Informações adicionais..."></textarea><span v-if="form.errors.notas" class="block text-[13px] font-semibold text-perigo-texto">{{ form.errors.notas }}</span>
                             </label>
                         </div>
 

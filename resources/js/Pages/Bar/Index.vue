@@ -1,4 +1,5 @@
 <script setup>
+import AppLayout from '@/Layouts/AppLayout.vue';
 import { Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -31,8 +32,9 @@ onBeforeUnmount(() => clearInterval(intervalo));
 </script>
 
 <template>
-    <main class="min-h-screen bg-fundo font-sans text-tinta tabular-nums">
-        <div class="mx-auto flex max-w-[1200px] flex-col gap-5 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+    <AppLayout>
+    <div class="font-sans text-tinta tabular-nums">
+        <div class="flex flex-col gap-5">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="flex flex-col gap-1.5">
                     <h1 class="text-[30px] font-extrabold leading-tight">Caixas - Senhas</h1>
@@ -134,5 +136,6 @@ onBeforeUnmount(() => clearInterval(intervalo));
             </div>
             <p class="text-sm text-suave-2">A página atualiza sozinha a cada 20 segundos.</p>
         </div>
-    </main>
+    </div>
+    </AppLayout>
 </template>

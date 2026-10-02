@@ -195,7 +195,7 @@ const enviarPedido = () => {
                     <div v-if="form.errors.pedido" role="alert" class="rounded-xl bg-perigo-claro px-3.5 py-3 text-[15px] font-bold text-perigo-texto">
                         {{ form.errors.pedido }}
                     </div>
-                    <div v-if="form.errors.items" role="alert" class="rounded-xl bg-perigo-claro px-3.5 py-3 text-[15px] font-bold text-perigo-texto">
+                    <div v-if="form.errors.items || Object.keys(form.errors).some((k) => k.startsWith('items.'))" role="alert" class="rounded-xl bg-perigo-claro px-3.5 py-3 text-[15px] font-bold text-perigo-texto">
                         Não foi possível enviar esse pedido.
                     </div>
                     <div v-if="aviso" role="status" class="rounded-xl bg-verde-claro px-3.5 py-3 text-[15px] font-bold text-verde-escuro">

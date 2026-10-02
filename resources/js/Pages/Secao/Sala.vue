@@ -221,44 +221,45 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <main class="flex min-h-screen flex-col gap-5 bg-escuro px-6 py-6 font-sans tabular-nums text-white xl:px-10 xl:py-7">
-        <header class="flex shrink-0 flex-wrap items-center justify-between gap-6">
-            <div class="flex flex-col gap-1">
-                <h1 class="text-5xl font-extrabold leading-none xl:text-[72px]">SALA</h1>
-                <p class="text-lg font-semibold text-escuro-inativo xl:text-2xl">Visão de entrega · atualização automática</p>
+    <!-- Ecrã de parede: ocupa sempre exatamente o ecrã, sem scroll -->
+    <main class="flex h-[100dvh] flex-col gap-[1.4vh] overflow-hidden bg-escuro px-[1.6vw] py-[1.6vh] font-sans tabular-nums text-white">
+        <header class="flex shrink-0 items-center justify-between gap-[2vw]">
+            <div class="flex min-w-0 flex-col">
+                <h1 class="text-[min(6.5vh,4.5vw)] font-extrabold leading-none">SALA</h1>
+                <p class="truncate text-[min(2.2vh,1.4vw)] font-semibold text-escuro-inativo">Visão de entrega · atualização automática</p>
             </div>
-            <div class="flex flex-wrap gap-3.5">
+            <div class="flex shrink-0 gap-[0.8vw]">
                 <div
                     v-for="cartao in resumoCartoes"
                     :key="cartao.label"
-                    class="flex min-w-[150px] flex-col justify-center rounded-2xl border-l-[12px] bg-[#233029] px-5 py-2.5 xl:h-[104px] xl:min-w-[190px]"
+                    class="flex min-w-[9vw] flex-col justify-center rounded-[1.4vh] border-l-[0.8vh] bg-[#233029] px-[1vw] py-[0.8vh]"
                     :class="cartao.borda"
                 >
-                    <span class="text-4xl font-extrabold leading-none xl:text-[52px]">{{ cartao.n }}</span>
-                    <span class="text-lg font-bold text-escuro-inativo xl:text-2xl">{{ cartao.label }}</span>
+                    <span class="text-[min(5vh,3.2vw)] font-extrabold leading-none">{{ cartao.n }}</span>
+                    <span class="whitespace-nowrap text-[min(2vh,1.25vw)] font-bold text-escuro-inativo">{{ cartao.label }}</span>
                 </div>
             </div>
         </header>
 
-        <section aria-label="Mapa da sala" class="relative min-h-[720px] flex-1 overflow-hidden rounded-[22px] bg-fundo">
-            <div data-sala-mapa class="relative h-full min-h-[720px] w-full">
+        <section aria-label="Mapa da sala" class="relative min-h-0 flex-1 overflow-hidden rounded-[2vh] bg-fundo">
+            <div data-sala-mapa class="relative h-full w-full">
                 <div class="absolute inset-x-[2%] inset-y-[4%] rounded-[10px] border-4 border-suave"></div>
                 <div class="absolute left-[2%] top-[38%] h-[18%] w-1 bg-fundo"></div>
                 <div class="absolute left-[2%] top-[63%] h-[14%] w-1 bg-fundo"></div>
                 <div class="absolute right-[2%] top-[12%] h-[16%] w-1 bg-fundo"></div>
                 <div class="absolute bottom-[8%] right-[2%] h-[12%] w-1 bg-fundo"></div>
 
-                <div class="absolute left-[3%] top-[46%] -rotate-90 text-sm font-extrabold uppercase text-suave-2 xl:text-lg">WC H.</div>
-                <div class="absolute left-[3%] top-[60%] -rotate-90 text-sm font-extrabold uppercase text-suave-2 xl:text-lg">WC M.</div>
-                <div class="absolute left-[11%] top-[14%] flex h-[18%] w-[10%] items-center justify-center rounded-lg border-[3px] border-suave-2 bg-white p-2 text-center text-sm font-extrabold uppercase text-suave [writing-mode:vertical-rl] xl:text-[22px]">Sobremesas</div>
-                <div class="absolute bottom-[8%] left-[9%] flex h-[17%] w-[8%] items-center justify-center rounded-lg border-[3px] border-suave-2 bg-white p-2 text-center text-sm font-extrabold uppercase text-suave [writing-mode:vertical-rl] xl:text-[22px]">Caixa / Bebidas</div>
-                <div class="absolute bottom-[1%] left-[19%] rounded-lg bg-escuro px-4 py-1.5 text-base font-extrabold uppercase text-white xl:text-xl">Entrada</div>
-                <div class="absolute right-[5%] top-[31%] rounded-lg border-[3px] border-suave-2 bg-white px-2 py-4 text-base font-extrabold uppercase text-suave [writing-mode:vertical-rl] xl:text-[22px]">Palco</div>
+                <div class="absolute left-[3%] top-[46%] -rotate-90 text-[min(1.8vh,1.1vw)] font-extrabold uppercase text-suave-2">WC H.</div>
+                <div class="absolute left-[3%] top-[60%] -rotate-90 text-[min(1.8vh,1.1vw)] font-extrabold uppercase text-suave-2">WC M.</div>
+                <div class="absolute left-[11%] top-[14%] flex h-[18%] w-[10%] items-center justify-center overflow-hidden rounded-lg border-[3px] border-suave-2 bg-white p-[0.5vh] text-center text-[min(2vh,1.2vw)] font-extrabold uppercase text-suave [writing-mode:vertical-rl]">Sobremesas</div>
+                <div class="absolute bottom-[8%] left-[9%] flex h-[17%] w-[8%] items-center justify-center overflow-hidden rounded-lg border-[3px] border-suave-2 bg-white p-[0.5vh] text-center text-[min(2vh,1.2vw)] font-extrabold uppercase text-suave [writing-mode:vertical-rl]">Caixa / Bebidas</div>
+                <div class="absolute bottom-[1%] left-[19%] rounded-lg bg-escuro px-[0.8vw] py-[0.4vh] text-[min(2vh,1.2vw)] font-extrabold uppercase text-white">Entrada</div>
+                <div class="absolute right-[5%] top-[31%] rounded-lg border-[3px] border-suave-2 bg-white px-[0.4vw] py-[1vh] text-[min(2vh,1.2vw)] font-extrabold uppercase text-suave [writing-mode:vertical-rl]">Palco</div>
 
                 <div
                     v-for="mesa in mesasMapa"
                     :key="mesa.id"
-                    class="absolute overflow-hidden rounded-xl border-[3px] text-left shadow-[0_4px_12px_rgba(22,32,28,.18)]"
+                    class="mesa absolute overflow-hidden rounded-xl border-[3px] text-left shadow-[0_4px_12px_rgba(22,32,28,.18)]"
                     :class="bordaMesa[estadoMesa(mesa)]"
                     :style="mesaStyle(mesa)"
                     :title="textoPedidos(mesa)"
@@ -273,23 +274,24 @@ onBeforeUnmount(() => {
                         ></div>
                     </div>
 
-                    <div class="relative z-10 flex h-full flex-col justify-between overflow-hidden px-[0.6vw] py-[0.4vw]" :class="textoEscuro(mesa) ? 'text-tinta' : 'text-white'">
-                        <div class="flex items-start justify-between gap-1">
-                            <span class="flex items-baseline gap-[0.4vw] whitespace-nowrap leading-none">
-                                <span class="text-[clamp(10px,1.1vw,24px)] font-bold">Mesa</span>
-                                <span class="text-[clamp(16px,2.6vw,60px)] font-extrabold">{{ mesa.numero }}</span>
+                    <!-- Tamanhos relativos à própria mesa (cqw/cqh): o texto cabe sempre dentro dela -->
+                    <div class="relative z-10 flex h-full flex-col justify-between overflow-hidden px-[6cqw] py-[5cqh]" :class="textoEscuro(mesa) ? 'text-tinta' : 'text-white'">
+                        <div class="flex min-w-0 items-start justify-between gap-[3cqw]">
+                            <span class="flex min-w-0 items-baseline gap-[3cqw] whitespace-nowrap leading-none">
+                                <span class="text-[min(15cqh,12cqw)] font-bold uppercase opacity-80">Mesa</span>
+                                <span class="text-[min(36cqh,30cqw)] font-extrabold">{{ mesa.numero }}</span>
                             </span>
-                            <span v-if="mesa.submesas.length" class="h-3 w-3 shrink-0 rounded-full ring-2 ring-white" :class="estadoDot[estadoMesa(mesa)]"></span>
+                            <span v-if="mesa.submesas.length" class="mt-[2cqh] h-[min(12cqh,10cqw)] w-[min(12cqh,10cqw)] shrink-0 rounded-full ring-2 ring-white" :class="estadoDot[estadoMesa(mesa)]"></span>
                         </div>
 
-                        <div v-if="mesa.submesas.length" class="grid gap-0.5" :class="mesa.submesas.length > 3 ? 'grid-cols-3' : 'grid-cols-2'">
-                            <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="truncate rounded bg-escuro/70 px-1 py-0.5 text-center text-[clamp(9px,0.8vw,18px)] font-extrabold text-white">
+                        <div v-if="mesa.submesas.length" class="grid min-w-0 gap-[2cqh]" :class="mesa.submesas.length > 3 ? 'grid-cols-3' : 'grid-cols-2'">
+                            <span v-for="segmento in segmentosMesa(mesa)" :key="segmento.id" class="truncate rounded bg-escuro/70 px-[2cqw] py-[1cqh] text-center text-[min(13cqh,8.5cqw)] font-extrabold leading-tight text-white">
                                 {{ segmento.label }} · {{ estadoLabel[segmento.estado] }}
                             </span>
                         </div>
-                        <div v-else class="flex flex-col gap-0.5">
-                            <span class="whitespace-nowrap text-[clamp(9px,1vw,22px)] font-extrabold uppercase">{{ estadoLabel[estadoMesa(mesa)] }}</span>
-                            <span v-if="pedidosAtivos(mesa)[0]" class="whitespace-nowrap text-[clamp(9px,0.9vw,20px)] font-semibold">
+                        <div v-else class="flex min-w-0 flex-col gap-[2cqh] leading-tight">
+                            <span class="truncate text-[min(17cqh,10.5cqw)] font-extrabold uppercase">{{ estadoLabel[estadoMesa(mesa)] }}</span>
+                            <span v-if="pedidosAtivos(mesa)[0]" class="truncate text-[min(15cqh,10cqw)] font-semibold">
                                 #{{ pedidosAtivos(mesa)[0].id }} · {{ horaPedido(pedidosAtivos(mesa)[0]) }}
                             </span>
                         </div>
@@ -298,14 +300,18 @@ onBeforeUnmount(() => {
             </div>
         </section>
 
-        <footer class="flex shrink-0 flex-wrap items-center justify-between gap-4">
-            <div class="flex flex-wrap gap-7 text-lg font-bold text-escuro-inativo xl:text-2xl">
-                <span v-for="item in legenda" :key="item.estado" class="flex items-center gap-2.5">
-                    <span class="h-[22px] w-[22px] rounded-md" :class="item.estado === 'livre' ? 'border-2 border-[#8FA39A] bg-white' : segmentoClass[item.estado]"></span>
+        <footer class="flex shrink-0 items-center justify-between gap-[2vw]">
+            <div class="flex min-w-0 flex-wrap gap-x-[1.6vw] gap-y-[0.6vh] text-[min(2.2vh,1.35vw)] font-bold text-escuro-inativo">
+                <span v-for="item in legenda" :key="item.estado" class="flex items-center gap-[0.5vw] whitespace-nowrap">
+                    <span class="h-[min(2.2vh,1.35vw)] w-[min(2.2vh,1.35vw)] rounded-md" :class="item.estado === 'livre' ? 'border-2 border-[#8FA39A] bg-white' : segmentoClass[item.estado]"></span>
                     {{ item.label }}
                 </span>
             </div>
-            <span class="text-base font-bold text-[#8FA39A] xl:text-[22px]">{{ aAtualizar ? 'A atualizar' : 'Último refresh' }}: {{ hora }}</span>
+            <span class="shrink-0 whitespace-nowrap text-[min(2vh,1.25vw)] font-bold text-[#8FA39A]">{{ aAtualizar ? 'A atualizar' : 'Último refresh' }}: {{ hora }}</span>
         </footer>
     </main>
 </template>
+
+<style scoped>
+.mesa { container-type: size; }
+</style>

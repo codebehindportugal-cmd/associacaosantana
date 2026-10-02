@@ -38,7 +38,7 @@ const eliminar = (id) => {
     }
 }
 
-const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'
+const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'
 
 const CATEGORIAS_RECEITA = ['Patrocinador', 'Donativo', 'Subs\u00eddio', 'Outro']
 const CATEGORIAS_DESPESA = ['Banda / Anima\u00e7\u00e3o', 'Equipamento', 'Material', 'Servi\u00e7o externo', 'Outro']

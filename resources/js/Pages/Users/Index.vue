@@ -64,9 +64,14 @@ const guardar = (user) => {
     });
 };
 
+const erroApagar = ref('');
 const apagar = (user) => {
     if (confirm(`Apagar o utilizador ${user.name}?`)) {
-        useForm({}).delete(route('users.destroy', user.id), { preserveScroll: true });
+        erroApagar.value = '';
+        useForm({}).delete(route('users.destroy', user.id), {
+            preserveScroll: true,
+            onError: (erros) => { erroApagar.value = Object.values(erros).join(' '); },
+        });
     }
 };
 
@@ -98,9 +103,14 @@ const guardarPos = (terminal) => {
     });
 };
 
+const erroApagarPos = ref('');
 const apagarPos = (terminal) => {
     if (confirm(`Apagar o acesso POS ${terminal.nome}?`)) {
-        useForm({}).delete(route('users.pos.destroy', terminal.id), { preserveScroll: true });
+        erroApagarPos.value = '';
+        useForm({}).delete(route('users.pos.destroy', terminal.id), {
+            preserveScroll: true,
+            onError: (erros) => { erroApagarPos.value = Object.values(erros).join(' '); },
+        });
     }
 };
 </script>
@@ -122,6 +132,7 @@ const apagarPos = (terminal) => {
             <!-- ── Pessoas do backoffice ─────────────────────────────── -->
             <div id="pessoas" class="flex scroll-mt-6 flex-wrap items-end justify-between gap-x-4 gap-y-1">
                 <h2 class="text-xl font-extrabold">Pessoas do backoffice</h2>
+                <div v-if="erroApagar" role="alert" class="order-last w-full rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroApagar }}</div>
                 <p class="text-[13px] text-suave">Cada pessoa entra com email e password. O perfil decide o que vê.</p>
             </div>
 
@@ -192,6 +203,7 @@ const apagarPos = (terminal) => {
             <!-- ── Acessos POS ───────────────────────────────────────── -->
             <div id="pos" class="mt-4 flex scroll-mt-6 flex-wrap items-end justify-between gap-x-4 gap-y-1">
                 <h2 class="text-xl font-extrabold">Acessos POS</h2>
+                <div v-if="erroApagarPos" role="alert" class="order-last w-full rounded-[10px] bg-perigo-claro p-3 font-semibold text-perigo-texto">{{ erroApagarPos }}</div>
                 <p class="text-[13px] text-suave">Gerir terminais, localizações e PINs usados no login do POS.</p>
             </div>
 

@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { computed, reactive, ref } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
@@ -99,9 +100,11 @@ const abrirPainelDevolucao = (fatura) => {
     paineisAbertos[fatura.id] = !paineisAbertos[fatura.id];
 };
 
+const errosDevolucao = ref({});
 const submeterDevolucao = (fatura) => {
     if (submitting.value[fatura.id]) return;
     submitting.value[fatura.id] = true;
+    errosDevolucao.value[fatura.id] = {};
 
     const items = fatura.items.map((item) => ({
         id: item.id,
@@ -111,19 +114,20 @@ const submeterDevolucao = (fatura) => {
     router.post(route('faturas-compras.devolver', fatura.id), { items }, {
         preserveScroll: true,
         onSuccess: () => { paineisAbertos[fatura.id] = false; },
+        onError: (erros) => { errosDevolucao.value[fatura.id] = erros; },
         onFinish: () => { submitting.value[fatura.id] = false; },
     });
 };
 
 // --- Formatação ---
-const formatarMoeda = (valor, casas = 2) => Number(valor || 0).toLocaleString('pt-PT', {
+const formatarMoeda = (valor, casas = 2) => Number(valor || 0).toLocaleString('pt-PT', { useGrouping: 'always',
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: casas,
     maximumFractionDigits: casas,
 });
 
-const formatarQuantidade = (valor) => Number(valor || 0).toLocaleString('pt-PT', {
+const formatarQuantidade = (valor) => Number(valor || 0).toLocaleString('pt-PT', { useGrouping: 'always',
     maximumFractionDigits: 3,
 });
 
@@ -280,6 +284,7 @@ const formatarData = (data) => {
                         </div>
 
                         <div v-if="paineisAbertos[fatura.id]" class="flex flex-col gap-2.5 border-t border-linha-fraca bg-fundo px-[18px] py-4">
+                            <AvisoErros :errors="errosDevolucao[fatura.id] || {}" />
                             <p class="text-sm text-suave-2">Indique a quantidade devolvida por linha. O stock será reduzido correspondentemente.</p>
                             <div v-for="item in fatura.items" :key="item.id" class="flex items-center gap-3 text-[15px]">
                                 <span class="min-w-0 flex-1 truncate">{{ item.produto?.nome }}</span>

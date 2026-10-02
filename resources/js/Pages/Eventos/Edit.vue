@@ -92,15 +92,18 @@ const guardar = () => {
         });
 };
 
+const erroMedia = ref('');
 const uploadMedia = (event) => {
     const ficheiros = Array.from(event.target.files ?? []);
     if (!ficheiros.length) return;
+    erroMedia.value = '';
 
     const data = new FormData();
     ficheiros.forEach((ficheiro) => data.append('ficheiros[]', ficheiro));
 
     router.post(route('eventos.media.store', props.evento.id), data, {
         preserveScroll: true,
+        onError: (erros) => { erroMedia.value = Object.values(erros).join(' '); },
         onFinish: () => {
             event.target.value = '';
         },
@@ -293,6 +296,8 @@ const apagarMedia = (media) => {
                         <input type="file" multiple accept="image/*,video/mp4,video/webm,video/quicktime" class="hidden" @change="uploadMedia">
                     </label>
                 </div>
+
+                <div v-if="erroMedia" role="alert" class="rounded-[10px] bg-perigo-claro p-3 text-perigo-texto font-semibold">{{ erroMedia }}</div>
 
                 <div v-if="evento.media?.length" class="grid gap-3 min-[480px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
                     <div v-for="media in evento.media" :key="media.id" class="rounded-[14px] border border-linha p-2">

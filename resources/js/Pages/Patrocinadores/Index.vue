@@ -1,4 +1,5 @@
 <script setup>
+import AvisoErros from '@/Components/AvisoErros.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
@@ -54,7 +55,10 @@ const criar = () => {
     });
 };
 
+// Erros de validação da edição/fotos, por patrocinador
+const errosEdicao = ref({});
 const atualizar = (sponsor) => {
+    errosEdicao.value[sponsor.id] = {};
     router.post(route('patrocinadores.update', sponsor.id), {
         empresa: sponsor.empresa,
         website: sponsor.website || '',
@@ -67,6 +71,7 @@ const atualizar = (sponsor) => {
     }, {
         forceFormData: true,
         preserveScroll: true,
+        onError: (erros) => { errosEdicao.value[sponsor.id] = erros; },
     });
 };
 
@@ -77,12 +82,14 @@ const apagar = (sponsor) => {
 
 const adicionarImagem = (sponsor) => {
     if (!sponsor.novaImagem) return;
+    errosEdicao.value[sponsor.id] = {};
     router.post(route('patrocinadores.imagens.store', sponsor.id), {
         imagem: sponsor.novaImagem,
         ordem: sponsor.imagemOrdem || 0,
     }, {
         forceFormData: true,
         preserveScroll: true,
+        onError: (erros) => { errosEdicao.value[sponsor.id] = erros; },
         onSuccess: () => {
             sponsor.novaImagem = null;
             sponsor.imagemOrdem = 0;
@@ -175,6 +182,7 @@ const apagarImagem = (imagem) => {
 
                 <!-- Edição -->
                 <div v-if="abertoId === sponsor.id" class="flex flex-col gap-4 border-t border-linha-fraca bg-fundo/60 p-4">
+                    <AvisoErros :errors="errosEdicao[sponsor.id] || {}" />
                     <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
                         <label class="rotulo">Empresa<input v-model="sponsor.empresa" class="campo"></label>
                         <label class="rotulo">Website<input v-model="sponsor.website" type="url" class="campo" placeholder="Website"></label>

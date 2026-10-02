@@ -1,5 +1,5 @@
 <script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AppLayout from '@/Layouts/AppLayout.vue';
 import DeleteUserForm from './Partials/DeleteUserForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
@@ -27,7 +27,7 @@ const iniciais = computed(() => String(utilizador.value.name ?? '')
 <template>
     <Head title="O meu perfil" />
 
-    <AuthenticatedLayout>
+    <AppLayout>
         <div class="bg-fundo px-4 py-6 font-sans text-tinta sm:px-6 lg:px-8">
             <div class="mx-auto flex max-w-[760px] flex-col gap-5">
                 <div class="flex items-center gap-4">
@@ -53,7 +53,7 @@ const iniciais = computed(() => String(utilizador.value.name ?? '')
                 </div>
             </div>
         </div>
-    </AuthenticatedLayout>
+    </AppLayout>
 </template>
 
 <style scoped>
