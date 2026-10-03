@@ -421,8 +421,14 @@ const limparSenha = () => {
                             >{{ v }} €</button>
                         </div>
                         <div class="mt-2 grid grid-cols-2 gap-2">
-                            <input v-model="recebido" inputmode="decimal" aria-label="Recebido (outro valor)" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="Outro valor">
-                            <input v-model="trocoEntregue" inputmode="decimal" aria-label="Troco entregue" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" :placeholder="`Troco entregue ${eur(troco)}`">
+                            <label class="block min-w-0">
+                                <span class="mb-1 block truncate text-sm font-semibold text-suave">Outro valor</span>
+                                <input v-model="recebido" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="0,00">
+                            </label>
+                            <label class="block min-w-0">
+                                <span class="mb-1 block truncate text-sm font-semibold text-suave">Troco entregue</span>
+                                <input v-model="trocoEntregue" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" :placeholder="eur(troco)">
+                            </label>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
