@@ -19,7 +19,7 @@ const agora = ref(new Date());
 const carrinho = ref([]);
 const recebido = ref('');
 const trocoEntregue = ref('');
-const form = useForm({ items: [], valor_recebido: 0, troco: 0 });
+const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0 });
 let relogio = null;
 let refresh = null;
 
@@ -70,7 +70,44 @@ const btnStyle = (produto) => {
 
 const total = computed(() => carrinho.value.reduce((soma, item) => soma + Number(item.preco) * item.quantidade, 0));
 const cartQty = computed(() => Object.fromEntries(carrinho.value.map((i) => [i.produto_id, i.quantidade])));
-const troco = computed(() => Math.max(0, Number(recebido.value || 0) - total.value));
+
+// Caucao (metro): cobrada a parte na venda; metros devolvidos podem ser
+// trocados por bebidas (descontam aqui) ou devolvidos em dinheiro.
+const produtosCaucao = computed(() => (props.produtos ?? []).filter((p) => Number(p.caucao) > 0));
+const devolvidos = ref([]);
+const caucaoCobrada = computed(() => carrinho.value.reduce((soma, item) => soma + Number(item.caucao || 0) * item.quantidade, 0));
+const caucaoDescontada = computed(() => devolvidos.value.reduce((soma, d) => soma + Number(d.caucao) * d.quantidade, 0));
+const aPagar = computed(() => Math.round((total.value + caucaoCobrada.value - caucaoDescontada.value) * 100) / 100);
+const saldoExcedido = computed(() => caucaoDescontada.value > 0 && aPagar.value < 0);
+const painelMetro = ref(false);
+const qtdMetro = ref({});
+const qtdDe = (produto) => qtdMetro.value[produto.id] ?? 1;
+const mudarQtdMetro = (produto, delta) => { qtdMetro.value[produto.id] = Math.max(1, qtdDe(produto) + delta); };
+
+const usarEmBebidas = (produto) => {
+    const linha = devolvidos.value.find((d) => d.produto_id === produto.id);
+    linha ? (linha.quantidade += qtdDe(produto)) : devolvidos.value.push({ produto_id: produto.id, nome: produto.nome, caucao: produto.caucao, quantidade: qtdDe(produto) });
+    qtdMetro.value[produto.id] = 1;
+    painelMetro.value = false;
+    trocoEntregue.value = '';
+};
+const alterarDevolvido = (linha, delta) => {
+    linha.quantidade += delta;
+    devolvidos.value = devolvidos.value.filter((d) => d.quantidade > 0);
+};
+const devolvendo = ref(false);
+const devolverDinheiro = (produto) => {
+    const quantidade = qtdDe(produto);
+    if (!confirm(`Devolver ${eur(Number(produto.caucao) * quantidade)} em dinheiro (${quantidade}x ${produto.nome})?`)) return;
+    router.post(route('pos.caucao.devolver'), { produto_id: produto.id, quantidade }, {
+        preserveScroll: true,
+        onStart: () => (devolvendo.value = true),
+        onFinish: () => (devolvendo.value = false),
+        onSuccess: () => { painelMetro.value = false; qtdMetro.value[produto.id] = 1; },
+    });
+};
+
+const troco = computed(() => Math.max(0, Number(recebido.value || 0) - aPagar.value));
 const trocoRegistado = computed(() => trocoEntregue.value === '' ? troco.value : Number(trocoEntregue.value || 0));
 const doacao = computed(() => Math.max(0, troco.value - trocoRegistado.value));
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
@@ -80,7 +117,7 @@ const chamandoComissao = ref(false);
 
 const adicionar = (produto) => {
     const item = carrinho.value.find((linha) => linha.produto_id === produto.id);
-    item ? item.quantidade++ : carrinho.value.push({ produto_id: produto.id, nome: produto.nome, preco: produto.preco, quantidade: 1 });
+    item ? item.quantidade++ : carrinho.value.push({ produto_id: produto.id, nome: produto.nome, preco: produto.preco, caucao: Number(produto.caucao || 0), quantidade: 1 });
 };
 
 const alterar = (item, delta) => {
@@ -90,12 +127,14 @@ const alterar = (item, delta) => {
 
 const cobrar = () => {
     form.items = carrinho.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
-    form.valor_recebido = recebido.value || total.value;
+    form.devolvidos = devolvidos.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
+    form.valor_recebido = recebido.value || Math.max(0, aPagar.value);
     form.troco = trocoRegistado.value;
     form.post(route('pos.prepago.store'), {
         preserveScroll: true,
         onSuccess: () => {
             carrinho.value = [];
+            devolvidos.value = [];
             recebido.value = '';
             trocoEntregue.value = '';
         },
@@ -197,7 +236,7 @@ const secoesInfo = {
     servico: { label: 'Serviço', dot: 'bg-secao-servico', text: 'text-secao-servico' },
 };
 const secaoDe = (produto) => secoesInfo[produto?.categoria?.secao] ?? { label: produto?.categoria?.nome ?? 'Outros', dot: 'bg-suave', text: 'text-suave' };
-const notasRapidas = computed(() => [5, 10, 20, 50, 100].filter((v) => v > total.value).slice(0, 3));
+const notasRapidas = computed(() => [5, 10, 20, 50, 100].filter((v) => v > aPagar.value).slice(0, 3));
 const escolherRecebido = (valor) => {
     recebido.value = valor === '' ? '' : String(valor);
     trocoEntregue.value = '';
@@ -206,6 +245,7 @@ const doouTroco = computed(() => trocoEntregue.value !== '' && Number(trocoEntre
 const alternarDoacao = () => { trocoEntregue.value = doouTroco.value ? '' : 0; };
 const limparSenha = () => {
     carrinho.value = [];
+    devolvidos.value = [];
     recebido.value = '';
     trocoEntregue.value = '';
 };
@@ -301,10 +341,46 @@ const limparSenha = () => {
             <aside aria-label="Senha" class="flex min-h-0 flex-col border-t border-linha bg-white lg:border-l lg:border-t-0">
                 <div class="flex shrink-0 items-center justify-between border-b border-linha px-5 py-3.5">
                     <h2 class="text-xl font-extrabold">Senha</h2>
-                    <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-perigo disabled:opacity-45" :disabled="!carrinho.length" @click="limparSenha">Limpar</button>
+                    <div class="flex gap-2">
+                        <button v-if="produtosCaucao.length" type="button" class="h-11 rounded-[10px] border border-laranja bg-laranja-claro px-4 text-[15px] font-bold text-laranja-texto disabled:opacity-45" :disabled="!caixaAberta" :aria-expanded="painelMetro" @click="painelMetro = !painelMetro">Metro devolvido</button>
+                        <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-perigo disabled:opacity-45" :disabled="!carrinho.length && !devolvidos.length" @click="limparSenha">Limpar</button>
+                    </div>
+                </div>
+                <div v-if="painelMetro" class="shrink-0 space-y-3 border-b border-laranja bg-laranja-claro px-5 py-4">
+                    <div v-for="produto in produtosCaucao" :key="produto.id" class="space-y-2">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="text-[17px] font-extrabold text-laranja-texto">{{ produto.nome }} · caução {{ eur(produto.caucao) }}</span>
+                            <div class="flex items-center gap-2">
+                                <button type="button" aria-label="Menos um metro" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-white" @click="mudarQtdMetro(produto, -1)">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                                </button>
+                                <span class="w-7 text-center text-lg font-bold">{{ qtdDe(produto) }}</span>
+                                <button type="button" aria-label="Mais um metro" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-white" @click="mudarQtdMetro(produto, 1)">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" class="h-14 rounded-[10px] bg-verde text-base font-bold text-white" @click="usarEmBebidas(produto)">Usar em bebidas<br><span class="text-sm font-semibold">saldo {{ eur(produto.caucao * qtdDe(produto)) }}</span></button>
+                            <button type="button" class="h-14 rounded-[10px] bg-laranja text-base font-bold text-white disabled:opacity-45" :disabled="devolvendo" @click="devolverDinheiro(produto)">Devolver dinheiro<br><span class="text-sm font-semibold">{{ eur(produto.caucao * qtdDe(produto)) }} da gaveta</span></button>
+                        </div>
+                    </div>
                 </div>
                 <div class="min-h-[120px] flex-1 overflow-y-auto px-5">
-                    <p v-if="!carrinho.length" class="py-10 text-center text-[15px] text-suave">Escolhe os produtos.</p>
+                    <p v-if="!carrinho.length && !devolvidos.length" class="py-10 text-center text-[15px] text-suave">Escolhe os produtos.</p>
+                    <div v-for="d in devolvidos" :key="`dev-${d.produto_id}`" class="flex items-center gap-3 border-b border-linha-fraca py-3 text-verde-escuro">
+                        <span class="min-w-0 flex-1 truncate text-[17px] font-bold">{{ d.nome }} devolvido</span>
+                        <div class="flex items-center gap-2">
+                            <button type="button" aria-label="Retirar um metro devolvido" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterarDevolvido(d, -1)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                            </button>
+                            <span class="w-7 text-center text-lg font-bold">{{ d.quantidade }}</span>
+                            <button type="button" aria-label="Mais um metro devolvido" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterarDevolvido(d, 1)">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                            </button>
+                        </div>
+                        <span class="w-20 text-right text-base font-bold">-{{ eur(d.caucao * d.quantidade) }}</span>
+                    </div>
                     <div v-for="item in carrinho" :key="item.produto_id" class="flex items-center gap-3 border-b border-linha-fraca py-3">
                         <span class="min-w-0 flex-1 truncate text-[17px] font-bold">{{ item.nome }}</span>
                         <div class="flex items-center gap-2">
@@ -320,10 +396,16 @@ const limparSenha = () => {
                     </div>
                 </div>
                 <div class="shrink-0 space-y-3 border-t border-linha bg-fundo p-5">
-                    <div class="flex items-end justify-between gap-2">
-                        <span class="text-[15px] text-suave">Total · {{ artigos }} artigos</span>
-                        <span class="text-4xl font-extrabold">{{ eur(total) }}</span>
+                    <div v-if="caucaoCobrada || caucaoDescontada" class="space-y-0.5 text-[15px]">
+                        <div class="flex justify-between text-suave"><span>Produtos</span><span class="font-bold">{{ eur(total) }}</span></div>
+                        <div v-if="caucaoCobrada" class="flex justify-between text-laranja-texto"><span>Caução do metro</span><span class="font-bold">+{{ eur(caucaoCobrada) }}</span></div>
+                        <div v-if="caucaoDescontada" class="flex justify-between text-verde-escuro"><span>Metro devolvido (saldo)</span><span class="font-bold">-{{ eur(caucaoDescontada) }}</span></div>
                     </div>
+                    <div class="flex items-end justify-between gap-2">
+                        <span class="text-[15px] text-suave">A pagar · {{ artigos }} artigos</span>
+                        <span class="text-4xl font-extrabold">{{ eur(Math.max(0, aPagar)) }}</span>
+                    </div>
+                    <p v-if="saldoExcedido" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-bold text-perigo-texto">O saldo do metro ({{ eur(caucaoDescontada) }}) é maior que a senha. Junta mais bebidas ou devolve o resto em dinheiro.</p>
                     <div>
                         <span class="text-sm font-semibold text-suave">Recebido</span>
                         <div role="group" aria-label="Valor recebido" class="mt-1 grid grid-cols-4 gap-2">
@@ -362,7 +444,7 @@ const limparSenha = () => {
                         @click="alternarDoacao"
                     >{{ doouTroco ? 'Cliente doou o troco — anular' : 'Cliente doa o troco' }}</button>
                     <AvisoErros :errors="form.errors" class="!p-2" />
-                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || form.processing" @click="cobrar">
+                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || saldoExcedido || form.processing" @click="cobrar">
                         Cobrar e tirar senha
                     </button>
                 </div>

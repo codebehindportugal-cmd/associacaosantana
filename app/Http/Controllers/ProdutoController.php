@@ -91,6 +91,7 @@ class ProdutoController extends Controller
             'nome' => ['required', 'string', 'max:255'],
             'imagem' => ['nullable', 'image', 'max:2048'],
             'preco' => ['required', 'numeric', 'min:0'],
+            'caucao' => ['nullable', 'numeric', 'min:0'],
             'custo_compra_unitario' => ['nullable', 'numeric', 'min:0'],
             'unidade_compra' => ['nullable', 'string', 'max:20'],
             'custo_preparacao_unitario' => ['nullable', 'numeric', 'min:0'],
@@ -119,6 +120,10 @@ class ProdutoController extends Controller
         }
 
         $data['stock_atual'] = $data['stock_atual'] ?? 0;
+
+        if (array_key_exists('caucao', $data) || ! $request->isMethod('put')) {
+            $data['caucao'] = round((float) ($data['caucao'] ?? 0), 2);
+        }
 
         return $data;
     }

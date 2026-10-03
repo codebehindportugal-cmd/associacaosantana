@@ -460,11 +460,73 @@ class PrintJobService
         ];
     }
 
+    /**
+     * Talao da devolucao da caucao em dinheiro. Abre a gaveta.
+     */
+    public function payloadTalaoCaucao(\App\Models\CaucaoDevolucao $devolucao): array
+    {
+        $devolucao->loadMissing('produto');
+
+        return [
+            'titulo' => TalaoConfig::atual()->tituloImpresso(),
+            'subtitulo' => 'DEVOLUCAO CAUCAO',
+            'linhas' => [
+                'Ponto: '.($devolucao->ponto ?: 'Bar'),
+                'Operador: '.($devolucao->operador_nome ?: 'Sem operador'),
+                'Hora: '.$devolucao->created_at->format('H:i'),
+                '------------------------------',
+                sprintf('%sx %s  %s', $devolucao->quantidade, $devolucao->produto?->nome ?? 'Metro', $this->euros((float) $devolucao->valor_total)),
+                '------------------------------',
+                [
+                    'texto' => 'DEVOLVIDO: '.$this->euros((float) $devolucao->valor_total),
+                    'alinhamento' => 'centro',
+                    'tamanho' => 'grande',
+                ],
+            ],
+            'cortar' => true,
+            'abrir_caixa' => true,
+        ];
+    }
+
+    public function criarTalaoCaucao(\App\Models\CaucaoDevolucao $devolucao, string $secao = 'bar'): ?PrintJob
+    {
+        $impressora = $this->impressoraParaSecao($secao);
+
+        if (! $impressora) {
+            return null;
+        }
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $devolucao::class,
+            'printable_id' => $devolucao->id,
+            'tipo' => 'talao_bar',
+            'payload' => $this->payloadTalaoCaucao($devolucao),
+        ]);
+    }
+
+    private function linhasCaucao(Pedido $pedido, float $total): array
+    {
+        $cobrada = (float) ($pedido->caucao_cobrada ?? 0);
+        $descontada = (float) ($pedido->caucao_descontada ?? 0);
+
+        if ($cobrada <= 0 && $descontada <= 0) {
+            return ['Total: '.$this->euros($total)];
+        }
+
+        return [
+            'Produtos: '.$this->euros($total),
+            ...($cobrada > 0 ? ['Caucao metro: '.$this->euros($cobrada)] : []),
+            ...($descontada > 0 ? ['Metro devolvido: -'.$this->euros($descontada)] : []),
+            'Total: '.$this->euros($total + $cobrada - $descontada),
+        ];
+    }
+
     private function linhasTalaoBar(Pedido $pedido): array
     {
         $operador = $pedido->operador_nome ?: ($pedido->user?->name ?: $pedido->pos?->nome);
         $total = (float) ($pedido->total ?: $pedido->total_calculado);
-        $valorRecebido = (float) ($pedido->valor_recebido ?: $total);
+        $valorRecebido = (float) ($pedido->valor_recebido ?: $total + (float) $pedido->caucao_cobrada - (float) $pedido->caucao_descontada);
         $troco = (float) ($pedido->troco ?: 0);
         $doacao = (float) ($pedido->doacao ?: 0);
 
@@ -486,7 +548,7 @@ class PrintJobService
                 $this->euros((float) $item->preco_unitario * (int) $item->quantidade)
             ))->all(),
             '------------------------------',
-            'Total: '.$this->euros($total),
+            ...$this->linhasCaucao($pedido, $total),
             'Recebido: '.$this->euros($valorRecebido),
             'Troco: '.$this->euros($troco),
             ...($doacao > 0 ? ['Donativo: '.$this->euros($doacao)] : []),

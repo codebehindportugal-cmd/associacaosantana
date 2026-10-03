@@ -14,6 +14,7 @@ const form = useForm({
     nome: '',
     imagem: null,
     preco: '',
+    caucao: 0,
     stock_atual: 0,
     disponivel: true,
     disponivel_restaurante: true,
@@ -25,7 +26,7 @@ const criarProduto = () => {
         preserveScroll: true,
         forceFormData: true,
         onSuccess: () => {
-            form.reset('nome', 'preco', 'stock_atual');
+            form.reset('nome', 'preco', 'caucao', 'stock_atual');
             form.imagem = null;
         },
     });
@@ -62,6 +63,7 @@ const atualizarProduto = (produto) => {
         categoria_id: produto.categoria_id,
         nome: produto.nome,
         preco: produto.preco,
+        caucao: produto.caucao ?? 0,
         stock_atual: produto.stock_atual,
         disponivel: produto.disponivel,
         disponivel_restaurante: produto.disponivel_restaurante,
@@ -142,6 +144,11 @@ const filtrosAtivo = [['', 'Todos'], ['ativos', 'Ativos'], ['inativos', 'Inativo
                         <label class="flex h-11 cursor-pointer items-center gap-2 rounded-full border border-[#C6E2D4] bg-verde-claro px-3.5 text-[15px] font-bold text-verde-escuro"><input v-model="form.disponivel" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Ativo</label>
                         <label class="flex h-11 cursor-pointer items-center gap-2 rounded-full border border-[#C6E2D4] bg-verde-claro px-3.5 text-[15px] font-bold text-verde-escuro"><input v-model="form.disponivel_restaurante" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Restaurante</label>
                         <label class="flex h-11 cursor-pointer items-center gap-2 rounded-full border border-[#C6E2D4] bg-verde-claro px-3.5 text-[15px] font-bold text-verde-escuro"><input v-model="form.disponivel_bar" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Bar</label>
+                        <label class="flex h-11 items-center gap-2 rounded-full border border-linha-forte bg-white px-3.5 text-[15px] font-bold" title="Valor devolvido quando o cliente entrega o artigo (ex.: metro)">
+                            Caução
+                            <input v-model="form.caucao" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Caução" class="h-8 w-20 rounded-lg border-linha-forte px-2 text-right text-[15px] focus:border-verde focus:ring-verde">
+                            <span class="text-suave-2">€</span>
+                        </label>
                     </div>
                     <button type="submit" class="inline-flex h-12 items-center gap-2 rounded-[10px] bg-verde px-6 text-base font-bold text-white hover:bg-verde-escuro disabled:opacity-60" :disabled="form.processing">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
@@ -224,6 +231,10 @@ const filtrosAtivo = [['', 'Todos'], ['ativos', 'Ativos'], ['inativos', 'Inativo
                         <div class="flex flex-wrap gap-1.5">
                             <label class="flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-linha-forte px-2.5 text-[13px] font-bold"><input v-model="produto.disponivel_restaurante" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Restaurante</label>
                             <label class="flex h-11 cursor-pointer items-center gap-1.5 rounded-full border border-linha-forte px-2.5 text-[13px] font-bold"><input v-model="produto.disponivel_bar" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Bar</label>
+                            <label class="flex h-11 items-center gap-1.5 rounded-full border border-linha-forte px-2.5 text-[13px] font-bold" :class="Number(produto.caucao) > 0 ? 'border-laranja bg-laranja-claro text-laranja-texto' : ''">
+                                Caução
+                                <input v-model="produto.caucao" type="number" min="0" step="0.01" inputmode="decimal" :aria-label="`Caução de ${produto.nome}`" class="h-8 w-16 rounded-md border-linha-forte px-1.5 text-right text-[13px] text-tinta focus:border-verde focus:ring-verde">€
+                            </label>
                         </div>
                     </div>
                     <div class="col-span-3 flex justify-end gap-1.5 self-end md:col-span-5 2xl:col-span-1">

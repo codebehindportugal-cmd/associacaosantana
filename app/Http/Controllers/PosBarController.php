@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CaixaDiaria;
+use App\Models\CaucaoDevolucao;
 use App\Models\Configuracao;
 use App\Models\Pedido;
 use App\Models\PosSession;
@@ -48,6 +49,10 @@ class PosBarController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.produto_id' => ['required', $this->produtoBarRule()],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
+            // Metros devolvidos que o cliente troca por bebidas nesta senha
+            'devolvidos' => ['nullable', 'array'],
+            'devolvidos.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where(fn ($q) => $q->where('caucao', '>', 0))],
+            'devolvidos.*.quantidade' => ['required', 'integer', 'min:1', 'max:50'],
         ]);
 
         $ponto = session('pos_localizacao') ?: session('pos_nome');
@@ -59,11 +64,24 @@ class PosBarController extends Controller
         return DB::transaction(function () use ($data, $ponto, $printJobs) {
             $produtos = Produto::with('categoria')->whereIn('id', collect($data['items'])->pluck('produto_id'))->get()->keyBy('id');
             $total = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->preco * (int) $item['quantidade']), 2);
+
+            // Caucao: cobrada a parte (nao e receita) e, se o cliente trouxe
+            // metros, descontada aqui em vez de lhe dar o dinheiro.
+            $caucaoCobrada = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->caucao * (int) $item['quantidade']), 2);
+            $devolvidos = collect($data['devolvidos'] ?? []);
+            $produtosCaucao = Produto::whereIn('id', $devolvidos->pluck('produto_id'))->get()->keyBy('id');
+            $caucaoDescontada = round($devolvidos->sum(fn ($d) => (float) $produtosCaucao[$d['produto_id']]->caucao * (int) $d['quantidade']), 2);
+
+            if ($caucaoDescontada > $total + $caucaoCobrada) {
+                return back()->withErrors(['devolvidos' => 'O saldo dos metros devolvidos e maior do que a senha. Junta mais bebidas ou devolve o resto em dinheiro.']);
+            }
+
+            $aPagar = round($total + $caucaoCobrada - $caucaoDescontada, 2);
             $valorRecebido = round((float) $data['valor_recebido'], 2);
             $troco = round((float) ($data['troco'] ?? 0), 2);
-            $excedente = round($valorRecebido - $total, 2);
+            $excedente = round($valorRecebido - $aPagar, 2);
 
-            if ($valorRecebido < $total) {
+            if ($valorRecebido < $aPagar) {
                 return back()->withErrors(['valor_recebido' => 'O valor recebido nao pode ser inferior ao total.']);
             }
 
@@ -80,6 +98,8 @@ class PosBarController extends Controller
                 'pago_antecipado' => true,
                 'ponto_bar' => $ponto,
                 'total' => $total,
+                'caucao_cobrada' => $caucaoCobrada,
+                'caucao_descontada' => $caucaoDescontada,
                 'valor_recebido' => $valorRecebido,
                 'troco' => $troco,
                 'doacao' => max(0, round($excedente - $troco, 2)),
@@ -93,6 +113,21 @@ class PosBarController extends Controller
                     'quantidade' => $item['quantidade'],
                     'preco_unitario' => $produto->preco,
                     'secao' => $produto->categoria->secao,
+                ]);
+            }
+
+            foreach ($devolvidos as $devolvido) {
+                $produtoCaucao = $produtosCaucao[$devolvido['produto_id']];
+                CaucaoDevolucao::create([
+                    'produto_id' => $produtoCaucao->id,
+                    'pedido_id' => $pedido->id,
+                    'pos_id' => session('pos_id'),
+                    'operador_nome' => session('pos_operador') ?: session('pos_nome'),
+                    'ponto' => $ponto,
+                    'modo' => 'bebidas',
+                    'quantidade' => (int) $devolvido['quantidade'],
+                    'valor_unitario' => $produtoCaucao->caucao,
+                    'valor_total' => round((float) $produtoCaucao->caucao * (int) $devolvido['quantidade'], 2),
                 ]);
             }
 
@@ -192,6 +227,65 @@ class PosBarController extends Controller
                     'escpos' => $escpos,
                 ]);
         });
+    }
+
+    /**
+     * Metro devolvido e o cliente quer o dinheiro: regista a saida da caucao,
+     * imprime um talao de devolucao e abre a gaveta.
+     */
+    public function devolverCaucao(Request $request, PrintJobService $printJobs): RedirectResponse
+    {
+        $data = $request->validate([
+            'produto_id' => ['required', Rule::exists('produtos', 'id')->where(fn ($q) => $q->where('caucao', '>', 0))],
+            'quantidade' => ['required', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $ponto = session('pos_localizacao') ?: session('pos_nome');
+
+        if (! $this->caixaAberta($ponto)) {
+            return back()->withErrors(['ponto_bar' => 'Abre a caixa deste ponto no backoffice antes de devolver cauções.']);
+        }
+
+        $produto = Produto::findOrFail($data['produto_id']);
+        $quantidade = (int) $data['quantidade'];
+        $valor = round((float) $produto->caucao * $quantidade, 2);
+
+        $devolucao = CaucaoDevolucao::create([
+            'produto_id' => $produto->id,
+            'pos_id' => session('pos_id'),
+            'operador_nome' => session('pos_operador') ?: session('pos_nome'),
+            'ponto' => $ponto,
+            'modo' => 'dinheiro',
+            'quantidade' => $quantidade,
+            'valor_unitario' => $produto->caucao,
+            'valor_total' => $valor,
+        ]);
+
+        $terminal = PosSession::find(session('pos_id'));
+        $impressora = $terminal?->impressora;
+        $viaAgente = $impressora ? $impressora->usaAgente() : true;
+        $mensagem = 'Caução devolvida: '.number_format($valor, 2, ',', ' ').' € ('.$quantidade.'x '.$produto->nome.').';
+
+        if ($viaAgente) {
+            $printJobs->paraImpressora($terminal?->impressora_id);
+            $printJobs->criarTalaoCaucao($devolucao, $this->secaoImpressora());
+
+            return to_route('pos.index')->with('success', $mensagem);
+        }
+
+        // WebUSB: o proprio POS imprime e abre a gaveta. No modo navegador
+        // nao ha talao; a operacao fica registada na mesma.
+        if ($impressora->tipo === 'webusb') {
+            return to_route('pos.index')
+                ->with('success', $mensagem)
+                ->with('imprimir', [
+                    'pedido_id' => 'caucao-'.$devolucao->id,
+                    'modo' => 'webusb',
+                    'escpos' => [$printJobs->payloadTalaoCaucao($devolucao)],
+                ]);
+        }
+
+        return to_route('pos.index')->with('success', $mensagem);
     }
 
     public function talao(Pedido $pedido, PrintJobService $printJobs): Response

@@ -23,6 +23,8 @@ class Pedido extends Model
         'pago_antecipado',
         'ponto_bar',
         'total',
+        'caucao_cobrada',
+        'caucao_descontada',
         'valor_recebido',
         'troco',
         'doacao',
@@ -40,6 +42,8 @@ class Pedido extends Model
 
     protected $casts = [
         'pago_antecipado' => 'boolean',
+        'caucao_cobrada'  => 'decimal:2',
+        'caucao_descontada' => 'decimal:2',
         'chamado_em'      => 'datetime',
         'conta_pedida_em' => 'datetime',
     ];

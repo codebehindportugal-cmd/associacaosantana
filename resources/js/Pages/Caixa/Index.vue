@@ -29,6 +29,7 @@ const totalEsperado = computed(() => (props.caixas ?? []).reduce((total, caixa) 
 const totalContado = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.valor_contado || 0), 0));
 const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const hora = (data) => data ? new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
+const temCaucao = (caixa) => !!caixa?.caucao && (Number(caixa.caucao.recebidas) > 0 || Number(caixa.caucao.dinheiro) > 0 || Number(caixa.caucao.bebidas) > 0);
 const diferencaClass = (valor) => Number(valor || 0) === 0 ? 'text-tinta' : Number(valor) > 0 ? 'text-verde' : 'text-perigo';
 const estadoLabel = (caixa) => !caixa ? 'FALTA ABRIR' : caixa.estado === 'fechada' ? 'FECHADA' : 'ABERTA';
 const estadoClasses = (caixa) => !caixa ? 'bg-white text-laranja-texto' : caixa.estado === 'fechada' ? 'bg-linha-fraca text-suave' : 'bg-verde-claro2 text-verde-escuro';
@@ -209,6 +210,14 @@ const fecharCaixa = (caixa) => {
                                     <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Fundo</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].fundo_maneio) }}</strong></div>
                                     <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Vendas</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].vendas) }}</strong></div>
                                     <div class="min-w-0 rounded-[10px] p-2.5" :class="caixasPorPonto[ponto].estado === 'aberta' ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo'"><div :class="caixasPorPonto[ponto].estado === 'aberta' ? '' : 'text-suave-2'">Esperado</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></div>
+                                </div>
+
+                                <div v-if="temCaucao(caixasPorPonto[ponto])" class="flex flex-col gap-1 rounded-[10px] bg-laranja-claro p-2.5 text-sm text-laranja-texto">
+                                    <div class="font-bold">Cauções dos metros (já incluídas no esperado)</div>
+                                    <div class="flex justify-between"><span>Recebidas</span><strong>{{ euros(caixasPorPonto[ponto].caucao.recebidas) }}</strong></div>
+                                    <div class="flex justify-between"><span>Devolvidas em dinheiro</span><strong>-{{ euros(caixasPorPonto[ponto].caucao.dinheiro) }}</strong></div>
+                                    <div class="flex justify-between"><span>Trocadas por bebidas</span><strong>-{{ euros(caixasPorPonto[ponto].caucao.bebidas) }}</strong></div>
+                                    <div class="flex justify-between border-t border-laranja/30 pt-1"><span>Saldo na gaveta</span><strong>{{ euros(caixasPorPonto[ponto].caucao.saldo) }}</strong></div>
                                 </div>
 
                                 <div v-if="caixasPorPonto[ponto]?.estado === 'fechada'" class="flex flex-col gap-1 border-t border-linha-fraca pt-3 text-[15px]">

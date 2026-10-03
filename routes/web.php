@@ -118,6 +118,7 @@ Route::middleware('pos.auth')->prefix('pos-comum')->name('pos.comum.')->group(fu
 Route::middleware('pos.auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosBarController::class, 'index'])->name('index');
     Route::post('/prepago', [PosBarController::class, 'storePrepago'])->name('prepago.store');
+    Route::post('/caucao/devolver', [PosBarController::class, 'devolverCaucao'])->name('caucao.devolver');
     Route::get('/pedido/{pedido}/talao', [PosBarController::class, 'talao'])->name('pedido.talao');
     // Compatibilidade com builds antigos (bar/café)
     Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar.antigo');

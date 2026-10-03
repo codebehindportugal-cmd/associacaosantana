@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CaixaDiaria;
+use App\Models\CaucaoDevolucao;
 use App\Models\Configuracao;
 use App\Models\Pedido;
 use App\Models\PosSession;
@@ -37,7 +38,8 @@ class CaixaDiariaController extends Controller
             'pontos_padrao' => $request->user()->can('bar.ver') ? $this->pontosPadrao() : ['Restaurante'],
             'caixas' => $caixas->map(function (CaixaDiaria $caixa) {
                 $venda = $this->vendasDoPonto($caixa);
-                $esperado = (float) $caixa->fundo_maneio + (float) ($venda->total ?? 0);
+                $caucao = $this->caucoesDoPonto($caixa);
+                $esperado = (float) $caixa->fundo_maneio + (float) ($venda->total ?? 0) + $caucao['saldo'];
 
                 return [
                     'id' => $caixa->id,
@@ -47,7 +49,8 @@ class CaixaDiariaController extends Controller
                     'estado' => $caixa->estado,
                     'vendas' => (float) ($venda->total ?? 0),
                     'pedidos' => (int) ($venda->pedidos ?? 0),
-                    'esperado_caixa' => $esperado,
+                    'esperado_caixa' => round($esperado, 2),
+                    'caucao' => $caucao,
                     'valor_contado' => $caixa->valor_contado !== null ? (float) $caixa->valor_contado : null,
                     'diferenca' => (float) $caixa->diferenca,
                     'observacoes_fecho' => $caixa->observacoes_fecho,
@@ -111,7 +114,7 @@ class CaixaDiariaController extends Controller
         ]);
 
         $vendas = $this->vendasDoPonto($caixa)?->total ?? 0;
-        $esperado = round((float) $caixa->fundo_maneio + (float) $vendas, 2);
+        $esperado = round((float) $caixa->fundo_maneio + (float) $vendas + $this->caucoesDoPonto($caixa)['saldo'], 2);
         $valorContado = round((float) $data['valor_contado'], 2);
 
         $caixa->update([
@@ -169,6 +172,46 @@ class CaixaDiariaController extends Controller
             ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
             ->select(DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
             ->first();
+    }
+
+    /**
+     * Caucoes dos metros neste ponto. Nao sao vendas: entram e saem da gaveta.
+     * recebidas  = caucao cobrada nas senhas
+     * bebidas    = metros devolvidos descontados numa senha (dinheiro que nao entrou)
+     * dinheiro   = metros devolvidos com o dinheiro devolvido (saiu da gaveta)
+     * saldo      = efeito na gaveta (um metro pode ser comprado num ponto e devolvido noutro)
+     */
+    private function caucoesDoPonto(CaixaDiaria $caixa): array
+    {
+        $vazio = ['recebidas' => 0.0, 'bebidas' => 0.0, 'dinheiro' => 0.0, 'saldo' => 0.0];
+
+        if ($caixa->ponto === 'Restaurante') {
+            return $vazio;
+        }
+
+        $recebidas = (float) Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
+            ->where('created_at', '>=', $caixa->created_at)
+            ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
+            ->where('ponto_bar', $caixa->ponto)
+            ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
+            ->sum('caucao_cobrada');
+
+        $devolucoes = CaucaoDevolucao::where('ponto', $caixa->ponto)
+            ->where('created_at', '>=', $caixa->created_at)
+            ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
+            ->selectRaw('modo, SUM(valor_total) as total')
+            ->groupBy('modo')
+            ->pluck('total', 'modo');
+
+        $bebidas = (float) ($devolucoes['bebidas'] ?? 0);
+        $dinheiro = (float) ($devolucoes['dinheiro'] ?? 0);
+
+        return [
+            'recebidas' => round($recebidas, 2),
+            'bebidas' => round($bebidas, 2),
+            'dinheiro' => round($dinheiro, 2),
+            'saldo' => round($recebidas - $bebidas - $dinheiro, 2),
+        ];
     }
 
     private function pontosPadrao(): array
