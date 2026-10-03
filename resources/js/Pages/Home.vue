@@ -1,7 +1,7 @@
 <script setup>
 import AvisoErros from '@/Components/AvisoErros.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { useRecaptcha } from '@/composables/useRecaptcha';
+import { useRecaptcha } from '@/Composables/useRecaptcha';
 import { computed, ref } from 'vue';
 import CookieBanner from '@/Components/CookieBanner.vue';
 import SponsorsSlider from '@/Components/SponsorsSlider.vue';

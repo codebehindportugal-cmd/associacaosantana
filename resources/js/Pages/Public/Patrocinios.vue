@@ -1,7 +1,7 @@
 <script setup>
 import AvisoErros from '@/Components/AvisoErros.vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { useRecaptcha } from '@/composables/useRecaptcha';
+import { useRecaptcha } from '@/Composables/useRecaptcha';
 import { computed } from 'vue';
 import PublicShell from '@/Components/PublicShell.vue';
 import SponsorsSlider from '@/Components/SponsorsSlider.vue';
