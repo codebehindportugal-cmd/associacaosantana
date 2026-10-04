@@ -173,6 +173,7 @@ Route::get('/secao/comida', [SecaoController::class, 'comida'])->name('secao.com
 Route::get('/secao/cozinha', [SecaoController::class, 'cozinha'])->name('secao.cozinha');
 Route::get('/secao/sobremesas', [SecaoController::class, 'sobremesas'])->name('secao.sobremesas');
 Route::get('/secao/acompanhamentos', [SecaoController::class, 'acompanhamentos'])->name('secao.acompanhamentos');
+Route::get('/secao/tasquinhas', [SecaoController::class, 'tasquinhas'])->name('secao.tasquinhas');
 Route::get('/secao/servico', [SecaoController::class, 'servico'])->name('secao.servico');
 Route::get('/secao/bar', [SecaoController::class, 'bar'])->name('secao.bar');
 Route::get('/secao/sala/{codigo}', [SecaoController::class, 'sala'])->name('secao.sala');

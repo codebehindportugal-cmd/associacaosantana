@@ -48,6 +48,17 @@ class SecaoController extends Controller
         return $this->comida();
     }
 
+    /**
+     * Ecra unico para festas em tasquinha: comida, acompanhamentos e
+     * sobremesas saem todos no mesmo sitio.
+     */
+    public function tasquinhas(): Response
+    {
+        return $this->ecra(self::TASQUINHAS, 'TASQUINHAS', 'tasquinhas');
+    }
+
+    private const TASQUINHAS = ['comida', 'acompanhamentos', 'sobremesas'];
+
     public function bar(): Response
     {
         $items = Pedido::with('items.produto', 'user', 'pos')
@@ -86,11 +97,14 @@ class SecaoController extends Controller
         ]);
     }
 
-    private function ecra(string $secao, string $titulo): Response
+    private function ecra(string|array $secao, string $titulo, ?string $chave = null): Response
     {
+        $secoes = (array) $secao;
+        $chave ??= $secoes[0];
+
         $items = PedidoItem::with('pedido.mesa', 'pedido.user', 'pedido.pos', 'produto')
-            ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secao))
-            ->where('secao', $secao)
+            ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secoes))
+            ->whereIn('secao', $secoes)
             ->where('estado', 'pendente')
             ->orderByDesc('prioridade')
             ->oldest()
@@ -111,11 +125,12 @@ class SecaoController extends Controller
 
         return Inertia::render('Secao/Ecra', [
             'titulo' => $titulo,
-            'secao' => $secao,
+            'secao' => $chave,
+            'mostrarSecao' => count($secoes) > 1,
             'itemsPorMesa' => $items->values(),
             'tem_urgentes' => PedidoItem::urgentes()
-                ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secao))
-                ->where('secao', $secao)
+                ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secoes))
+                ->whereIn('secao', $secoes)
                 ->exists(),
             'agora' => now()->toISOString(),
         ]);
@@ -128,12 +143,12 @@ class SecaoController extends Controller
      * balcao. So entram senhas das ultimas 3 horas que ainda nao foram
      * retiradas nem canceladas.
      */
-    private function pedidosDoEcra($query, string $secao)
+    private function pedidosDoEcra($query, array $secoes)
     {
-        return $query->where(function ($q) use ($secao) {
+        return $query->where(function ($q) use ($secoes) {
             $q->where('tipo', 'restaurante');
 
-            if ($secao === 'comida') {
+            if (in_array('comida', $secoes, true)) {
                 $q->orWhere(fn ($bar) => $bar
                     ->where('tipo', 'bar_prepago')
                     ->whereNotIn('estado', ['entregue', 'cancelado'])
@@ -179,7 +194,8 @@ class SecaoController extends Controller
      */
     public function limpar(string $secao): RedirectResponse
     {
-        abort_unless(in_array($secao, ['bar', 'bebidas', 'comida', 'frango', 'sobremesas', 'acompanhamentos'], true), 404);
+        abort_unless(in_array($secao, ['bar', 'bebidas', 'comida', 'frango', 'sobremesas', 'acompanhamentos', 'tasquinhas'], true), 404);
+        $secoes = $secao === 'tasquinhas' ? self::TASQUINHAS : [$secao];
 
         if ($secao === 'bar') {
             Pedido::barPrepago()->where('estado', 'pronto')->update(['estado' => 'entregue']);
@@ -187,9 +203,9 @@ class SecaoController extends Controller
             return back();
         }
 
-        PedidoItem::where('secao', $secao)
+        PedidoItem::whereIn('secao', $secoes)
             ->where('estado', 'pendente')
-            ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secao))
+            ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secoes))
             ->update(['estado' => 'pronto']);
 
         return back();

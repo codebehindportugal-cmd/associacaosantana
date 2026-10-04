@@ -2,7 +2,7 @@
 import { router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const props = defineProps({ titulo: String, secao: String, itemsPorMesa: Array, tem_urgentes: Boolean, modoBar: Boolean, agora: String });
+const props = defineProps({ titulo: String, secao: String, mostrarSecao: Boolean, itemsPorMesa: Array, tem_urgentes: Boolean, modoBar: Boolean, agora: String });
 const aAtualizar = ref(false);
 const ultimaAtualizacao = ref(new Date());
 const novosItems = ref(new Set());
@@ -38,9 +38,16 @@ const corSecao = computed(() => ({
     BEBIDAS: { fundo: 'bg-secao-bar', borda: 'border-secao-bar' },
     BAR: { fundo: 'bg-secao-bar', borda: 'border-secao-bar' },
     SOBREMESAS: { fundo: 'bg-secao-sobremesas', borda: 'border-secao-sobremesas' },
+    TASQUINHAS: { fundo: 'bg-secao-cozinha', borda: 'border-secao-cozinha' },
     ACOMPANHAMENTOS: { fundo: 'bg-secao-acompanhamentos', borda: 'border-secao-acompanhamentos' },
 }[props.titulo] ?? { fundo: 'bg-secao-servico', borda: 'border-secao-servico' }));
 
+// No ecrã das tasquinhas cada artigo mostra de que secção é
+const etiquetaSecao = {
+    comida: { nome: 'Comida', cor: 'bg-secao-cozinha' },
+    acompanhamentos: { nome: 'Acompanhamento', cor: 'bg-secao-acompanhamentos' },
+    sobremesas: { nome: 'Sobremesa', cor: 'bg-secao-sobremesas' },
+};
 const textoContagem = computed(() => (totalItems.value === 1 ? '1 pedido por preparar' : `${totalItems.value} pedidos por preparar`));
 
 // Botão "Pronto" por artigo (rota secao.items.pronto: marca o artigo como pronto;
@@ -195,6 +202,7 @@ const hora = computed(() => ultimaAtualizacao.value.toLocaleTimeString('pt-PT', 
                             Pronto
                         </span>
                     </div>
+                    <span v-if="mostrarSecao && etiquetaSecao[item.secao]" class="self-start rounded-full px-3 py-0.5 text-base font-extrabold text-white" :class="etiquetaSecao[item.secao].cor">{{ etiquetaSecao[item.secao].nome }}</span>
                     <span v-if="item.prioridade && item.estado !== 'pronto'" class="self-start rounded-full bg-laranja px-3.5 py-1 text-base font-extrabold text-white">A TERMINAR</span>
                     <span v-if="item.observacoes" class="rounded-xl bg-perigo px-4 py-2.5 text-[22px] font-extrabold text-white">ATENÇÃO: {{ item.observacoes }}</span>
                     <span v-if="novosItems.has(item.id) && !item.prioridade" class="self-start rounded-full border-2 border-laranja bg-laranja-claro px-3.5 py-1 text-base font-extrabold text-laranja-texto">Novo pedido</span>
