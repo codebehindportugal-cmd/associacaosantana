@@ -25,6 +25,12 @@ const minutosEspera = (grupo) => {
     if (Number.isNaN(inicio)) return null;
     return Math.max(0, Math.floor((agoraLocal.value + desvioRelogio.value - inicio) / 60000));
 };
+// "12 min" até 1 h; depois "1h05"; mais de 1 dia = "+1 dia"
+const textoEspera = (minutos) => {
+    if (minutos < 60) return `${minutos} min`;
+    if (minutos >= 1440) return `+${Math.floor(minutos / 1440)} dia${minutos >= 2880 ? 's' : ''}`;
+    return `${Math.floor(minutos / 60)}h${String(minutos % 60).padStart(2, '0')}`;
+};
 const corEspera = (minutos) => {
     if (minutos >= 15) return 'bg-perigo';
     if (minutos >= 10) return 'bg-laranja';
@@ -38,7 +44,7 @@ const corSecao = computed(() => ({
     BEBIDAS: { fundo: 'bg-secao-bar', borda: 'border-secao-bar' },
     BAR: { fundo: 'bg-secao-bar', borda: 'border-secao-bar' },
     SOBREMESAS: { fundo: 'bg-secao-sobremesas', borda: 'border-secao-sobremesas' },
-    TASQUINHAS: { fundo: 'bg-secao-cozinha', borda: 'border-secao-cozinha' },
+    'CARVALHAL FEST': { fundo: 'bg-secao-cozinha', borda: 'border-secao-cozinha' },
     ACOMPANHAMENTOS: { fundo: 'bg-secao-acompanhamentos', borda: 'border-secao-acompanhamentos' },
 }[props.titulo] ?? { fundo: 'bg-secao-servico', borda: 'border-secao-servico' }));
 
@@ -115,107 +121,98 @@ const hora = computed(() => ultimaAtualizacao.value.toLocaleTimeString('pt-PT', 
 
 <template>
     <main class="flex min-h-screen flex-col bg-escuro font-sans tabular-nums text-white">
-        <div v-if="tem_urgentes" role="alert" class="flex min-h-[56px] shrink-0 items-center justify-center gap-5 bg-laranja px-6 text-center text-2xl font-extrabold tracking-[.04em] xl:text-3xl">
-            <svg class="h-10 w-10 shrink-0 animate-pulse xl:h-12 xl:w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4M12 17h.01" /></svg>
-            ATENÇÃO — HÁ MESAS A TERMINAR
+        <div v-if="tem_urgentes" role="alert" class="flex min-h-[44px] shrink-0 items-center justify-center gap-3 bg-laranja px-4 text-center text-xl font-extrabold tracking-[.04em]">
+            <svg class="h-7 w-7 shrink-0 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4M12 17h.01" /></svg>
+            HÁ MESAS A TERMINAR
         </div>
 
-        <header class="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b-[10px] px-6 py-5 xl:min-h-[96px] xl:px-12 xl:py-0" :class="corSecao.borda">
-            <div class="flex flex-wrap items-center gap-5 xl:gap-7">
-                <span class="h-8 w-8 shrink-0 rounded-full xl:h-10 xl:w-10" :class="corSecao.fundo" aria-hidden="true"></span>
-                <h1 class="text-4xl font-extrabold tracking-[.02em] xl:text-[56px] xl:leading-none">{{ titulo }}</h1>
-                <span class="flex h-10 items-center rounded-full bg-escuro-2 px-6 text-2xl font-extrabold xl:h-12 xl:px-7 xl:text-[28px]">{{ textoContagem }}</span>
+        <header class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b-[6px] px-4 py-2.5" :class="corSecao.borda">
+            <div class="flex flex-wrap items-center gap-4">
+                <span class="h-6 w-6 shrink-0 rounded-full" :class="corSecao.fundo" aria-hidden="true"></span>
+                <h1 class="text-3xl font-extrabold tracking-[.02em]">{{ titulo }}</h1>
+                <span class="flex h-9 items-center rounded-full bg-escuro-2 px-4 text-xl font-extrabold">{{ textoContagem }}</span>
             </div>
-            <div class="flex items-center gap-5">
-            <button
-                v-if="secao && itemsPorMesa?.length"
-                type="button"
-                class="flex h-12 items-center gap-2 rounded-xl border-2 px-4 text-lg font-extrabold disabled:opacity-50 xl:h-14 xl:text-xl"
-                :class="confirmarLimpar ? 'border-perigo bg-perigo text-white' : 'border-escuro-inativo text-escuro-inativo hover:text-white'"
-                :disabled="aLimpar"
-                @click="limparEcra"
-            >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" /></svg>
-                {{ confirmarLimpar ? 'Toca outra vez para limpar tudo' : 'Limpar ecrã' }}
-            </button>
-            <div class="flex flex-col items-end gap-0.5">
-                <span class="text-base font-bold uppercase tracking-[.08em] text-escuro-inativo xl:text-base">{{ aAtualizar ? 'A procurar novos pedidos' : 'Atualização automática · último refresh' }}</span>
-                <span class="text-2xl font-extrabold xl:text-3xl">{{ hora }}</span>
-            </div>
+            <div class="flex items-center gap-4">
+                <button
+                    v-if="secao && itemsPorMesa?.length"
+                    type="button"
+                    class="flex h-11 items-center gap-2 rounded-xl border-2 px-4 text-lg font-extrabold disabled:opacity-50"
+                    :class="confirmarLimpar ? 'border-perigo bg-perigo text-white' : 'border-escuro-inativo text-escuro-inativo hover:text-white'"
+                    :disabled="aLimpar"
+                    @click="limparEcra"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" /></svg>
+                    {{ confirmarLimpar ? 'Toca outra vez para limpar tudo' : 'Limpar ecrã' }}
+                </button>
+                <span class="text-2xl font-extrabold" :class="aAtualizar ? 'text-escuro-inativo' : ''" :title="aAtualizar ? 'A procurar novos pedidos' : 'Último refresh'">{{ hora }}</span>
             </div>
         </header>
-        <div v-if="erroPronto" role="alert" class="mx-6 mt-4 rounded-[10px] bg-perigo-claro p-4 text-2xl font-semibold text-perigo-texto xl:mx-12">{{ erroPronto }}</div>
+        <div v-if="erroPronto" role="alert" class="mx-4 mt-3 rounded-[10px] bg-perigo-claro p-3 text-xl font-semibold text-perigo-texto">{{ erroPronto }}</div>
 
-        <section v-if="!itemsPorMesa?.length" class="flex flex-1 flex-col items-center justify-center gap-6 text-[#8FA39A]">
-            <svg class="h-28 w-28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
-            <p class="text-3xl font-extrabold xl:text-5xl">Sem pedidos pendentes</p>
+        <section v-if="!itemsPorMesa?.length" class="flex flex-1 flex-col items-center justify-center gap-4 text-[#8FA39A]">
+            <svg class="h-20 w-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+            <p class="text-3xl font-extrabold">Sem pedidos pendentes</p>
         </section>
 
-        <section v-else class="grid flex-1 content-start items-start gap-5 px-6 pb-10 pt-7 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 xl:px-12">
+        <!-- Colunas encaixadas: cada talão ocupa só a altura que precisa -->
+        <section v-else class="flex-1 columns-1 gap-3 px-3 pb-6 pt-3 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5">
             <article
                 v-for="grupo in itemsPorMesa"
                 :key="grupo.pedido_id ?? grupo.mesa"
-                class="flex flex-col gap-4 rounded-[22px] bg-[#233029] p-4"
-                :class="grupo.urgente ? 'border-[6px] border-laranja' : 'border-2 border-[#3A4842]'"
+                class="mb-3 break-inside-avoid overflow-hidden rounded-xl bg-white text-tinta"
+                :class="grupo.urgente ? 'ring-4 ring-laranja' : ''"
             >
-                <div class="flex flex-col gap-2.5">
-                    <div class="flex items-center justify-between gap-3">
-                        <h2 class="min-w-0 truncate text-3xl font-extrabold leading-none xl:text-4xl">{{ grupo.mesa }}</h2>
-                        <span v-if="grupo.urgente" class="shrink-0 rounded-full bg-laranja px-3.5 py-1.5 text-2xl font-extrabold tracking-[.04em]">A TERMINAR</span>
-                    </div>
-                    <div class="flex items-center justify-between gap-3">
-                        <span class="min-w-0 truncate text-base font-semibold text-escuro-inativo">Operador: {{ grupo.operador ?? 'Sem operador' }}</span>
-                        <span
-                            v-if="minutosEspera(grupo) !== null"
-                            class="flex h-10 shrink-0 items-center gap-2.5 rounded-[14px] px-3 text-[26px] font-extrabold text-white"
-                            :class="corEspera(minutosEspera(grupo))"
-                        >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
-                            {{ minutosEspera(grupo) }} min
-                        </span>
-                    </div>
+                <div class="flex items-center gap-2 bg-escuro-2 px-3 py-1.5 text-white">
+                    <h2 class="min-w-0 flex-1 truncate text-2xl font-extrabold leading-tight">{{ grupo.mesa }}</h2>
+                    <span v-if="grupo.urgente" class="shrink-0 rounded-full bg-laranja px-2 py-0.5 text-sm font-extrabold">A TERMINAR</span>
+                    <span
+                        v-if="minutosEspera(grupo) !== null"
+                        class="flex h-8 shrink-0 items-center gap-1 rounded-lg px-2 text-lg font-extrabold"
+                        :class="corEspera(minutosEspera(grupo))"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+                        {{ textoEspera(minutosEspera(grupo)) }}
+                    </span>
                 </div>
 
-                <div
-                    v-for="item in grupo.items"
-                    :key="item.id"
-                    class="flex flex-col gap-3 rounded-2xl border-4 px-3 py-2.5 text-tinta transition-all duration-500"
-                    :class="[
-                        item.estado === 'pronto' ? 'border-transparent bg-white/60 opacity-60' : (item.prioridade || item.observacoes ? 'border-laranja bg-laranja-claro' : (novosItems.has(item.id) ? 'border-laranja/60 bg-white' : 'border-transparent bg-white')),
-                    ]"
-                >
-                    <div class="flex items-center justify-between gap-4">
-                        <span class="min-w-0 text-[28px] font-extrabold leading-tight" :class="item.estado === 'pronto' ? 'line-through' : ''">
-                            <span class="whitespace-nowrap text-secao-grelhados">{{ item.quantidade }}x&nbsp;</span>{{ item.produto?.nome }}
-                        </span>
-                        <button
-                            v-if="item.estado !== 'pronto'"
-                            type="button"
-                            class="flex h-14 shrink-0 items-center justify-center gap-2 rounded-2xl bg-verde px-3 text-xl font-extrabold text-white hover:bg-verde-escuro disabled:opacity-50"
-                            :disabled="aMarcar.has(item.id)"
-                            @click="marcarPronto(item)"
-                        >
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
-                            Pronto
-                        </button>
-                        <span v-else class="flex shrink-0 items-center gap-2 text-lg font-extrabold text-verde">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
-                            Pronto
-                        </span>
-                    </div>
-                    <span v-if="mostrarSecao && etiquetaSecao[item.secao]" class="self-start rounded-full px-3 py-0.5 text-base font-extrabold text-white" :class="etiquetaSecao[item.secao].cor">{{ etiquetaSecao[item.secao].nome }}</span>
-                    <span v-if="item.prioridade && item.estado !== 'pronto'" class="self-start rounded-full bg-laranja px-3.5 py-1 text-base font-extrabold text-white">A TERMINAR</span>
-                    <span v-if="item.observacoes" class="rounded-xl bg-perigo px-4 py-2.5 text-[22px] font-extrabold text-white">ATENÇÃO: {{ item.observacoes }}</span>
-                    <span v-if="novosItems.has(item.id) && !item.prioridade" class="self-start rounded-full border-2 border-laranja bg-laranja-claro px-3.5 py-1 text-base font-extrabold text-laranja-texto">Novo pedido</span>
-                </div>
+                <ul class="divide-y divide-linha-fraca">
+                    <li
+                        v-for="item in grupo.items"
+                        :key="item.id"
+                        class="px-3 py-1.5 transition-colors duration-500"
+                        :class="item.estado === 'pronto' ? 'opacity-50' : (item.prioridade || item.observacoes ? 'bg-laranja-claro' : (novosItems.has(item.id) ? 'bg-laranja-claro/60' : ''))"
+                    >
+                        <div class="flex items-center gap-2">
+                            <span class="min-w-0 flex-1 text-xl font-extrabold leading-snug" :class="item.estado === 'pronto' ? 'line-through' : ''">
+                                <span class="text-secao-grelhados">{{ item.quantidade }}x</span> {{ item.produto?.nome }}
+                                <span v-if="mostrarSecao && etiquetaSecao[item.secao]" class="ml-1 inline-block rounded-full px-2 align-middle text-xs font-extrabold uppercase text-white" :class="etiquetaSecao[item.secao].cor">{{ etiquetaSecao[item.secao].nome }}</span>
+                                <span v-if="item.prioridade && item.estado !== 'pronto'" class="ml-1 inline-block rounded-full bg-laranja px-2 align-middle text-xs font-extrabold text-white">A TERMINAR</span>
+                                <span v-if="novosItems.has(item.id) && !item.prioridade" class="ml-1 inline-block rounded-full border border-laranja px-2 align-middle text-xs font-extrabold text-laranja-texto">NOVO</span>
+                            </span>
+                            <button
+                                v-if="item.estado !== 'pronto'"
+                                type="button"
+                                class="flex h-11 shrink-0 items-center gap-1 rounded-lg bg-verde px-3 text-base font-extrabold text-white hover:bg-verde-escuro disabled:opacity-50"
+                                :disabled="aMarcar.has(item.id)"
+                                :aria-label="`Pronto: ${item.quantidade}x ${item.produto?.nome ?? ''}`"
+                                @click="marcarPronto(item)"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                                Pronto
+                            </button>
+                            <svg v-else class="shrink-0 text-verde" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="Pronto"><path d="M20 6 9 17l-5-5" /></svg>
+                        </div>
+                        <p v-if="item.observacoes" class="mt-1 rounded-md bg-perigo px-2 py-0.5 text-base font-extrabold text-white">⚠ {{ item.observacoes }}</p>
+                    </li>
+                </ul>
 
                 <button
                     v-if="modoBar && grupo.pedido_id"
                     type="button"
-                    class="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-verde px-5 text-[22px] font-extrabold text-white hover:bg-verde-escuro"
+                    class="flex h-11 w-full items-center justify-center gap-2 bg-verde text-lg font-extrabold text-white hover:bg-verde-escuro"
                     @click="retirar(grupo.pedido_id)"
                 >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
                     RETIRAR PEDIDO
                 </button>
             </article>

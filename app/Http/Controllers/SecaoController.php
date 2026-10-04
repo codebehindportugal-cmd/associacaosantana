@@ -54,7 +54,7 @@ class SecaoController extends Controller
      */
     public function tasquinhas(): Response
     {
-        return $this->ecra(self::TASQUINHAS, 'TASQUINHAS', 'tasquinhas');
+        return $this->ecra(self::TASQUINHAS, 'CARVALHAL FEST', 'tasquinhas');
     }
 
     private const TASQUINHAS = ['comida', 'frango', 'acompanhamentos', 'sobremesas'];
