@@ -72,6 +72,7 @@ class SecaoController extends Controller
             'itemsPorMesa' => $items->values(),
             'tem_urgentes' => false,
             'modoBar' => true,
+            'secao' => 'bar',
             'agora' => now()->toISOString(),
         ]);
     }
@@ -88,13 +89,15 @@ class SecaoController extends Controller
     private function ecra(string $secao, string $titulo): Response
     {
         $items = PedidoItem::with('pedido.mesa', 'pedido.user', 'pedido.pos', 'produto')
-            ->whereHas('pedido', fn ($query) => $query->where('tipo', 'restaurante'))
+            ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secao))
             ->where('secao', $secao)
             ->where('estado', 'pendente')
             ->orderByDesc('prioridade')
             ->oldest()
             ->get()
-            ->groupBy(fn ($item) => $item->pedido->mesa?->designacao ?? 'Para levar #'.$item->pedido_id)
+            ->groupBy(fn ($item) => $item->pedido->tipo === 'bar_prepago'
+                ? 'Senha #'.$item->pedido->numero_senha
+                : ($item->pedido->mesa?->designacao ?? 'Para levar #'.$item->pedido_id))
             ->map(fn ($grupo, $mesa) => [
                 'mesa' => $mesa,
                 'operador' => $this->operadorPedido($grupo->first()->pedido),
@@ -108,13 +111,35 @@ class SecaoController extends Controller
 
         return Inertia::render('Secao/Ecra', [
             'titulo' => $titulo,
+            'secao' => $secao,
             'itemsPorMesa' => $items->values(),
             'tem_urgentes' => PedidoItem::urgentes()
-                ->whereHas('pedido', fn ($query) => $query->where('tipo', 'restaurante'))
+                ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secao))
                 ->where('secao', $secao)
                 ->exists(),
             'agora' => now()->toISOString(),
         ]);
+    }
+
+    /**
+     * Pedidos que aparecem no ecra de uma seccao: os do restaurante e, no
+     * ecra da comida, tambem as senhas do bar. Assim a cozinha comeca a
+     * preparar logo que a senha e vendida, antes de o cliente chegar ao
+     * balcao. So entram senhas das ultimas 3 horas que ainda nao foram
+     * retiradas nem canceladas.
+     */
+    private function pedidosDoEcra($query, string $secao)
+    {
+        return $query->where(function ($q) use ($secao) {
+            $q->where('tipo', 'restaurante');
+
+            if ($secao === 'comida') {
+                $q->orWhere(fn ($bar) => $bar
+                    ->where('tipo', 'bar_prepago')
+                    ->whereNotIn('estado', ['entregue', 'cancelado'])
+                    ->where('created_at', '>=', now()->subHours(3)));
+            }
+        });
     }
 
     public function pronto(Request $request, PedidoItem $pedidoItem): RedirectResponse
@@ -143,6 +168,29 @@ class SecaoController extends Controller
             $pedidoItem->pedido->update(['estado' => 'entregue']);
             $this->libertarMesaDoPedido($pedidoItem->pedido);
         }
+
+        return back();
+    }
+
+    /**
+     * Limpa o ecra de uma seccao (ex.: pedidos que ficaram por marcar de
+     * outro dia). Nao apaga nada: os artigos pendentes passam a "pronto"
+     * e, no ecra do bar, as senhas passam a "entregue".
+     */
+    public function limpar(string $secao): RedirectResponse
+    {
+        abort_unless(in_array($secao, ['bar', 'bebidas', 'comida', 'frango', 'sobremesas', 'acompanhamentos'], true), 404);
+
+        if ($secao === 'bar') {
+            Pedido::barPrepago()->where('estado', 'pronto')->update(['estado' => 'entregue']);
+
+            return back();
+        }
+
+        PedidoItem::where('secao', $secao)
+            ->where('estado', 'pendente')
+            ->whereHas('pedido', fn ($query) => $this->pedidosDoEcra($query, $secao))
+            ->update(['estado' => 'pronto']);
 
         return back();
     }

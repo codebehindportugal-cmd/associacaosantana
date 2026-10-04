@@ -49,6 +49,8 @@ class PosBarController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.produto_id' => ['required', $this->produtoBarRule()],
             'items.*.quantidade' => ['required', 'integer', 'min:1'],
+            // Quantos destes o cliente ja tem (metro/jarro de outra vez): nao se cobra caucao
+            'items.*.ja_tem' => ['nullable', 'integer', 'min:0'],
             // Metros devolvidos que o cliente troca por bebidas nesta senha
             'devolvidos' => ['nullable', 'array'],
             'devolvidos.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where(fn ($q) => $q->where('caucao', '>', 0))],
@@ -67,13 +69,16 @@ class PosBarController extends Controller
 
             // Caucao: cobrada a parte (nao e receita) e, se o cliente trouxe
             // metros, descontada aqui em vez de lhe dar o dinheiro.
-            $caucaoCobrada = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->caucao * (int) $item['quantidade']), 2);
+            // So se cobra caucao pelos artigos que o cliente ainda nao tem
+            // (quem traz o metro/jarro de outra vez nao paga outra caucao).
+            $caucaoCobrada = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->caucao
+                * max(0, (int) $item['quantidade'] - min((int) ($item['ja_tem'] ?? 0), (int) $item['quantidade']))), 2);
             $devolvidos = collect($data['devolvidos'] ?? []);
             $produtosCaucao = Produto::whereIn('id', $devolvidos->pluck('produto_id'))->get()->keyBy('id');
             $caucaoDescontada = round($devolvidos->sum(fn ($d) => (float) $produtosCaucao[$d['produto_id']]->caucao * (int) $d['quantidade']), 2);
 
             if ($caucaoDescontada > $total + $caucaoCobrada) {
-                return back()->withErrors(['devolvidos' => 'O saldo dos metros devolvidos e maior do que a senha. Junta mais bebidas ou devolve o resto em dinheiro.']);
+                return back()->withErrors(['devolvidos' => 'O saldo das caucoes devolvidas e maior do que a senha. Junta mais bebidas ou devolve o resto em dinheiro.']);
             }
 
             $aPagar = round($total + $caucaoCobrada - $caucaoDescontada, 2);

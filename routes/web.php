@@ -178,6 +178,7 @@ Route::get('/secao/bar', [SecaoController::class, 'bar'])->name('secao.bar');
 Route::get('/secao/sala/{codigo}', [SecaoController::class, 'sala'])->name('secao.sala');
 Route::patch('/secao/items/{pedidoItem}/pronto', [SecaoController::class, 'pronto'])->name('secao.items.pronto');
 Route::patch('/secao/pedidos/{pedido}/retirar', [SecaoController::class, 'retirar'])->name('secao.pedidos.retirar');
+Route::patch('/secao/{secao}/limpar', [SecaoController::class, 'limpar'])->name('secao.limpar');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -307,4 +308,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('pos-painel/pin', [PosPainelController::class, 'atualizarPin'])->name('pos-painel.pin');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__.'/auth.php';

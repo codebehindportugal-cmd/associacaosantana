@@ -213,7 +213,7 @@ const fecharCaixa = (caixa) => {
                                 </div>
 
                                 <div v-if="temCaucao(caixasPorPonto[ponto])" class="flex flex-col gap-1 rounded-[10px] bg-laranja-claro p-2.5 text-sm text-laranja-texto">
-                                    <div class="font-bold">Cauções dos metros (já incluídas no esperado)</div>
+                                    <div class="font-bold">Cauções (metros, jarros…) — já incluídas no esperado</div>
                                     <div class="flex justify-between"><span>Recebidas</span><strong>{{ euros(caixasPorPonto[ponto].caucao.recebidas) }}</strong></div>
                                     <div class="flex justify-between"><span>Devolvidas em dinheiro</span><strong>-{{ euros(caixasPorPonto[ponto].caucao.dinheiro) }}</strong></div>
                                     <div class="flex justify-between"><span>Trocadas por bebidas</span><strong>-{{ euros(caixasPorPonto[ponto].caucao.bebidas) }}</strong></div>

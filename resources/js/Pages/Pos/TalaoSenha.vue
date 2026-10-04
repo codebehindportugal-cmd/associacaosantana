@@ -157,8 +157,8 @@ onMounted(() => {
             <div class="talao-totais mt-2 border-t border-dashed border-black pt-2 text-[13px] leading-relaxed">
                 <template v-if="Number(pedido.caucao_cobrada) > 0 || Number(pedido.caucao_descontada) > 0">
                     <div class="flex justify-between"><span>Produtos</span><span>{{ euros(pedido.total) }}</span></div>
-                    <div v-if="Number(pedido.caucao_cobrada) > 0" class="flex justify-between"><span>Caução metro</span><span>{{ euros(pedido.caucao_cobrada) }}</span></div>
-                    <div v-if="Number(pedido.caucao_descontada) > 0" class="flex justify-between"><span>Metro devolvido</span><span>-{{ euros(pedido.caucao_descontada) }}</span></div>
+                    <div v-if="Number(pedido.caucao_cobrada) > 0" class="flex justify-between"><span>Caução</span><span>{{ euros(pedido.caucao_cobrada) }}</span></div>
+                    <div v-if="Number(pedido.caucao_descontada) > 0" class="flex justify-between"><span>Caução devolvida</span><span>-{{ euros(pedido.caucao_descontada) }}</span></div>
                 </template>
                 <div class="flex items-baseline justify-between text-lg font-bold"><span>TOTAL</span><span>{{ euros(Number(pedido.total) + Number(pedido.caucao_cobrada || 0) - Number(pedido.caucao_descontada || 0)) }}</span></div>
                 <div class="flex justify-between"><span>Recebido</span><span>{{ euros(pedido.valor_recebido) }}</span></div>

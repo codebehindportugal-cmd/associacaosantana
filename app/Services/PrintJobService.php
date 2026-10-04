@@ -475,7 +475,7 @@ class PrintJobService
                 'Operador: '.($devolucao->operador_nome ?: 'Sem operador'),
                 'Hora: '.$devolucao->created_at->format('H:i'),
                 '------------------------------',
-                sprintf('%sx %s  %s', $devolucao->quantidade, $devolucao->produto?->nome ?? 'Metro', $this->euros((float) $devolucao->valor_total)),
+                sprintf('%sx %s  %s', $devolucao->quantidade, $devolucao->produto?->nome ?? 'Artigo', $this->euros((float) $devolucao->valor_total)),
                 '------------------------------',
                 [
                     'texto' => 'DEVOLVIDO: '.$this->euros((float) $devolucao->valor_total),
@@ -516,8 +516,8 @@ class PrintJobService
 
         return [
             'Produtos: '.$this->euros($total),
-            ...($cobrada > 0 ? ['Caucao metro: '.$this->euros($cobrada)] : []),
-            ...($descontada > 0 ? ['Metro devolvido: -'.$this->euros($descontada)] : []),
+            ...($cobrada > 0 ? ['Caucao: '.$this->euros($cobrada)] : []),
+            ...($descontada > 0 ? ['Caucao devolvida: -'.$this->euros($descontada)] : []),
             'Total: '.$this->euros($total + $cobrada - $descontada),
         ];
     }
