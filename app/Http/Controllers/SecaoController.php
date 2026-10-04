@@ -49,15 +49,15 @@ class SecaoController extends Controller
     }
 
     /**
-     * Ecra unico para festas em tasquinha: comida, acompanhamentos e
-     * sobremesas saem todos no mesmo sitio.
+     * Ecra unico para festas em tasquinha: tudo menos bebidas (comida, frango,
+     * acompanhamentos e sobremesas saem todos no mesmo sitio).
      */
     public function tasquinhas(): Response
     {
         return $this->ecra(self::TASQUINHAS, 'TASQUINHAS', 'tasquinhas');
     }
 
-    private const TASQUINHAS = ['comida', 'acompanhamentos', 'sobremesas'];
+    private const TASQUINHAS = ['comida', 'frango', 'acompanhamentos', 'sobremesas'];
 
     public function bar(): Response
     {

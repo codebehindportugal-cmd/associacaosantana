@@ -45,6 +45,7 @@ const corSecao = computed(() => ({
 // No ecrã das tasquinhas cada artigo mostra de que secção é
 const etiquetaSecao = {
     comida: { nome: 'Comida', cor: 'bg-secao-cozinha' },
+    frango: { nome: 'Frango', cor: 'bg-secao-grelhados' },
     acompanhamentos: { nome: 'Acompanhamento', cor: 'bg-secao-acompanhamentos' },
     sobremesas: { nome: 'Sobremesa', cor: 'bg-secao-sobremesas' },
 };
