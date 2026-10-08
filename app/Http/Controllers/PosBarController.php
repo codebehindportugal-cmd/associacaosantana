@@ -27,6 +27,8 @@ class PosBarController extends Controller
             'posNome' => session('pos_nome'),
             'pontoBar' => $ponto,
             'caixaAberta' => $this->caixaAberta($ponto),
+            // Pre-pagamento: o operador pode juntar as senhas de uma seccao se o cliente pedir
+            'juntarFolhas' => TalaoConfig::atual()->taloesPorSeccao(),
             'produtos' => Produto::with('categoria')
                 ->disponiveisBar()
                 ->orderBy('nome')
@@ -55,15 +57,19 @@ class PosBarController extends Controller
             'devolvidos' => ['nullable', 'array'],
             'devolvidos.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where(fn ($q) => $q->where('caucao', '>', 0))],
             'devolvidos.*.quantidade' => ['required', 'integer', 'min:1', 'max:50'],
+            // Senhas juntas por seccao: que grupos saem numa folha (o resto, uma a uma)
+            'juntar' => ['nullable', 'array'],
+            'juntar.*' => ['boolean'],
         ]);
 
+        $juntar = array_map('boolval', array_intersect_key($data['juntar'] ?? [], PrintJobService::GRUPOS_JUNTOS));
         $ponto = session('pos_localizacao') ?: session('pos_nome');
 
         if (! $this->caixaAberta($ponto)) {
             return back()->withErrors(['ponto_bar' => 'Abre a caixa deste ponto no backoffice antes de vender.']);
         }
 
-        return DB::transaction(function () use ($data, $ponto, $printJobs) {
+        return DB::transaction(function () use ($data, $ponto, $printJobs, $juntar) {
             $produtos = Produto::with('categoria')->whereIn('id', collect($data['items'])->pluck('produto_id'))->get()->keyBy('id');
             $total = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->preco * (int) $item['quantidade']), 2);
 
@@ -158,16 +164,8 @@ class PosBarController extends Controller
             $jobs = [];
 
             if ($viaAgente && $porSeccao) {
-                $grupos = $printJobs->unidadesPorSeccao($pedidoFull);
-                $totalTaloes = array_sum(array_map('count', $grupos));
-                $numero = 0;
-
-                foreach ($grupos as $secao => $unidades) {
-                    foreach ($unidades as $nome) {
-                        $numero++;
-                        $jobs[] = $printJobs->criarTalaoBarUnitario($pedidoFull, $nome, $secaoImp, $numero, $totalTaloes, $secao);
-                    }
-                }
+                // Uma senha por unidade, ou juntas por seccao, conforme o modelo
+                $jobs = $printJobs->criarTaloesPrepago($pedidoFull, $secaoImp, $juntar);
 
                 // A conta sai no fim, para quem esta na caixa conferir
                 $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
@@ -216,7 +214,7 @@ class PosBarController extends Controller
             $escpos = [];
 
             if ($modo === 'webusb') {
-                [, $escpos] = $this->taloesDoPedido($pedidoFull, $printJobs, $modo);
+                [, $escpos] = $this->taloesDoPedido($pedidoFull, $printJobs, $modo, $juntar);
 
                 if ($escpos !== []) {
                     $escpos[0]['abrir_caixa'] = true;
@@ -228,7 +226,7 @@ class PosBarController extends Controller
                 ->with('imprimir', [
                     'pedido_id' => $pedido->id,
                     'modo' => $modo,
-                    'url' => route('pos.pedido.talao', $pedido),
+                    'url' => route('pos.pedido.talao', $juntar ? [$pedido, 'juntar' => array_map('intval', $juntar)] : $pedido),
                     'escpos' => $escpos,
                 ]);
         });
@@ -293,7 +291,7 @@ class PosBarController extends Controller
         return to_route('pos.index')->with('success', $mensagem);
     }
 
-    public function talao(Pedido $pedido, PrintJobService $printJobs): Response
+    public function talao(Request $request, Pedido $pedido, PrintJobService $printJobs): Response
     {
         abort_unless($pedido->tipo === 'bar_prepago' && (int) $pedido->pos_id === (int) session('pos_id'), 404);
 
@@ -304,7 +302,12 @@ class PosBarController extends Controller
         $impressora = $terminal?->impressora;
         $modo = $impressora?->tipo ?? 'agente';
 
-        [$taloesCliente, $taloesEscpos] = $this->taloesDoPedido($pedido, $printJobs, $modo);
+        [$taloesCliente, $taloesEscpos] = $this->taloesDoPedido(
+            $pedido,
+            $printJobs,
+            $modo,
+            array_map('boolval', array_intersect_key((array) $request->query('juntar', []), PrintJobService::GRUPOS_JUNTOS)),
+        );
 
         return Inertia::render('Pos/TalaoSenha', [
             'pedido' => $pedido,
@@ -326,10 +329,46 @@ class PosBarController extends Controller
      *
      * @return array{0: array, 1: array}
      */
-    private function taloesDoPedido(Pedido $pedido, PrintJobService $printJobs, string $modo): array
+    private function taloesDoPedido(Pedido $pedido, PrintJobService $printJobs, string $modo, array $juntar = []): array
     {
         $pedido->loadMissing('items.produto.categoria', 'pos');
         $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
+
+        // O cliente pediu alguma seccao junta: essa numa folha, o resto uma a uma
+        if ($porSeccao && array_filter($juntar)) {
+            $taloes = $printJobs->taloesJuntos($pedido, $juntar);
+            $total = count($taloes);
+            $taloesCliente = [];
+            $taloesEscpos = [];
+
+            foreach ($taloes as $i => $talao) {
+                $taloesCliente[] = isset($talao['seccoes'])
+                    ? [
+                        'indice' => $i + 1,
+                        'total' => $total,
+                        'seccoes' => collect($talao['seccoes'])->map(fn ($unidades, $secao) => [
+                            'nome' => $printJobs->nomeSecao($secao),
+                            'unidades' => $unidades,
+                        ])->values()->all(),
+                    ]
+                    : [
+                        'indice' => $i + 1,
+                        'total' => $total,
+                        'produto' => $talao['nome'],
+                        'secao' => $printJobs->nomeSecao($talao['secao']),
+                    ];
+
+                if (in_array($modo, ['webusb', 'navegador'], true)) {
+                    $taloesEscpos[] = $printJobs->payloadTalaoJunto($pedido, $talao, $i + 1, $total);
+                }
+            }
+
+            if ($taloesEscpos !== []) {
+                $taloesEscpos[] = $printJobs->payloadTalaoBar($pedido, 'CONTA');
+            }
+
+            return [$taloesCliente, $taloesEscpos];
+        }
 
         // O cliente leva um talao por unidade. No pre-pagamento leva tudo;
         // fora dele, so os produtos marcados como talao individual.

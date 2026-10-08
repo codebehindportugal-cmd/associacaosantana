@@ -11,6 +11,8 @@ const props = defineProps({
     posNome: String,
     pontoBar: String,
     caixaAberta: Boolean,
+    // Modelo do talao junta tudo numa folha: o cliente pode pedir sobremesas/bebidas a parte
+    juntarFolhas: Boolean,
     produtos: Array,
     senhasHoje: Array,
 });
@@ -19,7 +21,25 @@ const agora = ref(new Date());
 const carrinho = ref([]);
 const recebido = ref('');
 const trocoEntregue = ref('');
-const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0 });
+const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0, juntar: {} });
+
+// Senhas: por omissao uma por unidade. Se o cliente pedir, junta-se um grupo numa folha.
+const GRUPOS = [
+    { chave: 'cozinha', label: 'Comida', secoes: null, junto: false },
+    { chave: 'sobremesas', label: 'Sobremesas', secoes: ['sobremesas'], junto: false },
+    { chave: 'bebidas', label: 'Bebidas', secoes: ['bebidas', 'bar', 'cafe'], junto: false },
+];
+const grupoDe = (secao) => GRUPOS.find((g) => g.secoes?.includes(secao))?.chave ?? 'cozinha';
+const juntarPadrao = () => Object.fromEntries(GRUPOS.map((g) => [g.chave, g.junto]));
+const juntar = ref(juntarPadrao());
+// So aparece o botao de um grupo quando a senha tem pelo menos 2 unidades dele
+const gruposNaSenha = computed(() => {
+    if (!props.juntarFolhas) return [];
+    return GRUPOS.filter((g) => carrinho.value
+        .filter((i) => grupoDe(i.secao) === g.chave)
+        .reduce((soma, i) => soma + i.quantidade, 0) >= 2);
+});
+const alternarJuntar = (chave) => { juntar.value = { ...juntar.value, [chave]: !juntar.value[chave] }; };
 let relogio = null;
 let refresh = null;
 
@@ -118,7 +138,7 @@ const chamandoComissao = ref(false);
 
 const adicionar = (produto) => {
     const item = carrinho.value.find((linha) => linha.produto_id === produto.id);
-    item ? item.quantidade++ : carrinho.value.push({ produto_id: produto.id, nome: produto.nome, preco: produto.preco, caucao: Number(produto.caucao || 0), jaTem: 0, quantidade: 1 });
+    item ? item.quantidade++ : carrinho.value.push({ produto_id: produto.id, nome: produto.nome, preco: produto.preco, caucao: Number(produto.caucao || 0), secao: produto.categoria?.secao ?? null, jaTem: 0, quantidade: 1 });
 };
 
 const alterar = (item, delta) => {
@@ -131,9 +151,11 @@ const cobrar = () => {
     form.devolvidos = devolvidos.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
     form.valor_recebido = recebido.value || Math.max(0, aPagar.value);
     form.troco = trocoRegistado.value;
+    form.juntar = Object.fromEntries(Object.entries(juntar.value).map(([k, v]) => [k, v ? 1 : 0]));
     form.post(route('pos.prepago.store'), {
         preserveScroll: true,
         onSuccess: () => {
+            juntar.value = juntarPadrao();
             carrinho.value = [];
             devolvidos.value = [];
             recebido.value = '';
@@ -245,6 +267,7 @@ const escolherRecebido = (valor) => {
 const doouTroco = computed(() => trocoEntregue.value !== '' && Number(trocoEntregue.value) === 0 && troco.value > 0);
 const alternarDoacao = () => { trocoEntregue.value = doouTroco.value ? '' : 0; };
 const limparSenha = () => {
+    juntar.value = juntarPadrao();
     carrinho.value = [];
     devolvidos.value = [];
     recebido.value = '';
@@ -257,7 +280,7 @@ const limparSenha = () => {
     <ChamadaFuncionarioAlert />
     <ComissaoChamadasAlert />
     <main class="flex min-h-screen flex-col bg-fundo font-sans text-tinta tabular-nums lg:h-[100dvh] lg:overflow-hidden">
-        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:py-0">
+        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:py-0 lg:curto:h-12">
             <div class="flex min-w-0 items-baseline gap-4">
                 <h1 class="text-xl font-extrabold">POS {{ pontoBar }}</h1>
                 <span class="truncate text-sm text-escuro-inativo">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) }}</span>
@@ -325,7 +348,7 @@ const limparSenha = () => {
                     </button>
                 </div>
 
-                <section aria-label="Últimas senhas" class="hidden shrink-0 rounded-[14px] border border-linha bg-white px-4 py-3 md:block">
+                <section aria-label="Últimas senhas" class="hidden shrink-0 rounded-[14px] border border-linha bg-white px-4 py-3 md:block curto:hidden">
                     <h2 class="mb-2 text-sm font-extrabold uppercase tracking-wider text-suave">Últimas senhas</h2>
                     <div class="grid max-h-32 gap-2 overflow-y-auto md:grid-cols-3 xl:grid-cols-4">
                         <div v-for="pedido in senhasHoje" :key="pedido.id" class="rounded-[10px] bg-fundo px-2.5 py-2">
@@ -339,8 +362,8 @@ const limparSenha = () => {
                 </section>
             </section>
 
-            <aside aria-label="Senha" class="flex min-h-0 flex-col border-t border-linha bg-white lg:border-l lg:border-t-0">
-                <div class="flex shrink-0 items-center justify-between border-b border-linha px-5 py-3.5">
+            <aside aria-label="Senha" class="flex min-h-0 flex-col border-t lg:overflow-y-auto border-linha bg-white lg:border-l lg:border-t-0">
+                <div class="flex shrink-0 items-center justify-between border-b border-linha px-5 py-3.5 curto:py-2">
                     <h2 class="text-xl font-extrabold">Senha</h2>
                     <div class="flex gap-2">
                         <button v-if="produtosCaucao.length" type="button" class="h-11 rounded-[10px] border border-laranja bg-laranja-claro px-4 text-[15px] font-bold text-laranja-texto disabled:opacity-45" :disabled="!caixaAberta" :aria-expanded="painelMetro" @click="painelMetro = !painelMetro">Devolução de caução</button>
@@ -367,9 +390,9 @@ const limparSenha = () => {
                         </div>
                     </div>
                 </div>
-                <div class="min-h-[120px] flex-1 overflow-y-auto px-5">
+                <div class="min-h-[120px] flex-1 overflow-y-auto px-5 curto:min-h-[84px]">
                     <p v-if="!carrinho.length && !devolvidos.length" class="py-10 text-center text-[15px] text-suave">Escolhe os produtos.</p>
-                    <div v-for="d in devolvidos" :key="`dev-${d.produto_id}`" class="flex items-center gap-3 border-b border-linha-fraca py-3 text-verde-escuro">
+                    <div v-for="d in devolvidos" :key="`dev-${d.produto_id}`" class="flex items-center gap-3 border-b border-linha-fraca py-3 text-verde-escuro curto:py-1.5">
                         <span class="min-w-0 flex-1 truncate text-[17px] font-bold">{{ d.nome }} devolvido</span>
                         <div class="flex items-center gap-2">
                             <button type="button" aria-label="Retirar um devolvido" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterarDevolvido(d, -1)">
@@ -382,7 +405,7 @@ const limparSenha = () => {
                         </div>
                         <span class="w-20 text-right text-base font-bold">-{{ eur(d.caucao * d.quantidade) }}</span>
                     </div>
-                    <div v-for="item in carrinho" :key="item.produto_id" class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-linha-fraca py-3">
+                    <div v-for="item in carrinho" :key="item.produto_id" class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-linha-fraca py-3 curto:py-1.5">
                         <span class="min-w-0 flex-1 truncate text-[17px] font-bold">{{ item.nome }}</span>
                         <div class="flex items-center gap-2">
                             <button type="button" aria-label="Retirar um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterar(item, -1)">
@@ -410,7 +433,7 @@ const limparSenha = () => {
                         </div>
                     </div>
                 </div>
-                <div class="shrink-0 space-y-3 border-t border-linha bg-fundo p-5">
+                <div class="shrink-0 space-y-3 border-t border-linha bg-fundo p-5 curto:space-y-2 curto:p-3">
                     <div v-if="caucaoCobrada || caucaoDescontada" class="space-y-0.5 text-[15px]">
                         <div class="flex justify-between text-suave"><span>Produtos</span><span class="font-bold">{{ eur(total) }}</span></div>
                         <div v-if="caucaoCobrada" class="flex justify-between text-laranja-texto"><span>Caução</span><span class="font-bold">+{{ eur(caucaoCobrada) }}</span></div>
@@ -418,18 +441,18 @@ const limparSenha = () => {
                     </div>
                     <div class="flex items-end justify-between gap-2">
                         <span class="text-[15px] text-suave">A pagar · {{ artigos }} artigos</span>
-                        <span class="text-4xl font-extrabold">{{ eur(Math.max(0, aPagar)) }}</span>
+                        <span class="text-4xl font-extrabold curto:text-3xl">{{ eur(Math.max(0, aPagar)) }}</span>
                     </div>
                     <p v-if="saldoExcedido" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-bold text-perigo-texto">O saldo das cauções devolvidas ({{ eur(caucaoDescontada) }}) é maior que a senha. Junta mais bebidas ou devolve o resto em dinheiro.</p>
                     <div>
                         <span class="text-sm font-semibold text-suave">Recebido</span>
                         <div role="group" aria-label="Valor recebido" class="mt-1 grid grid-cols-4 gap-2">
-                            <button type="button" class="h-14 rounded-[10px] text-base font-bold" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="escolherRecebido('')">Certo</button>
+                            <button type="button" class="h-14 rounded-[10px] text-base font-bold curto:h-11" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="escolherRecebido('')">Certo</button>
                             <button
                                 v-for="v in notasRapidas"
                                 :key="v"
                                 type="button"
-                                class="h-14 rounded-[10px] text-base font-bold"
+                                class="h-14 rounded-[10px] text-base font-bold curto:h-11"
                                 :class="String(recebido) === String(v) ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
                                 :aria-pressed="String(recebido) === String(v)"
                                 @click="escolherRecebido(v)"
@@ -438,34 +461,53 @@ const limparSenha = () => {
                         <div class="mt-2 grid grid-cols-2 gap-2">
                             <label class="block min-w-0">
                                 <span class="mb-1 block truncate text-sm font-semibold text-suave">Outro valor</span>
-                                <input v-model="recebido" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="0,00">
+                                <input v-model="recebido" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold curto:h-10 text-tinta focus:border-verde focus:ring-verde" placeholder="0,00">
                             </label>
                             <label class="block min-w-0">
                                 <span class="mb-1 block truncate text-sm font-semibold text-suave">Troco entregue</span>
-                                <input v-model="trocoEntregue" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" :placeholder="eur(troco)">
+                                <input v-model="trocoEntregue" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold curto:h-10 text-tinta focus:border-verde focus:ring-verde" :placeholder="eur(troco)">
                             </label>
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <div class="rounded-[10px] border border-laranja bg-laranja-claro px-3 py-2">
+                        <div class="rounded-[10px] border border-laranja bg-laranja-claro px-3 py-2 curto:py-1">
                             <span class="block text-sm font-bold text-laranja-texto">Troco a dar</span>
-                            <span class="block text-2xl font-extrabold">{{ eur(trocoRegistado) }}</span>
+                            <span class="block text-2xl font-extrabold curto:text-xl">{{ eur(trocoRegistado) }}</span>
                         </div>
-                        <div class="rounded-[10px] border border-linha-forte bg-fundo px-3 py-2">
+                        <div class="rounded-[10px] border border-linha-forte bg-fundo px-3 py-2 curto:py-1">
                             <span class="block text-sm font-bold text-suave">Doação</span>
-                            <span class="block text-2xl font-extrabold">{{ eur(doacao) }}</span>
+                            <span class="block text-2xl font-extrabold curto:text-xl">{{ eur(doacao) }}</span>
                         </div>
                     </div>
                     <button
+                        v-if="troco > 0 || doouTroco"
                         type="button"
-                        class="h-14 w-full rounded-[10px] border border-laranja text-base font-bold disabled:opacity-45"
+                        class="h-14 w-full rounded-[10px] border border-laranja text-base font-bold disabled:opacity-45 curto:h-11"
                         :class="doouTroco ? 'bg-laranja text-white' : 'bg-laranja-claro text-laranja-texto'"
                         :aria-pressed="doouTroco"
                         :disabled="troco <= 0"
                         @click="alternarDoacao"
                     >{{ doouTroco ? 'Cliente doou o troco — anular' : 'Cliente doa o troco' }}</button>
+                    <div v-if="gruposNaSenha.length" role="group" aria-label="Juntar senhas por secção" class="flex flex-col gap-1.5 curto:gap-1">
+                        <span class="text-sm font-semibold text-suave curto:text-xs">Juntar senhas numa folha — comida inclui frango e acomp.</span>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button
+                                v-for="g in gruposNaSenha"
+                                :key="g.chave"
+                                type="button"
+                                role="switch"
+                                class="flex h-12 min-w-0 flex-col items-center justify-center overflow-hidden rounded-[10px] px-1 leading-tight curto:h-10"
+                                :class="juntar[g.chave] ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white text-tinta'"
+                                :aria-checked="juntar[g.chave]"
+                                @click="alternarJuntar(g.chave)"
+                            >
+                                <span class="max-w-full truncate text-[15px] font-bold">{{ g.label }}</span>
+                                <span class="text-xs font-semibold" :class="juntar[g.chave] ? '' : 'text-suave'">{{ juntar[g.chave] ? '✓ juntas' : 'separadas' }}</span>
+                            </button>
+                        </div>
+                    </div>
                     <AvisoErros :errors="form.errors" class="!p-2" />
-                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || saldoExcedido || form.processing" @click="cobrar">
+                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold curto:h-14 text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || saldoExcedido || form.processing" @click="cobrar">
                         Cobrar e tirar senha
                     </button>
                 </div>

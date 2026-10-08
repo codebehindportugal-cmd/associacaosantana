@@ -2,13 +2,35 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Configuracao;
 use App\Models\PrintJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class PrintAgentController extends Controller
 {
+    /** Chave em `configuracoes` com o token definido no backoffice. */
+    public const CHAVE_TOKEN = 'print_agent_token';
+
+    /** Ultimo pedido do agente aceite / recusado por token errado (cache). */
+    public const CACHE_ULTIMO_OK = 'print_agent_ultimo_ok_at';
+
+    public const CACHE_ULTIMO_401 = 'print_agent_ultimo_401_at';
+
+    /**
+     * Token que o agente tem de enviar. O definido no backoffice
+     * (Impressoras > Agente de impressao) tem prioridade; sem ele, usa o
+     * PRINT_AGENT_TOKEN do .env do servidor, como antes.
+     */
+    public static function tokenAtual(): string
+    {
+        $doSite = (string) Configuracao::where('chave', self::CHAVE_TOKEN)->value('valor');
+
+        return $doSite !== '' ? $doSite : (string) config('services.print_agent.token');
+    }
+
     public function jobs(Request $request): JsonResponse
     {
         $this->autorizarAgente($request);
@@ -143,10 +165,17 @@ class PrintAgentController extends Controller
 
     private function autorizarAgente(Request $request): void
     {
-        $token = (string) config('services.print_agent.token');
+        $token = self::tokenAtual();
         $recebido = (string) ($request->bearerToken() ?: $request->query('token'));
 
-        abort_if($token === '', 503, 'PRINT_AGENT_TOKEN nao configurado.');
-        abort_unless(hash_equals($token, $recebido), 401);
+        abort_if($token === '', 503, 'Token do agente nao configurado (Impressoras > Agente de impressao).');
+
+        if (! hash_equals($token, $recebido)) {
+            // Para o backoffice poder avisar "o agente esta a tentar com o token errado"
+            Cache::put(self::CACHE_ULTIMO_401, now()->toIso8601String(), now()->addDay());
+            abort(401);
+        }
+
+        Cache::put(self::CACHE_ULTIMO_OK, now()->toIso8601String(), now()->addDays(30));
     }
 }

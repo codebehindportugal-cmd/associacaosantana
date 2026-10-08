@@ -97,16 +97,7 @@ class BarController extends Controller
             // Evento com pre-pagamento: um talao por unidade, cada um cortado,
             // agrupados por seccao. A conta sai no fim.
             if (TalaoConfig::atual()->taloesPorSeccao()) {
-                $grupos = $printJobs->unidadesPorSeccao($pedidoFull);
-                $totalTaloes = array_sum(array_map('count', $grupos));
-                $numero = 0;
-
-                foreach ($grupos as $secao => $unidades) {
-                    foreach ($unidades as $nome) {
-                        $numero++;
-                        $printJobs->criarTalaoBarUnitario($pedidoFull, $nome, $secaoImp, $numero, $totalTaloes, $secao);
-                    }
-                }
+                $printJobs->criarTaloesPrepago($pedidoFull, $secaoImp);
 
                 $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
             } else {

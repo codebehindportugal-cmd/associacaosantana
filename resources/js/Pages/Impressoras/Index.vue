@@ -28,6 +28,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    agente: {
+        type: Object,
+        default: () => ({}),
+    },
 })
 
 const showModal = ref(false)
@@ -272,6 +276,53 @@ const ligacaoCurta = {
     navegador: 'Browser (não corta)',
 }
 
+// Token do agente (Raspberry / Windows)
+const verToken = ref(false)
+const copiado = ref('')
+const tokenForm = useForm({ token: '' })
+const tokenAgente = computed(() => props.agente?.token ?? '')
+const tokenVisivel = computed(() => {
+    const t = tokenAgente.value
+    if (!t) return 'Sem token definido'
+    return verToken.value ? t : t.slice(0, 4) + '••••••••••••' + t.slice(-4)
+})
+const comandoPi = computed(() =>
+    `sed -i 's|^PRINT_AGENT_TOKEN=.*|PRINT_AGENT_TOKEN=${tokenAgente.value}|' ~/printer-agent/.env && sudo systemctl restart printer-agent`,
+)
+const avisoAgente = computed(() => {
+    const ok = props.agente?.ultimo_ok_at ? new Date(props.agente.ultimo_ok_at) : null
+    const recusado = props.agente?.ultimo_401_at ? new Date(props.agente.ultimo_401_at) : null
+    if (recusado && (!ok || recusado > ok) && Date.now() - recusado < 5 * 60 * 1000) {
+        return { nivel: 'erro', texto: 'Há um agente a tentar ligar com o token errado. Atualiza o .env dele com o comando abaixo.' }
+    }
+    if (ok && Date.now() - ok < 2 * 60 * 1000) {
+        return { nivel: 'ok', texto: 'Agente ligado — último contacto ' + ok.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) + '.' }
+    }
+    if (ok) {
+        return { nivel: 'aviso', texto: 'Sem contacto do agente desde ' + ok.toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' }) + '.' }
+    }
+    return { nivel: 'aviso', texto: 'Ainda não houve contacto de nenhum agente.' }
+})
+async function copiar(texto, qual) {
+    try {
+        await navigator.clipboard.writeText(texto)
+        copiado.value = qual
+        setTimeout(() => (copiado.value = ''), 2000)
+    } catch {
+        window.prompt('Copia daqui:', texto)
+    }
+}
+function guardarToken() {
+    tokenForm.post(route('impressoras.token-agente'), {
+        preserveScroll: true,
+        onSuccess: () => tokenForm.reset(),
+    })
+}
+function gerarNovoToken() {
+    if (!window.confirm('Gerar um token novo? Os agentes com o token antigo deixam de imprimir até atualizares o .env deles.')) return
+    useForm({}).post(route('impressoras.token-agente'), { preserveScroll: true })
+}
+
 const retentarForm = useForm({})
 function retentarFalhados() {
     retentarForm.post(route('impressoras.retentar-falhados'), { onFinish: () => carregarFila() })
@@ -491,19 +542,65 @@ function retentarFalhados() {
             </form>
 
             <!-- Agente de impressão -->
-            <section class="cartao flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5">
-                <div class="min-w-0 max-w-3xl">
-                    <h3 class="text-lg font-extrabold">Agente de impressão</h3>
-                    <p class="mt-1 text-sm text-suave">
-                        Corre no computador de cada posto: em Windows com as impressoras por USB, ou num
-                        Raspberry Pi na rede das impressoras. O script abaixo é para Linux/Raspberry.
-                    </p>
-                    <code class="mt-2 inline-block rounded-md bg-fundo px-2 py-1 font-mono text-xs text-tinta">chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh</code>
+            <section class="cartao flex flex-col gap-5 p-4 sm:p-5">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div class="min-w-0 max-w-3xl">
+                        <h3 class="text-lg font-extrabold">Agente de impressão</h3>
+                        <p class="mt-1 text-sm text-suave">
+                            Corre num Raspberry Pi na rede das impressoras (ou num PC Windows). Vai buscar os talões
+                            a este site com o token abaixo — tem de ser igual ao <code class="font-mono">PRINT_AGENT_TOKEN</code> do <code class="font-mono">.env</code> dele.
+                        </p>
+                    </div>
+                    <a :href="route('impressoras.download-agente')" class="inline-flex h-12 shrink-0 items-center gap-2 rounded-[10px] bg-tinta px-5 text-[15px] font-bold text-white transition hover:bg-escuro-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
+                        Download setup-pi.sh
+                    </a>
                 </div>
-                <a :href="route('impressoras.download-agente')" class="inline-flex h-12 shrink-0 items-center gap-2 rounded-[10px] bg-tinta px-5 text-[15px] font-bold text-white transition hover:bg-escuro-2">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
-                    Download setup-pi.sh
-                </a>
+
+                <div
+                    class="rounded-[10px] px-4 py-3 text-sm font-semibold"
+                    :class="{
+                        'bg-red-50 text-red-800': avisoAgente.nivel === 'erro',
+                        'bg-emerald-50 text-emerald-800': avisoAgente.nivel === 'ok',
+                        'bg-amber-50 text-amber-900': avisoAgente.nivel === 'aviso',
+                    }"
+                    role="status"
+                >
+                    {{ avisoAgente.texto }}
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <span class="text-sm font-bold">Token do agente</span>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <code class="min-w-0 flex-1 break-all rounded-md bg-fundo px-3 py-2.5 font-mono text-sm">{{ tokenVisivel }}</code>
+                        <button v-if="tokenAgente" type="button" class="btn-sec h-11" @click="verToken = !verToken">{{ verToken ? 'Esconder' : 'Mostrar' }}</button>
+                        <button v-if="tokenAgente" type="button" class="btn-sec h-11" @click="copiar(tokenAgente, 'token')">{{ copiado === 'token' ? 'Copiado ✓' : 'Copiar' }}</button>
+                        <button type="button" class="btn-sec h-11" @click="gerarNovoToken">Gerar novo</button>
+                    </div>
+                    <p v-if="agente?.origem === 'servidor'" class="text-xs text-suave">
+                        Este token vem do <code class="font-mono">.env</code> do servidor. Ao gerar ou definir um aqui, passa a valer o do site.
+                    </p>
+                </div>
+
+                <form class="flex flex-col gap-2" @submit.prevent="guardarToken">
+                    <label for="token-agente" class="text-sm font-bold">Usar um token que já tens</label>
+                    <p class="text-xs text-suave">Ex.: o que está no <code class="font-mono">.env</code> do Raspberry (<code class="font-mono">grep TOKEN ~/printer-agent/.env</code>). Assim não tens de mexer no Raspberry.</p>
+                    <div class="flex flex-wrap gap-2">
+                        <input id="token-agente" v-model="tokenForm.token" type="text" autocomplete="off" spellcheck="false" class="min-w-0 flex-1 rounded-[10px] border-gray-300 font-mono text-sm" placeholder="cola aqui o token" />
+                        <button type="submit" class="btn-pri h-11" :disabled="tokenForm.processing || !tokenForm.token">Guardar</button>
+                    </div>
+                    <InputError :message="tokenForm.errors.token" />
+                </form>
+
+                <div v-if="tokenAgente" class="flex flex-col gap-2">
+                    <span class="text-sm font-bold">Atualizar o Raspberry com este token</span>
+                    <p class="text-xs text-suave">Cola no terminal do Raspberry. Muda o token no <code class="font-mono">.env</code> e reinicia o agente.</p>
+                    <div class="flex flex-wrap items-start gap-2">
+                        <code class="min-w-0 flex-1 break-all rounded-md bg-fundo px-3 py-2.5 font-mono text-xs">{{ comandoPi }}</code>
+                        <button type="button" class="btn-sec h-11" @click="copiar(comandoPi, 'comando')">{{ copiado === 'comando' ? 'Copiado ✓' : 'Copiar comando' }}</button>
+                    </div>
+                    <p class="text-xs text-suave">Instalação nova: <code class="font-mono">chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh</code> e, quando pedir o token, cola o de cima.</p>
+                </div>
             </section>
         </div>
 

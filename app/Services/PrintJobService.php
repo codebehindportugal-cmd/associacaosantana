@@ -225,6 +225,180 @@ class PrintJobService
         return $grupos;
     }
 
+    /**
+     * Grupos de seccoes no modo "senhas juntas por seccao". Cada grupo sai
+     * numa folha (junto) ou uma senha por unidade (separado). O que nao e
+     * bebida nem sobremesa vai para a cozinha.
+     */
+    public const GRUPOS_JUNTOS = [
+        'cozinha' => [],
+        'sobremesas' => ['sobremesas'],
+        'bebidas' => ['bebidas', 'bar', 'cafe'],
+    ];
+
+    /** Por omissao tudo separado: uma senha por unidade. So junta se o cliente pedir. */
+    public const JUNTAR_POR_OMISSAO = [
+        'cozinha' => false,
+        'sobremesas' => false,
+        'bebidas' => false,
+    ];
+
+    public static function grupoDaSeccao(?string $secao): string
+    {
+        foreach (self::GRUPOS_JUNTOS as $grupo => $secoes) {
+            if (in_array($secao, $secoes, true)) {
+                return $grupo;
+            }
+        }
+
+        return 'cozinha';
+    }
+
+    /**
+     * Senhas do pre-pagamento juntas por seccao. Cada grupo (cozinha,
+     * sobremesas, bebidas) sai numa folha se estiver para juntar, ou uma
+     * senha por unidade. $juntar sobrepoe-se a JUNTAR_POR_OMISSAO.
+     *
+     * Cada entrada e uma folha (['seccoes' => [secao => [nomes]]]) ou uma
+     * senha unitaria (['nome' => ..., 'secao' => ...]).
+     *
+     * @param  array<string, bool>  $juntar
+     */
+    public function taloesJuntos(Pedido $pedido, array $juntar = []): array
+    {
+        $juntar = array_merge(self::JUNTAR_POR_OMISSAO, array_intersect_key($juntar, self::GRUPOS_JUNTOS));
+        $grupos = array_fill_keys(array_keys(self::GRUPOS_JUNTOS), []);
+
+        foreach ($this->unidadesPorSeccao($pedido) as $secao => $unidades) {
+            $grupos[self::grupoDaSeccao($secao)][$secao] = $unidades;
+        }
+
+        $taloes = [];
+
+        foreach ($grupos as $grupo => $porSeccao) {
+            if (! $porSeccao) {
+                continue;
+            }
+
+            if ($juntar[$grupo]) {
+                $taloes[] = ['seccoes' => $porSeccao];
+
+                continue;
+            }
+
+            foreach ($porSeccao as $secao => $unidades) {
+                foreach ($unidades as $nome) {
+                    $taloes[] = ['nome' => $nome, 'secao' => $secao];
+                }
+            }
+        }
+
+        return $taloes;
+    }
+
+    /** Payload de uma entrada de taloesJuntos(): folha ou senha unitaria. */
+    public function payloadTalaoJunto(Pedido $pedido, array $talao, int $indice = 1, int $total = 1): array
+    {
+        return isset($talao['seccoes'])
+            ? $this->payloadFolhaJunta($pedido, $talao['seccoes'], $indice, $total)
+            : $this->payloadTalaoUnitario($pedido, $talao['nome'], $indice, $total, $talao['secao']);
+    }
+
+    /**
+     * Uma folha com varias seccoes: senha, e por cada seccao o titulo e uma
+     * linha por unidade, para quem entrega ir riscando.
+     *
+     * @param  array<string, array<int, string>>  $porSeccao
+     */
+    public function payloadFolhaJunta(Pedido $pedido, array $porSeccao, int $indice = 1, int $total = 1): array
+    {
+        $talao = TalaoConfig::atual();
+        $linhas = [
+            ...$talao->linhasCabecalho(),
+            'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
+            'Hora: '.now()->format('H:i'),
+            ...($pedido->numero_senha ? [[
+                'texto' => 'SENHA #'.$pedido->numero_senha,
+                'alinhamento' => 'centro',
+                'tamanho' => 'grande',
+            ]] : []),
+        ];
+
+        foreach ($porSeccao as $secao => $unidades) {
+            $linhas[] = '------------------------------';
+            $linhas[] = [
+                'texto' => mb_strtoupper($this->nomeSecao($secao), 'UTF-8'),
+                'alinhamento' => 'centro',
+            ];
+
+            foreach ($unidades as $nome) {
+                $linhas[] = [
+                    'texto' => '1x '.$nome,
+                    'alinhamento' => 'centro',
+                    'tamanho' => 'grande',
+                ];
+            }
+        }
+
+        $linhas[] = '------------------------------';
+
+        if ($total > 1) {
+            $linhas[] = ['texto' => 'Talao '.$indice.' de '.$total, 'alinhamento' => 'centro'];
+        }
+
+        return [
+            'titulo' => $talao->tituloImpresso(),
+            'subtitulo' => 'SENHA',
+            'linhas' => [...$linhas, ...$talao->linhasInstrucoes()],
+            'cortar' => true,
+        ];
+    }
+
+    /**
+     * Cria as senhas do cliente no pre-pagamento: uma por unidade, menos os
+     * grupos que o cliente pediu juntos numa folha. A conta fica a cargo de quem chama.
+     *
+     * @return array<int, PrintJob|null>
+     */
+    public function criarTaloesPrepago(Pedido $pedido, string $secaoImpressora, array $juntar = []): array
+    {
+        if (array_filter($juntar)) {
+            $taloes = $this->taloesJuntos($pedido, $juntar);
+            $impressora = $this->impressoraParaSecao($secaoImpressora);
+            $jobs = [];
+
+            if (! $impressora) {
+                return [];
+            }
+
+            foreach ($taloes as $i => $talao) {
+                $jobs[] = PrintJob::create([
+                    'impressora_id' => $impressora->id,
+                    'printable_type' => $pedido::class,
+                    'printable_id' => $pedido->id,
+                    'tipo' => 'talao_bar',
+                    'payload' => $this->payloadTalaoJunto($pedido, $talao, $i + 1, count($taloes)),
+                ]);
+            }
+
+            return $jobs;
+        }
+
+        $grupos = $this->unidadesPorSeccao($pedido);
+        $totalTaloes = array_sum(array_map('count', $grupos));
+        $numero = 0;
+        $jobs = [];
+
+        foreach ($grupos as $secao => $unidades) {
+            foreach ($unidades as $nome) {
+                $numero++;
+                $jobs[] = $this->criarTalaoBarUnitario($pedido, $nome, $secaoImpressora, $numero, $totalTaloes, $secao);
+            }
+        }
+
+        return $jobs;
+    }
+
     /** Nome legivel da seccao, para o cliente saber onde levantar. */
     public function nomeSecao(?string $secao): string
     {

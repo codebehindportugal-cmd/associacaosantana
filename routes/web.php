@@ -282,6 +282,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('contas-festa/{contasFesta}', [FestaContaController::class, 'update'])->name('contas-festa.update');
     Route::delete('contas-festa/{contasFesta}', [FestaContaController::class, 'destroy'])->name('contas-festa.destroy');
     Route::get('impressoras/download-agente', [ImpressoraController::class, 'downloadAgente'])->name('impressoras.download-agente');
+    Route::post('impressoras/token-agente', [ImpressoraController::class, 'guardarTokenAgente'])->name('impressoras.token-agente');
     Route::post('impressoras/retentar-falhados', [ImpressoraController::class, 'retentarFalhados'])->name('impressoras.retentar-falhados');
     Route::get('impressoras/status-jobs', [ImpressoraController::class, 'statusJobs'])->name('impressoras.status-jobs');
     Route::get('impressoras/teste-usb', [ImpressoraController::class, 'testeUsb'])->name('impressoras.teste-usb');

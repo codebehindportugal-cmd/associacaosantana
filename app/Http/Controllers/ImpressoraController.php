@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Configuracao;
 use App\Models\Impressora;
 use App\Models\PosSession;
 use App\Models\TalaoConfig;
@@ -9,7 +10,9 @@ use App\Models\PrintJob;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -43,7 +46,46 @@ class ImpressoraController extends Controller
             'terminais' => PosSession::orderBy('nome')->get(['id', 'nome', 'tipo', 'localizacao', 'impressora_id', 'impressao_navegador', 'ativo']),
             'tiposTerminal' => ['restaurante', 'reservas', 'bar', 'cafe', 'cotas'],
             'tiposImpressora' => Impressora::TIPOS,
+            'agente' => $this->estadoAgente(),
         ]);
+    }
+
+    /**
+     * Guarda o token do agente. Sem token no pedido, gera um novo.
+     * Mudar o token desliga os agentes que ainda tenham o antigo.
+     */
+    public function guardarTokenAgente(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'token' => ['nullable', 'string', 'min:16', 'max:120', 'regex:/^[A-Za-z0-9_\-\.]+$/'],
+        ], [
+            'token.min' => 'O token tem de ter pelo menos 16 caracteres.',
+            'token.regex' => 'O token so pode ter letras, numeros, - _ e .',
+        ]);
+
+        $token = ($data['token'] ?? '') ?: Str::random(40);
+
+        Configuracao::updateOrCreate(
+            ['chave' => PrintAgentController::CHAVE_TOKEN],
+            ['valor' => $token, 'descricao' => 'Token do agente de impressao (Raspberry / Windows)'],
+        );
+
+        Cache::forget(PrintAgentController::CACHE_ULTIMO_401);
+
+        return back()->with('success', 'Token do agente guardado. Atualiza o .env do Raspberry com o comando indicado.');
+    }
+
+    private function estadoAgente(): array
+    {
+        $doSite = (string) Configuracao::where('chave', PrintAgentController::CHAVE_TOKEN)->value('valor');
+
+        return [
+            'token' => PrintAgentController::tokenAtual(),
+            'origem' => $doSite !== '' ? 'site' : (config('services.print_agent.token') ? 'servidor' : null),
+            'url' => rtrim((string) config('app.url'), '/'),
+            'ultimo_ok_at' => Cache::get(PrintAgentController::CACHE_ULTIMO_OK),
+            'ultimo_401_at' => Cache::get(PrintAgentController::CACHE_ULTIMO_401),
+        ];
     }
 
     /**

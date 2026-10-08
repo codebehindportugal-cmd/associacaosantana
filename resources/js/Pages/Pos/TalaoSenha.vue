@@ -123,11 +123,17 @@ onMounted(() => {
                 <div class="talao-numero font-sans text-[88px] font-extrabold leading-none tracking-[-.02em]">#{{ senha }}</div>
             </div>
 
-            <div class="text-[22px] font-bold leading-tight">1x {{ talaoSeccao.produto }}</div>
-            <div v-if="talaoSeccao.secao" class="mt-1.5 inline-block bg-black px-3 py-1 text-base font-bold uppercase tracking-[.08em] text-white">{{ talaoSeccao.secao }}</div>
+            <template v-if="talaoSeccao.seccoes">
+                <div v-for="s in talaoSeccao.seccoes" :key="s.nome" class="border-b border-dashed border-black py-2 last:border-b-0">
+                    <div class="mb-1 inline-block bg-black px-3 py-0.5 text-sm font-bold uppercase tracking-[.08em] text-white">{{ s.nome }}</div>
+                    <div v-for="(nome, i) in s.unidades" :key="i" class="text-lg font-bold leading-snug">1x {{ nome }}</div>
+                </div>
+            </template>
+            <div v-else class="text-[22px] font-bold leading-tight">1x {{ talaoSeccao.produto }}</div>
+            <div v-if="!talaoSeccao.seccoes && talaoSeccao.secao" class="mt-1.5 inline-block bg-black px-3 py-1 text-base font-bold uppercase tracking-[.08em] text-white">{{ talaoSeccao.secao }}</div>
 
             <div v-if="talaoSeccao.total > 1" class="mt-2.5 text-xs font-bold">
-                Talão {{ talaoSeccao.indice }} de {{ talaoSeccao.total }}
+                {{ talaoSeccao.seccoes ? 'Folha' : 'Talão' }} {{ talaoSeccao.indice }} de {{ talaoSeccao.total }}
             </div>
 
             <div v-if="instrucoes.length" class="mt-2.5 border-t border-dashed border-black pt-2 text-[11px] font-bold leading-snug">

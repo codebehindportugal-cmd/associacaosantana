@@ -260,6 +260,7 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
                                 <span class="block text-suave">
                                     O cliente paga tudo à cabeça e cada unidade sai no seu talão, cortado, com a senha e a
                                     secção onde se levanta. Saem agrupados por secção e a conta vem no fim. Tudo na mesma impressora, a do posto.
+                                    Se o cliente pedir, no POS junta-se uma secção (comida, sobremesas ou bebidas) numa só folha.
                                 </span>
                                 <span class="mt-1 block text-suave">
                                     <strong class="text-tinta">Desligado (restaurante e café):</strong> o funcionamento do costume, incluindo a festa anual — o pedido

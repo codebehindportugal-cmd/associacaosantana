@@ -12,6 +12,10 @@ export default {
 
     theme: {
         extend: {
+            screens: {
+                // Ecras baixos (portateis/Chromebooks deitados): compacta o POS
+                curto: { raw: '(max-height: 820px)' },
+            },
             fontFamily: {
                 sans: ['Archivo', ...defaultTheme.fontFamily.sans],
                 display: ['Archivo', ...defaultTheme.fontFamily.sans],
