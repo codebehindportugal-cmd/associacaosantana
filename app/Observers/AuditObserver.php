@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class AuditObserver
 {
@@ -54,7 +55,26 @@ class AuditObserver
         $this->write('apagado', $model, $this->cleanValues($model->getOriginal()), null);
     }
 
+    /**
+     * O registo de auditoria nunca pode fazer falhar a operacao que regista
+     * (ex.: uma venda no POS a meio do evento). Se nao conseguir gravar,
+     * deixa aviso no log e segue.
+     */
     private function write(string $action, Model $model, ?array $oldValues, ?array $newValues): void
+    {
+        try {
+            $this->gravar($action, $model, $oldValues, $newValues);
+        } catch (\Throwable $e) {
+            Log::warning('Auditoria nao gravada', [
+                'acao' => $action,
+                'modelo' => $model::class,
+                'id' => $model->getKey(),
+                'erro' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function gravar(string $action, Model $model, ?array $oldValues, ?array $newValues): void
     {
         $request = request();
         $user = Auth::user();

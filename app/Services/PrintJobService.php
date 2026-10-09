@@ -331,9 +331,10 @@ class PrintJobService
                 'alinhamento' => 'centro',
             ];
 
-            foreach ($unidades as $nome) {
+            // Produtos iguais numa linha so: "2x Bifana"
+            foreach (array_count_values($unidades) as $nome => $quantidade) {
                 $linhas[] = [
-                    'texto' => '1x '.$nome,
+                    'texto' => $quantidade.'x '.$nome,
                     'alinhamento' => 'centro',
                     'tamanho' => 'grande',
                 ];
@@ -397,6 +398,65 @@ class PrintJobService
         }
 
         return $jobs;
+    }
+
+    /**
+     * Marca um talao como 2a via: aviso grande no topo, para quem entrega
+     * saber que aquela senha ja foi impressa antes. Nunca abre a gaveta.
+     */
+    public static function marcarSegundaVia(array $payload): array
+    {
+        $aviso = ['texto' => '*** 2a VIA ***', 'alinhamento' => 'centro', 'tamanho' => 'grande'];
+
+        return [
+            ...$payload,
+            'subtitulo' => trim(($payload['subtitulo'] ?? '').' 2a VIA'),
+            'linhas' => [$aviso, ...($payload['linhas'] ?? [])],
+            'abrir_caixa' => false,
+        ];
+    }
+
+    /** Talao de senha anulada: para ficar registo na caixa e dar ao cliente. */
+    public function payloadAnulacao(Pedido $pedido, float $devolver): array
+    {
+        $talao = TalaoConfig::atual();
+
+        return [
+            'titulo' => $talao->tituloImpresso(),
+            'subtitulo' => 'ANULADA',
+            'linhas' => [
+                ['texto' => 'SENHA #'.$pedido->numero_senha, 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+                ['texto' => 'ANULADA', 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+                '------------------------------',
+                'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
+                'Vendida as: '.$pedido->created_at?->format('H:i'),
+                'Anulada as: '.now()->format('H:i'),
+                'Por: '.($pedido->anulado_por ?: '-'),
+                'Motivo: '.($pedido->motivo_anulacao ?: '-'),
+                'Pagamento: '.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento ?: 'dinheiro'] ?? $pedido->metodo_pagamento),
+                '------------------------------',
+                ['texto' => 'Devolver: '.$this->euros($devolver), 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+            ],
+            'cortar' => true,
+        ];
+    }
+
+    /** Cria um trabalho de impressao com um payload ja feito. */
+    public function criarPayload(Pedido $pedido, array $payload, string $secaoImpressora = 'bar'): ?PrintJob
+    {
+        $impressora = $this->impressoraParaSecao($secaoImpressora);
+
+        if (! $impressora) {
+            return null;
+        }
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $pedido::class,
+            'printable_id' => $pedido->id,
+            'tipo' => 'talao_bar',
+            'payload' => $payload,
+        ]);
     }
 
     /** Nome legivel da seccao, para o cliente saber onde levantar. */
@@ -723,8 +783,11 @@ class PrintJobService
             ))->all(),
             '------------------------------',
             ...$this->linhasCaucao($pedido, $total),
-            'Recebido: '.$this->euros($valorRecebido),
-            'Troco: '.$this->euros($troco),
+            'Pagamento: '.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento ?: 'dinheiro'] ?? $pedido->metodo_pagamento),
+            ...(($pedido->metodo_pagamento ?: 'dinheiro') === 'dinheiro' ? [
+                'Recebido: '.$this->euros($valorRecebido),
+                'Troco: '.$this->euros($troco),
+            ] : []),
             ...($doacao > 0 ? ['Donativo: '.$this->euros($doacao)] : []),
             '',
             ...TalaoConfig::atual()->linhasRodape(),

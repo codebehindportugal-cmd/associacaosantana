@@ -7,9 +7,11 @@ use App\Models\CaucaoDevolucao;
 use App\Models\Configuracao;
 use App\Models\Pedido;
 use App\Models\PosSession;
+use App\Models\PrintJob;
 use App\Models\Produto;
 use App\Models\TalaoConfig;
 use App\Services\PrintJobService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,7 +62,10 @@ class PosBarController extends Controller
             // Senhas juntas por seccao: que grupos saem numa folha (o resto, uma a uma)
             'juntar' => ['nullable', 'array'],
             'juntar.*' => ['boolean'],
+            'metodo_pagamento' => ['nullable', Rule::in(array_keys(Pedido::METODOS_PREPAGO))],
         ]);
+
+        $metodo = $data['metodo_pagamento'] ?? 'dinheiro';
 
         $juntar = array_map('boolval', array_intersect_key($data['juntar'] ?? [], PrintJobService::GRUPOS_JUNTOS));
         $ponto = session('pos_localizacao') ?: session('pos_nome');
@@ -69,7 +74,7 @@ class PosBarController extends Controller
             return back()->withErrors(['ponto_bar' => 'Abre a caixa deste ponto no backoffice antes de vender.']);
         }
 
-        return DB::transaction(function () use ($data, $ponto, $printJobs, $juntar) {
+        return DB::transaction(function () use ($data, $ponto, $printJobs, $juntar, $metodo) {
             $produtos = Produto::with('categoria')->whereIn('id', collect($data['items'])->pluck('produto_id'))->get()->keyBy('id');
             $total = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->preco * (int) $item['quantidade']), 2);
 
@@ -88,8 +93,9 @@ class PosBarController extends Controller
             }
 
             $aPagar = round($total + $caucaoCobrada - $caucaoDescontada, 2);
-            $valorRecebido = round((float) $data['valor_recebido'], 2);
-            $troco = round((float) ($data['troco'] ?? 0), 2);
+            // MB WAY e contactless: paga-se o valor certo, sem troco nem gaveta
+            $valorRecebido = $metodo === 'dinheiro' ? round((float) $data['valor_recebido'], 2) : $aPagar;
+            $troco = $metodo === 'dinheiro' ? round((float) ($data['troco'] ?? 0), 2) : 0.0;
             $excedente = round($valorRecebido - $aPagar, 2);
 
             if ($valorRecebido < $aPagar) {
@@ -114,7 +120,7 @@ class PosBarController extends Controller
                 'valor_recebido' => $valorRecebido,
                 'troco' => $troco,
                 'doacao' => max(0, round($excedente - $troco, 2)),
-                'metodo_pagamento' => 'dinheiro',
+                'metodo_pagamento' => $metodo,
             ]);
 
             foreach ($data['items'] as $item) {
@@ -142,94 +148,286 @@ class PosBarController extends Controller
                 ]);
             }
 
-            $pedidoFull = $pedido->fresh('items.produto.categoria', 'pos');
-            $secaoImp   = $this->secaoImpressora();
+            $pedido->update(['juntar' => $juntar ?: null]);
+
+            return $this->imprimirPedido(
+                $pedido,
+                $printJobs,
+                abrirGaveta: $metodo === 'dinheiro',
+                sucesso: 'Senha #'.$pedido->numero_senha.' enviada para a impressora.',
+            );
+        });
+    }
+
+    /**
+     * Senhas anteriores deste ponto (o dia do evento vai das 12h as 12h), para
+     * reimprimir ou anular a pedido do cliente.
+     */
+    public function senhas(Request $request): JsonResponse
+    {
+        $ponto = session('pos_localizacao') ?: session('pos_nome');
+        $numero = (int) $request->query('numero');
+
+        $pedidos = Pedido::where('tipo', 'bar_prepago')
+            ->where('ponto_bar', $ponto)
+            ->where('created_at', '>=', now()->subHours(self::HORAS_SENHAS_ANTERIORES))
+            ->when($numero > 0, fn ($q) => $q->where('numero_senha', $numero))
+            ->with('items.produto')
+            ->latest('id')
+            ->limit(80)
+            ->get();
+
+        return response()->json([
+            'senhas' => $pedidos->map(fn (Pedido $p) => $this->resumoSenha($p))->values(),
+        ]);
+    }
+
+    /** 2a via: tudo (senhas + conta) ou so a conta. */
+    public function reimprimir(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
+    {
+        $this->autorizarSenha($pedido);
+        abort_if($pedido->estado === 'cancelado', 422, 'Esta senha foi anulada.');
+
+        $data = $request->validate(['o' => ['required', Rule::in(['tudo', 'conta'])]]);
+
+        $pedido->increment('reimpressoes');
+
+        return $this->imprimirPedido(
+            $pedido->fresh(),
+            $printJobs,
+            abrirGaveta: false,
+            sucesso: 'Senha #'.$pedido->numero_senha.' reimpressa ('.($data['o'] === 'conta' ? 'so a conta' : 'senhas e conta').').',
+            segundaVia: $data['o'],
+        );
+    }
+
+    /**
+     * Anula a senha a pedido do cliente: deixa de contar nas vendas e na caixa,
+     * os taloes que ainda nao sairam ja nao saem, e sai um talao "ANULADA" com o
+     * valor a devolver. Metros que o cliente tinha trocado nesta senha passam a
+     * devolucao em dinheiro.
+     */
+    public function anular(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
+    {
+        $this->autorizarSenha($pedido);
+
+        $data = $request->validate(['motivo' => ['required', 'string', 'min:3', 'max:255']], [
+            'motivo.required' => 'Escreve o motivo da anulacao.',
+            'motivo.min' => 'Escreve o motivo da anulacao.',
+        ]);
+
+        if ($pedido->estado === 'cancelado') {
+            return back()->withErrors(['motivo' => 'Esta senha ja estava anulada.']);
+        }
+
+        if ($pedido->created_at->lt(now()->subHours(self::HORAS_SENHAS_ANTERIORES))) {
+            return back()->withErrors(['motivo' => 'So se anulam senhas do proprio dia. Fala com a comissao.']);
+        }
+
+        return DB::transaction(function () use ($pedido, $data, $printJobs) {
+            $pedido = Pedido::lockForUpdate()->findOrFail($pedido->id);
+
+            if ($pedido->estado === 'cancelado') {
+                return back()->withErrors(['motivo' => 'Esta senha ja estava anulada.']);
+            }
+
+            $pago = round((float) $pedido->total + (float) $pedido->caucao_cobrada - (float) $pedido->caucao_descontada + (float) $pedido->doacao, 2);
+            $metros = round((float) $pedido->caucao_descontada, 2);
+
+            // O cliente tinha trocado metros por bebidas nesta senha: recebe a caucao em dinheiro
+            CaucaoDevolucao::where('pedido_id', $pedido->id)->where('modo', 'bebidas')->update(['modo' => 'dinheiro']);
+
+            $pedido->update([
+                'estado' => 'cancelado',
+                'pago_antecipado' => false,
+                'anulado_em' => now(),
+                'anulado_por' => session('pos_operador') ?: session('pos_nome'),
+                'motivo_anulacao' => $data['motivo'],
+                'valor_devolvido' => $pago + $metros,
+            ]);
+
+            // Taloes desta senha que ainda nao sairam ja nao saem
+            PrintJob::where('printable_type', Pedido::class)
+                ->where('printable_id', $pedido->id)
+                ->whereIn('estado', ['pendente', 'processando', 'falhado'])
+                ->update(['estado' => 'falhado', 'tentativas' => 10, 'ultimo_erro' => 'Senha anulada', 'reservado_ate' => null]);
+
+            $dinheiroDaGaveta = (($pedido->metodo_pagamento ?: 'dinheiro') === 'dinheiro' ? $pago : 0) + $metros;
+            $mensagem = 'Senha #'.$pedido->numero_senha.' anulada. Devolver '.number_format($pago + $metros, 2, ',', ' ').' €'
+                .(($pedido->metodo_pagamento ?: 'dinheiro') !== 'dinheiro' ? ' ('.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento] ?? $pedido->metodo_pagamento).($metros > 0 ? ' + '.number_format($metros, 2, ',', ' ').' € de caucao em dinheiro' : '').')' : '')
+                .'.';
 
             $terminal = PosSession::find(session('pos_id'));
             $impressora = $terminal?->impressora;
+            $payload = $printJobs->payloadAnulacao($pedido, $pago + $metros);
+            if ($dinheiroDaGaveta > 0) {
+                $payload['abrir_caixa'] = true;
+            }
 
-            // Como imprime este posto e uma definicao da impressora dele:
-            // rede/usb passam pelo agente, webusb e navegador imprimem na
-            // propria pagina do talao. Sem impressora definida, mantem-se o
-            // comportamento antigo por seccao, pelo agente.
-            $viaAgente = $impressora ? $impressora->usaAgente() : true;
+            if (! $impressora || $impressora->usaAgente()) {
+                $printJobs->paraImpressora($terminal?->impressora_id)->criarPayload($pedido, $payload, $this->secaoImpressora());
 
-            // Sem isto, o talao sairia na primeira impressora da seccao
-            $printJobs->paraImpressora($terminal?->impressora_id);
+                return to_route('pos.index')->with('success', $mensagem);
+            }
 
-            // Evento com pre-pagamento: sai um talao por UNIDADE, cada um
-            // cortado, agrupados por seccao para saírem pela ordem das
-            // tasquinhas. A conta sai no fim.
-            $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
-            $jobs = [];
+            if ($impressora->tipo === 'webusb') {
+                return to_route('pos.index')->with('success', $mensagem)->with('imprimir', [
+                    'pedido_id' => 'anulada-'.$pedido->id,
+                    'modo' => 'webusb',
+                    'escpos' => [$payload],
+                ]);
+            }
 
-            if ($viaAgente && $porSeccao) {
-                // Uma senha por unidade, ou juntas por seccao, conforme o modelo
-                $jobs = $printJobs->criarTaloesPrepago($pedidoFull, $secaoImp, $juntar);
+            return to_route('pos.index')->with('success', $mensagem);
+        });
+    }
 
-                // A conta sai no fim, para quem esta na caixa conferir
-                $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
-            } elseif ($viaAgente) {
-                $itensIndividuais = $pedidoFull->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
-                $itensOutros = $pedidoFull->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
+    /** Horas para tras em que as senhas aparecem no POS (e se podem anular). */
+    private const HORAS_SENHAS_ANTERIORES = 14;
 
-                $totalTaloes = (int) $itensIndividuais->sum('quantidade');
-                $numero = 0;
+    /** A senha tem de ser do pre-pagamento deste ponto. */
+    private function autorizarSenha(Pedido $pedido): void
+    {
+        $ponto = session('pos_localizacao') ?: session('pos_nome');
 
-                foreach ($itensIndividuais as $item) {
-                    for ($u = 0; $u < $item->quantidade; $u++) {
-                        $numero++;
-                        $jobs[] = $printJobs->criarTalaoBarUnitario(
-                            $pedidoFull,
-                            $item->produto->nome,
-                            $secaoImp,
-                            $numero,
-                            $totalTaloes,
-                            $item->produto->categoria->secao ?? null,
-                        );
-                    }
-                }
+        abort_unless($pedido->tipo === 'bar_prepago' && $pedido->ponto_bar === $ponto, 404);
+    }
 
-                if ($itensOutros->isNotEmpty()) {
-                    $jobs[] = $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+    private function resumoSenha(Pedido $p): array
+    {
+        $pago = round((float) $p->total + (float) $p->caucao_cobrada - (float) $p->caucao_descontada, 2);
+
+        return [
+            'id' => $p->id,
+            'numero' => $p->numero_senha,
+            'hora' => $p->created_at?->format('H:i'),
+            'operador' => $p->operador_nome,
+            'total' => (float) $p->total,
+            'caucao_cobrada' => (float) $p->caucao_cobrada,
+            'caucao_descontada' => (float) $p->caucao_descontada,
+            'pago' => $pago,
+            'doacao' => (float) $p->doacao,
+            'metodo' => $p->metodo_pagamento ?: 'dinheiro',
+            'metodo_nome' => Pedido::METODOS_PREPAGO[$p->metodo_pagamento ?: 'dinheiro'] ?? $p->metodo_pagamento,
+            'reimpressoes' => (int) $p->reimpressoes,
+            'anulada' => $p->estado === 'cancelado',
+            'anulado_em' => $p->anulado_em?->format('H:i'),
+            'anulado_por' => $p->anulado_por,
+            'motivo_anulacao' => $p->motivo_anulacao,
+            'valor_devolvido' => $p->valor_devolvido !== null ? (float) $p->valor_devolvido : null,
+            'itens' => $p->items->map(fn ($i) => [
+                'nome' => $i->produto?->nome ?? 'Produto',
+                'quantidade' => (int) $i->quantidade,
+                'valor' => round((float) $i->preco_unitario * (int) $i->quantidade, 2),
+            ])->values(),
+        ];
+    }
+
+    /**
+     * Imprime os taloes de um pedido pre-pago na impressora do posto: senhas
+     * (uma por unidade ou juntas por seccao) e a conta no fim. Na 2a via os
+     * taloes levam "2a VIA" e nunca abrem a gaveta.
+     *
+     * @param  string|null  $segundaVia  null (venda), 'tudo' ou 'conta'
+     */
+    private function imprimirPedido(Pedido $pedido, PrintJobService $printJobs, bool $abrirGaveta, string $sucesso, ?string $segundaVia = null): RedirectResponse
+    {
+        $pedidoFull = $pedido->fresh('items.produto.categoria', 'pos');
+        $juntar = array_map('boolval', (array) ($pedidoFull->juntar ?? []));
+        $secaoImp = $this->secaoImpressora();
+
+        $terminal = PosSession::find(session('pos_id'));
+        $impressora = $terminal?->impressora;
+
+        // Como imprime este posto e uma definicao da impressora dele:
+        // rede/usb passam pelo agente, webusb e navegador imprimem na
+        // propria pagina do talao. Sem impressora definida, mantem-se o
+        // comportamento antigo por seccao, pelo agente.
+        $viaAgente = $impressora ? $impressora->usaAgente() : true;
+
+        // Sem isto, o talao sairia na primeira impressora da seccao
+        $printJobs->paraImpressora($terminal?->impressora_id);
+
+        // Evento com pre-pagamento: sai um talao por UNIDADE (ou juntos por
+        // seccao, a pedido do cliente), agrupados por seccao. A conta no fim.
+        $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
+        $jobs = [];
+
+        if ($viaAgente && $segundaVia === 'conta') {
+            $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
+        } elseif ($viaAgente && $porSeccao) {
+            $jobs = $printJobs->criarTaloesPrepago($pedidoFull, $secaoImp, $juntar);
+
+            // A conta sai no fim, para quem esta na caixa conferir
+            $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
+        } elseif ($viaAgente) {
+            $itensIndividuais = $pedidoFull->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
+            $itensOutros = $pedidoFull->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
+
+            $totalTaloes = (int) $itensIndividuais->sum('quantidade');
+            $numero = 0;
+
+            foreach ($itensIndividuais as $item) {
+                for ($u = 0; $u < $item->quantidade; $u++) {
+                    $numero++;
+                    $jobs[] = $printJobs->criarTalaoBarUnitario(
+                        $pedidoFull,
+                        $item->produto->nome,
+                        $secaoImp,
+                        $numero,
+                        $totalTaloes,
+                        $item->produto->categoria->secao ?? null,
+                    );
                 }
             }
 
+            if ($itensOutros->isNotEmpty()) {
+                $jobs[] = $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+            }
+        }
+
+        $jobs = collect($jobs)->filter();
+
+        if ($segundaVia) {
+            $jobs->each(fn (PrintJob $job) => $job->update(['payload' => PrintJobService::marcarSegundaVia($job->payload)]));
+        } elseif ($abrirGaveta && $primeiro = $jobs->first()) {
             // Venda a dinheiro: a gaveta abre com o primeiro talao que sai
             // (ESC p no inicio dos bytes), para nao ficar a espera do resto.
-            if ($primeiro = collect($jobs)->filter()->first()) {
-                $primeiro->update(['payload' => [...$primeiro->payload, 'abrir_caixa' => true]]);
+            $primeiro->update(['payload' => [...$primeiro->payload, 'abrir_caixa' => true]]);
+        }
+
+        // Pelo agente, o talao sai sozinho na impressora.
+        if ($viaAgente) {
+            return to_route('pos.index')->with('success', $sucesso);
+        }
+
+        // WebUSB/navegador: fica-se no ecra de venda e e o proprio POS
+        // que imprime (e abre a gaveta), sem passar pela pagina do talao.
+        $modo = $impressora->tipo;
+        $escpos = [];
+
+        if ($modo === 'webusb') {
+            [, $escpos] = $this->taloesDoPedido($pedidoFull, $printJobs, $modo, $juntar);
+
+            if ($segundaVia === 'conta') {
+                $escpos = array_slice($escpos, -1);
             }
 
-            $sucesso = 'Senha #'.$pedido->numero_senha.' enviada para a impressora.';
-
-            // Pelo agente, o talao sai sozinho na impressora.
-            if ($viaAgente) {
-                return to_route('pos.index')->with('success', $sucesso);
+            if ($segundaVia) {
+                $escpos = array_map([PrintJobService::class, 'marcarSegundaVia'], $escpos);
+            } elseif ($escpos !== [] && $abrirGaveta) {
+                $escpos[0]['abrir_caixa'] = true;
             }
+        }
 
-            // WebUSB/navegador: fica-se no ecra de venda e e o proprio POS
-            // que imprime (e abre a gaveta), sem passar pela pagina do talao.
-            $modo = $impressora->tipo;
-            $escpos = [];
-
-            if ($modo === 'webusb') {
-                [, $escpos] = $this->taloesDoPedido($pedidoFull, $printJobs, $modo, $juntar);
-
-                if ($escpos !== []) {
-                    $escpos[0]['abrir_caixa'] = true;
-                }
-            }
-
-            return to_route('pos.index')
-                ->with('success', $sucesso)
-                ->with('imprimir', [
-                    'pedido_id' => $pedido->id,
-                    'modo' => $modo,
-                    'url' => route('pos.pedido.talao', $juntar ? [$pedido, 'juntar' => array_map('intval', $juntar)] : $pedido),
-                    'escpos' => $escpos,
-                ]);
-        });
+        return to_route('pos.index')
+            ->with('success', $sucesso)
+            ->with('imprimir', [
+                'pedido_id' => $segundaVia ? 'via-'.$pedido->id.'-'.$pedido->reimpressoes : $pedido->id,
+                'modo' => $modo,
+                'url' => route('pos.pedido.talao', $juntar ? [$pedido, 'juntar' => array_map('intval', $juntar)] : $pedido),
+                'escpos' => $escpos,
+            ]);
     }
 
     /**

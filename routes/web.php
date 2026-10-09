@@ -120,6 +120,9 @@ Route::middleware('pos.auth')->prefix('pos')->name('pos.')->group(function () {
     Route::post('/prepago', [PosBarController::class, 'storePrepago'])->name('prepago.store');
     Route::post('/caucao/devolver', [PosBarController::class, 'devolverCaucao'])->name('caucao.devolver');
     Route::get('/pedido/{pedido}/talao', [PosBarController::class, 'talao'])->name('pedido.talao');
+    Route::get('/senhas', [PosBarController::class, 'senhas'])->name('senhas');
+    Route::post('/pedido/{pedido}/reimprimir', [PosBarController::class, 'reimprimir'])->name('pedido.reimprimir');
+    Route::post('/pedido/{pedido}/anular', [PosBarController::class, 'anular'])->name('pedido.anular');
     // Compatibilidade com builds antigos (bar/café)
     Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar.antigo');
 });

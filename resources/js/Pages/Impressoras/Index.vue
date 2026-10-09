@@ -286,6 +286,9 @@ const tokenVisivel = computed(() => {
     if (!t) return 'Sem token definido'
     return verToken.value ? t : t.slice(0, 4) + '••••••••••••' + t.slice(-4)
 })
+const comandoAtualizarPi = computed(() =>
+    'cd ~/printer-agent && set -a && . ./.env && set +a && curl -fsS -H "Authorization: Bearer $PRINT_AGENT_TOKEN" "${APP_URL%/}/api/print-agent/agente.mjs" -o agent.novo.mjs && node --check agent.novo.mjs && mv agent.novo.mjs agent.mjs && sudo systemctl restart printer-agent && echo AGENTE ATUALIZADO',
+)
 const comandoPi = computed(() =>
     `sed -i 's|^PRINT_AGENT_TOKEN=.*|PRINT_AGENT_TOKEN=${tokenAgente.value}|' ~/printer-agent/.env && sudo systemctl restart printer-agent`,
 )
@@ -600,6 +603,15 @@ function retentarFalhados() {
                         <button type="button" class="btn-sec h-11" @click="copiar(comandoPi, 'comando')">{{ copiado === 'comando' ? 'Copiado ✓' : 'Copiar comando' }}</button>
                     </div>
                     <p class="text-xs text-suave">Instalação nova: <code class="font-mono">chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh</code> e, quando pedir o token, cola o de cima.</p>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <span class="text-sm font-bold">Atualizar o programa do agente no Raspberry</span>
+                    <p class="text-xs text-suave">Depois de cada atualização do site. Cola no terminal do Raspberry: vai buscar a versão nova ao site (com o token dele), confirma que está bem e reinicia.</p>
+                    <div class="flex flex-wrap items-start gap-2">
+                        <code class="min-w-0 flex-1 break-all rounded-md bg-fundo px-3 py-2.5 font-mono text-xs">{{ comandoAtualizarPi }}</code>
+                        <button type="button" class="btn-sec h-11" @click="copiar(comandoAtualizarPi, 'atualizar')">{{ copiado === 'atualizar' ? 'Copiado ✓' : 'Copiar comando' }}</button>
+                    </div>
                 </div>
             </section>
         </div>

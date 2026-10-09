@@ -60,6 +60,17 @@ No backoffice, a impressora fica com tipo **Rede**, IP + porta 9100 e
 arrancar, que posto esta a tratar, e de minuto a minuto avisa se nao ha
 trabalhos para esse posto.
 
+## Atualizar o agente no Raspberry
+
+Depois de atualizar o site, em *Impressoras > Agente de impressao* ha um
+comando pronto a copiar ("Atualizar o programa do agente"). Colado no terminal
+do Raspberry, vai buscar o `agent.mjs` novo ao site (com o token do `.env`),
+confirma que esta bem escrito e reinicia o servico.
+
+O agente imprime cada impressora na sua fila, em paralelo: uma impressora sem
+papel ou desligada nao atrasa as outras. Os taloes dela voltam a fila e saem
+quando ela voltar.
+
 ## Varios agentes
 
 Se houver mais do que um agente, da a cada um o seu `AGENTE` no `.env` e poe

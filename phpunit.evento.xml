@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ensaio do evento (pre-pagamento com 3 postos) contra MySQL.
+  Usa uma base de dados SO para testes: e apagada e recriada a cada teste.
+
+  Laragon:  criar a base de dados "santana_test" (HeidiSQL ou: mysql -uroot -e "CREATE DATABASE santana_test")
+            e correr:  testar-evento.bat   (ou: php artisan test e a opcao configuration a apontar para este ficheiro)
+  Outra BD: definir DB_DATABASE, DB_USERNAME e DB_PASSWORD no ambiente antes de correr.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true">
+    <testsuites>
+        <testsuite name="Evento">
+            <directory>tests/Feature/Evento</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:ZW5zYWlvLWV2ZW50by1hcmRjLXNhbnRhbmEtMzJieSE="/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_DATABASE" value="santana_test"/>
+        <env name="DB_USERNAME" value="root"/>
+        <env name="DB_PASSWORD" value=""/>
+        <env name="DB_URL" value=""/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PRINT_AGENT_TOKEN" value=""/>
+        <env name="VAPID_PUBLIC_KEY" value=""/>
+    </php>
+</phpunit>

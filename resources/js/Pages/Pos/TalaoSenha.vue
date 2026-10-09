@@ -42,6 +42,13 @@ const rodape = computed(() => props.talao?.rodape ?? []);
 const instrucoes = computed(() => props.talao?.instrucoes ?? []);
 const taloes = computed(() => props.taloesCliente ?? []);
 
+// Folha junta: produtos iguais numa linha so ("2x Bifana")
+const agruparUnidades = (unidades) => Object.values((unidades ?? []).reduce((acc, nome) => {
+    acc[nome] = acc[nome] ?? { nome, quantidade: 0 };
+    acc[nome].quantidade++;
+    return acc;
+}, {}));
+
 const linhasConta = computed(() => (props.pedido.items || []).map((item) => ({
     id: item.id,
     nome: item.produto?.nome ?? 'Produto',
@@ -126,7 +133,7 @@ onMounted(() => {
             <template v-if="talaoSeccao.seccoes">
                 <div v-for="s in talaoSeccao.seccoes" :key="s.nome" class="border-b border-dashed border-black py-2 last:border-b-0">
                     <div class="mb-1 inline-block bg-black px-3 py-0.5 text-sm font-bold uppercase tracking-[.08em] text-white">{{ s.nome }}</div>
-                    <div v-for="(nome, i) in s.unidades" :key="i" class="text-lg font-bold leading-snug">1x {{ nome }}</div>
+                    <div v-for="linha in agruparUnidades(s.unidades)" :key="linha.nome" class="text-lg font-bold leading-snug">{{ linha.quantidade }}x {{ linha.nome }}</div>
                 </div>
             </template>
             <div v-else class="text-[22px] font-bold leading-tight">1x {{ talaoSeccao.produto }}</div>

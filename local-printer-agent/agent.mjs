@@ -337,30 +337,93 @@ const imprimir = async (job) => {
 
 let ultimoErro = '';
 let semTrabalhos = 0;
+let aCorrer = false;
+
+/** Impressoras que falharam ha pouco: nao se volta a esperar pelo timeout delas logo a seguir. */
+const PAUSA_APOS_FALHA_MS = 15000;
+const pausadas = new Map();
+
+/** Identifica a impressora fisica de um trabalho (cada uma tem a sua fila). */
+const chaveImpressora = (job) => {
+    const p = job.printer ?? {};
+    return (p.tipo === 'usb' ? `usb:${p.dispositivo ?? ''}` : `rede:${p.host ?? ''}:${p.porta ?? 9100}`);
+};
+
+/**
+ * Imprime os trabalhos de UMA impressora, pela ordem (senhas e depois a conta).
+ * Se a impressora nao responder, os restantes trabalhos dela voltam logo para a
+ * fila como falhados (sem esperar o timeout de cada um) e tentam outra vez daqui
+ * a pouco. As outras impressoras nao ficam a espera desta.
+ */
+const devolverAFila = (trabalhos, motivo) => Promise.all(trabalhos.map((j) => api(`jobs/${j.id}/fail`, {
+    method: 'POST',
+    body: JSON.stringify({ error: motivo }),
+}).catch(() => {})));
+
+const imprimirFila = async (trabalhos) => {
+    const chave = chaveImpressora(trabalhos[0]);
+    const nome = trabalhos[0].printer?.nome;
+
+    if ((pausadas.get(chave) ?? 0) > Date.now()) {
+        await devolverAFila(trabalhos, `Impressora ${nome} sem resposta ha pouco - a tentar outra vez daqui a nada.`);
+        return;
+    }
+
+    for (let i = 0; i < trabalhos.length; i++) {
+        const job = trabalhos[i];
+        try {
+            await imprimir(job);
+            pausadas.delete(chave);
+            await api(`jobs/${job.id}/done`, { method: 'POST', body: '{}' });
+            console.log(`Impresso job #${job.id} em ${job.printer.nome}`);
+            await sleep(PRINT_DELAY_MS);
+        } catch (error) {
+            console.error(`Falhou job #${job.id} em ${nome}: ${error.message}`);
+            pausadas.set(chave, Date.now() + PAUSA_APOS_FALHA_MS);
+            const restantes = trabalhos.slice(i);
+            await devolverAFila(restantes, `Impressora ${nome} sem resposta: ${error.message}`);
+            if (restantes.length > 1) {
+                console.error(`  -> ${restantes.length - 1} talao(oes) de ${nome} voltam a fila para tentar outra vez.`);
+            }
+            return;
+        }
+    }
+};
 
 const ciclo = async () => {
-    try {
-        const { jobs } = await api('jobs');
-        if (ultimoErro) {
-            console.log('[ok] Ligacao ao site restabelecida.');
-            ultimoErro = '';
-        }
-        // De minuto a minuto sem trabalhos, lembra o que o agente esta a filtrar
-        semTrabalhos = (jobs ?? []).length ? 0 : semTrabalhos + 1;
-        if (semTrabalhos && semTrabalhos % Math.max(1, Math.round(60 / POLL_SECONDS)) === 0) {
-            console.log(`... sem trabalhos para ${AGENTE ? `o posto "${AGENTE}"` : 'impressoras sem posto atribuido'}.`);
-        }
+    // Um ciclo de cada vez: dois ciclos ao mesmo tempo trocavam a ordem dos taloes
+    if (aCorrer) {
+        return;
+    }
+    aCorrer = true;
 
-        for (const job of jobs ?? []) {
-            try {
-                await imprimir(job);
-                await api(`jobs/${job.id}/done`, { method: 'POST', body: '{}' });
-                console.log(`Impresso job #${job.id} em ${job.printer.nome}`);
-                await sleep(PRINT_DELAY_MS);
-            } catch (error) {
-                await api(`jobs/${job.id}/fail`, { method: 'POST', body: JSON.stringify({ error: error.message }) });
-                console.error(`Falhou job #${job.id}: ${error.message}`);
+    try {
+        // Enquanto houver trabalho, vai buscar mais logo a seguir (sem esperar o intervalo)
+        for (let voltas = 0; voltas < 20; voltas++) {
+            const { jobs } = await api('jobs');
+            if (ultimoErro) {
+                console.log('[ok] Ligacao ao site restabelecida.');
+                ultimoErro = '';
             }
+
+            const lista = jobs ?? [];
+            // De minuto a minuto sem trabalhos, lembra o que o agente esta a filtrar
+            semTrabalhos = lista.length ? 0 : semTrabalhos + 1;
+            if (semTrabalhos && semTrabalhos % Math.max(1, Math.round(60 / POLL_SECONDS)) === 0) {
+                console.log(`... sem trabalhos para ${AGENTE ? `o posto "${AGENTE}"` : 'impressoras sem posto atribuido'}.`);
+            }
+            if (!lista.length) {
+                break;
+            }
+
+            // Uma fila por impressora, todas em paralelo
+            const filas = new Map();
+            for (const job of lista) {
+                const chave = chaveImpressora(job);
+                if (!filas.has(chave)) filas.set(chave, []);
+                filas.get(chave).push(job);
+            }
+            await Promise.all([...filas.values()].map(imprimirFila));
         }
     } catch (error) {
         const codigo = error.cause?.code ?? error.cause?.errors?.[0]?.code;
@@ -370,6 +433,8 @@ const ciclo = async () => {
             console.error(`[!] Erro a falar com ${APP_URL}: ${msg}`);
             ultimoErro = msg;
         }
+    } finally {
+        aCorrer = false;
     }
 };
 

@@ -208,10 +208,19 @@ const fecharCaixa = (caixa) => {
 
                                 <div v-if="caixasPorPonto[ponto]" class="grid grid-cols-3 gap-2 text-sm">
                                     <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Fundo</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].fundo_maneio) }}</strong></div>
-                                    <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Vendas</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].vendas) }}</strong></div>
-                                    <div class="min-w-0 rounded-[10px] p-2.5" :class="caixasPorPonto[ponto].estado === 'aberta' ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo'"><div :class="caixasPorPonto[ponto].estado === 'aberta' ? '' : 'text-suave-2'">Esperado</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></div>
+                                    <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Vendas (todas)</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].vendas) }}</strong></div>
+                                    <div class="min-w-0 rounded-[10px] p-2.5" :class="caixasPorPonto[ponto].estado === 'aberta' ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo'"><div :class="caixasPorPonto[ponto].estado === 'aberta' ? '' : 'text-suave-2'">Na gaveta</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></div>
                                 </div>
 
+                                <div v-if="caixasPorPonto[ponto] && (Number(caixasPorPonto[ponto].por_metodo?.mbway) > 0 || Number(caixasPorPonto[ponto].por_metodo?.contactless) > 0 || Number(caixasPorPonto[ponto].por_metodo?.multibanco) > 0)" class="flex flex-col gap-1 rounded-[10px] bg-fundo p-2.5 text-sm">
+                                    <div class="font-bold text-suave">Fora da gaveta — conferir no terminal / telemóvel</div>
+                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.mbway) > 0" class="flex justify-between"><span>MB WAY</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.mbway) }}</strong></div>
+                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.contactless) > 0" class="flex justify-between"><span>Contactless</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.contactless) }}</strong></div>
+                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.multibanco) > 0" class="flex justify-between"><span>Multibanco</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.multibanco) }}</strong></div>
+                                </div>
+                                <p v-if="caixasPorPonto[ponto] && Number(caixasPorPonto[ponto].doacoes) > 0" class="text-sm text-suave">
+                                    Inclui <strong class="text-tinta">{{ euros(caixasPorPonto[ponto].doacoes) }}</strong> de troco deixado pelos clientes (doações).
+                                </p>
                                 <div v-if="temCaucao(caixasPorPonto[ponto])" class="flex flex-col gap-1 rounded-[10px] bg-laranja-claro p-2.5 text-sm text-laranja-texto">
                                     <div class="font-bold">Cauções (metros, jarros…) — já incluídas no esperado</div>
                                     <div class="flex justify-between"><span>Recebidas</span><strong>{{ euros(caixasPorPonto[ponto].caucao.recebidas) }}</strong></div>

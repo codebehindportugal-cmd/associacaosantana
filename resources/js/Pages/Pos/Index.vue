@@ -6,6 +6,7 @@ import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
 import { ImpressoraUsb } from '@/escpos';
+import axios from 'axios';
 
 const props = defineProps({
     posNome: String,
@@ -21,7 +22,16 @@ const agora = ref(new Date());
 const carrinho = ref([]);
 const recebido = ref('');
 const trocoEntregue = ref('');
-const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0, juntar: {} });
+const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0, juntar: {}, metodo_pagamento: 'dinheiro' });
+
+// Forma de pagamento: so o dinheiro tem troco e abre a gaveta
+const METODOS = [
+    { id: 'dinheiro', label: 'Dinheiro' },
+    { id: 'mbway', label: 'MB WAY' },
+    { id: 'contactless', label: 'Contactless' },
+];
+const metodo = ref('dinheiro');
+const emDinheiro = computed(() => metodo.value === 'dinheiro');
 
 // Senhas: por omissao uma por unidade. Se o cliente pedir, junta-se um grupo numa folha.
 const GRUPOS = [
@@ -134,11 +144,75 @@ const doacao = computed(() => Math.max(0, troco.value - trocoRegistado.value));
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
 const hora = (data) => new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
 const logout = () => router.post(route('pos.logout'));
+
+// ---- Senhas anteriores: ver, reimprimir (2a via) e anular ----
+const painelSenhas = ref(false);
+const listaSenhas = ref([]);
+const procurarNumero = ref('');
+const aCarregarSenhas = ref(false);
+const senhaAberta = ref(null);
+const aAnular = ref(false);
+const motivoAnulacao = ref('');
+const acaoSenha = useForm({ o: 'tudo', motivo: '' });
+const MOTIVOS_RAPIDOS = ['Engano no pedido', 'Cliente desistiu', 'Pagamento não passou'];
+
+const carregarSenhas = async () => {
+    aCarregarSenhas.value = true;
+    try {
+        const { data } = await axios.get(route('pos.senhas'), { params: { numero: procurarNumero.value || undefined } });
+        listaSenhas.value = data.senhas ?? [];
+        if (senhaAberta.value) {
+            senhaAberta.value = listaSenhas.value.find((s) => s.id === senhaAberta.value.id) ?? senhaAberta.value;
+        }
+    } finally {
+        aCarregarSenhas.value = false;
+    }
+};
+const abrirSenhas = async (id = null) => {
+    painelSenhas.value = true;
+    senhaAberta.value = null;
+    aAnular.value = false;
+    procurarNumero.value = '';
+    await carregarSenhas();
+    if (id) senhaAberta.value = listaSenhas.value.find((s) => s.id === id) ?? null;
+};
+const fecharSenhas = () => {
+    painelSenhas.value = false;
+    senhaAberta.value = null;
+    aAnular.value = false;
+    acaoSenha.clearErrors();
+};
+const escolherSenha = (senha) => {
+    senhaAberta.value = senha;
+    aAnular.value = false;
+    motivoAnulacao.value = '';
+    acaoSenha.clearErrors();
+};
+const reimprimir = (o) => {
+    acaoSenha.o = o;
+    acaoSenha.post(route('pos.pedido.reimprimir', senhaAberta.value.id), { preserveScroll: true, onSuccess: () => fecharSenhas() });
+};
+const aDevolver = computed(() => {
+    const s = senhaAberta.value;
+    if (!s) return 0;
+    return Number(s.pago) + Number(s.doacao) + Number(s.caucao_descontada);
+});
+const confirmarAnulacao = () => {
+    acaoSenha.motivo = motivoAnulacao.value;
+    acaoSenha.post(route('pos.pedido.anular', senhaAberta.value.id), { preserveScroll: true, onSuccess: () => fecharSenhas() });
+};
 const chamandoComissao = ref(false);
 
-const adicionar = (produto) => {
-    const item = carrinho.value.find((linha) => linha.produto_id === produto.id);
-    item ? item.quantidade++ : carrinho.value.push({ produto_id: produto.id, nome: produto.nome, preco: produto.preco, caucao: Number(produto.caucao || 0), secao: produto.categoria?.secao ?? null, jaTem: 0, quantidade: 1 });
+// jaTem: o cliente traz o metro/jarro para voltar a encher - nao se cobra caucao
+const adicionar = (produto, { jaTem = false } = {}) => {
+    let item = carrinho.value.find((linha) => linha.produto_id === produto.id);
+    if (item) {
+        item.quantidade++;
+    } else {
+        item = { produto_id: produto.id, nome: produto.nome, preco: produto.preco, caucao: Number(produto.caucao || 0), secao: produto.categoria?.secao ?? null, jaTem: 0, quantidade: 1 };
+        carrinho.value.push(item);
+    }
+    if (jaTem) item.jaTem = Math.min(item.quantidade, (item.jaTem || 0) + 1);
 };
 
 const alterar = (item, delta) => {
@@ -149,12 +223,14 @@ const alterar = (item, delta) => {
 const cobrar = () => {
     form.items = carrinho.value.map(({ produto_id, quantidade, jaTem }) => ({ produto_id, quantidade, ja_tem: Math.min(jaTem || 0, quantidade) }));
     form.devolvidos = devolvidos.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
-    form.valor_recebido = recebido.value || Math.max(0, aPagar.value);
-    form.troco = trocoRegistado.value;
+    form.metodo_pagamento = metodo.value;
+    form.valor_recebido = emDinheiro.value ? (recebido.value || Math.max(0, aPagar.value)) : Math.max(0, aPagar.value);
+    form.troco = emDinheiro.value ? trocoRegistado.value : 0;
     form.juntar = Object.fromEntries(Object.entries(juntar.value).map(([k, v]) => [k, v ? 1 : 0]));
     form.post(route('pos.prepago.store'), {
         preserveScroll: true,
         onSuccess: () => {
+            metodo.value = 'dinheiro';
             juntar.value = juntarPadrao();
             carrinho.value = [];
             devolvidos.value = [];
@@ -267,6 +343,7 @@ const escolherRecebido = (valor) => {
 const doouTroco = computed(() => trocoEntregue.value !== '' && Number(trocoEntregue.value) === 0 && troco.value > 0);
 const alternarDoacao = () => { trocoEntregue.value = doouTroco.value ? '' : 0; };
 const limparSenha = () => {
+    metodo.value = 'dinheiro';
     juntar.value = juntarPadrao();
     carrinho.value = [];
     devolvidos.value = [];
@@ -286,6 +363,10 @@ const limparSenha = () => {
                 <span class="truncate text-sm text-escuro-inativo">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) }}</span>
             </div>
             <div class="flex gap-2.5">
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="abrirSenhas()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>
+                    Senhas anteriores
+                </button>
                 <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-laranja px-4 text-[15px] font-bold text-white" @click="chamandoComissao = true">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
                     Chamar comissão
@@ -329,9 +410,31 @@ const limparSenha = () => {
                     Sem produtos nesta secção.
                 </div>
                 <div v-else class="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto pb-1 sm:grid-cols-3 xl:grid-cols-4">
+                    <template v-for="produto in produtosVisiveis" :key="produto.id">
+                    <!-- Produto com caucao (metro, jarro): novo paga caucao, encher nao -->
+                    <div
+                        v-if="Number(produto.caucao) > 0"
+                        class="relative flex min-h-[124px] min-w-0 flex-col overflow-hidden rounded-[14px] bg-white p-3"
+                        :class="[cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha', !caixaAberta ? 'opacity-45' : '']"
+                    >
+                        <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" :class="secaoDe(produto).text">
+                            <span class="h-2 w-2 rounded-full" :class="secaoDe(produto).dot"></span>{{ secaoDe(produto).label }}
+                        </span>
+                        <span class="mt-1 block break-words pr-9 text-lg font-bold leading-tight">{{ produto.nome }} <span class="text-base font-medium text-suave">{{ eur(produto.preco) }}</span></span>
+                        <span v-if="cartQty[produto.id]" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ cartQty[produto.id] }}</span>
+                        <div class="mt-auto grid grid-cols-2 gap-2 pt-2">
+                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-laranja bg-laranja-claro px-1 leading-tight text-laranja-texto disabled:cursor-not-allowed" :disabled="!caixaAberta" @click="adicionar(produto)">
+                                <span class="text-[15px] font-bold">Novo</span>
+                                <span class="text-xs font-semibold">+{{ eur(produto.caucao) }}</span>
+                            </button>
+                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-verde bg-verde-claro px-1 leading-tight text-verde-escuro disabled:cursor-not-allowed" :disabled="!caixaAberta" @click="adicionar(produto, { jaTem: true })">
+                                <span class="text-[15px] font-bold">Encher</span>
+                                <span class="text-xs font-semibold">sem caução</span>
+                            </button>
+                        </div>
+                    </div>
                     <button
-                        v-for="produto in produtosVisiveis"
-                        :key="produto.id"
+                        v-else
                         type="button"
                         class="relative flex min-h-[124px] min-w-0 flex-col items-start overflow-hidden rounded-[14px] bg-white p-4 text-left disabled:cursor-not-allowed disabled:opacity-45"
                         :class="cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha'"
@@ -346,18 +449,24 @@ const limparSenha = () => {
                         <span class="mt-auto pt-3 text-base font-medium text-suave">{{ eur(produto.preco) }}</span>
                         <span v-if="cartQty[produto.id]" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ cartQty[produto.id] }}</span>
                     </button>
+                    </template>
                 </div>
 
-                <section aria-label="Últimas senhas" class="hidden shrink-0 rounded-[14px] border border-linha bg-white px-4 py-3 md:block curto:hidden">
-                    <h2 class="mb-2 text-sm font-extrabold uppercase tracking-wider text-suave">Últimas senhas</h2>
-                    <div class="grid max-h-32 gap-2 overflow-y-auto md:grid-cols-3 xl:grid-cols-4">
-                        <div v-for="pedido in senhasHoje" :key="pedido.id" class="rounded-[10px] bg-fundo px-2.5 py-2">
+                <section aria-label="Últimas senhas" class="shrink-0 rounded-[14px] border border-linha bg-white px-4 py-3 curto:px-3 curto:py-2">
+                    <div class="mb-2 flex items-center justify-between gap-2 curto:mb-1.5">
+                        <h2 class="text-sm font-extrabold uppercase tracking-wider text-suave">Últimas senhas <span class="font-semibold normal-case tracking-normal">— toca para reimprimir ou anular</span></h2>
+                        <button type="button" class="h-9 shrink-0 rounded-[8px] border border-linha-forte px-3 text-sm font-bold" @click="abrirSenhas()">Ver todas</button>
+                    </div>
+                    <p v-if="!senhasHoje?.length" class="text-sm text-suave">Ainda não há senhas neste posto.</p>
+                    <!-- Ecras baixos: uma fila so, com scroll para o lado -->
+                    <div class="grid max-h-32 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4 curto:flex curto:max-h-none curto:overflow-x-auto curto:overflow-y-hidden curto:pb-1 [&>button]:curto:w-44 [&>button]:curto:shrink-0">
+                        <button v-for="pedido in senhasHoje" :key="pedido.id" type="button" class="min-w-0 rounded-[10px] bg-fundo px-2.5 py-2 text-left hover:bg-linha-fraca" :class="pedido.estado === 'cancelado' ? 'opacity-60' : ''" @click="abrirSenhas(pedido.id)">
                             <div class="flex items-baseline justify-between gap-2">
-                                <span class="text-lg font-extrabold">#{{ pedido.numero_senha }}</span>
+                                <span class="text-lg font-extrabold" :class="pedido.estado === 'cancelado' ? 'line-through' : ''">#{{ pedido.numero_senha }}</span>
                                 <span class="text-xs text-suave">{{ hora(pedido.created_at) }}</span>
                             </div>
-                            <span class="block truncate text-xs text-suave">{{ pedido.items.map((item) => `${item.quantidade}x ${item.produto?.nome}`).join(', ') }}</span>
-                        </div>
+                            <span class="block truncate text-xs text-suave">{{ pedido.estado === 'cancelado' ? 'ANULADA · ' : '' }}{{ pedido.items.map((item) => `${item.quantidade}x ${item.produto?.nome}`).join(', ') }}</span>
+                        </button>
                     </div>
                 </section>
             </section>
@@ -420,7 +529,7 @@ const limparSenha = () => {
                         <div v-if="item.caucao > 0" class="flex w-full items-center gap-2 rounded-[10px] bg-laranja-claro px-3 py-2" role="group" :aria-label="`Caução de ${item.nome}`">
                             <span class="min-w-0 flex-1 text-[15px] font-bold text-laranja-texto">
                                 <template v-if="comCaucao(item)">Caução {{ comCaucao(item) }}x +{{ eur(item.caucao * comCaucao(item)) }}</template>
-                                <template v-else>Sem caução (já tem)</template>
+                                <template v-else>Encher — sem caução</template>
                             </span>
                             <span class="text-[15px] font-semibold text-suave">Já tem</span>
                             <button type="button" aria-label="Já tem menos um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-white disabled:opacity-40" :disabled="!(item.jaTem > 0)" @click="item.jaTem = Math.max(0, (item.jaTem || 0) - 1)">
@@ -444,7 +553,21 @@ const limparSenha = () => {
                         <span class="text-4xl font-extrabold curto:text-3xl">{{ eur(Math.max(0, aPagar)) }}</span>
                     </div>
                     <p v-if="saldoExcedido" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-bold text-perigo-texto">O saldo das cauções devolvidas ({{ eur(caucaoDescontada) }}) é maior que a senha. Junta mais bebidas ou devolve o resto em dinheiro.</p>
-                    <div>
+                    <div role="group" aria-label="Forma de pagamento" class="grid grid-cols-3 gap-2">
+                        <button
+                            v-for="m in METODOS"
+                            :key="m.id"
+                            type="button"
+                            class="h-12 rounded-[10px] text-base font-bold curto:h-10"
+                            :class="metodo === m.id ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white text-tinta'"
+                            :aria-pressed="metodo === m.id"
+                            @click="metodo = m.id"
+                        >{{ m.label }}</button>
+                    </div>
+                    <p v-if="!emDinheiro" class="rounded-[10px] bg-fundo px-3 py-2 text-[15px] font-semibold text-suave">
+                        Confirma o pagamento de <strong class="text-tinta">{{ eur(Math.max(0, aPagar)) }}</strong> por {{ METODOS.find((m) => m.id === metodo)?.label }} antes de cobrar. Não abre a gaveta.
+                    </p>
+                    <div v-if="emDinheiro">
                         <span class="text-sm font-semibold text-suave">Recebido</span>
                         <div role="group" aria-label="Valor recebido" class="mt-1 grid grid-cols-4 gap-2">
                             <button type="button" class="h-14 rounded-[10px] text-base font-bold curto:h-11" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="escolherRecebido('')">Certo</button>
@@ -469,7 +592,7 @@ const limparSenha = () => {
                             </label>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
+                    <div v-if="emDinheiro" class="grid grid-cols-2 gap-2">
                         <div class="rounded-[10px] border border-laranja bg-laranja-claro px-3 py-2 curto:py-1">
                             <span class="block text-sm font-bold text-laranja-texto">Troco a dar</span>
                             <span class="block text-2xl font-extrabold curto:text-xl">{{ eur(trocoRegistado) }}</span>
@@ -480,7 +603,7 @@ const limparSenha = () => {
                         </div>
                     </div>
                     <button
-                        v-if="troco > 0 || doouTroco"
+                        v-if="emDinheiro && (troco > 0 || doouTroco)"
                         type="button"
                         class="h-14 w-full rounded-[10px] border border-laranja text-base font-bold disabled:opacity-45 curto:h-11"
                         :class="doouTroco ? 'bg-laranja text-white' : 'bg-laranja-claro text-laranja-texto'"
@@ -508,10 +631,110 @@ const limparSenha = () => {
                     </div>
                     <AvisoErros :errors="form.errors" class="!p-2" />
                     <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold curto:h-14 text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || saldoExcedido || form.processing" @click="cobrar">
-                        Cobrar e tirar senha
+                        {{ emDinheiro ? 'Cobrar e tirar senha' : `Cobrar ${METODOS.find((m) => m.id === metodo)?.label} e tirar senha` }}
                     </button>
                 </div>
             </aside>
+        </div>
+
+        <!-- Senhas anteriores -->
+        <div v-if="painelSenhas" class="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Senhas anteriores" @click.self="fecharSenhas">
+            <div class="flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white sm:h-[min(640px,92dvh)] sm:rounded-[16px]">
+                <div class="flex shrink-0 items-center gap-3 border-b border-linha px-4 py-3">
+                    <button v-if="senhaAberta" type="button" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte md:hidden" aria-label="Voltar à lista" @click="senhaAberta = null">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+                    </button>
+                    <h2 class="min-w-0 flex-1 truncate text-xl font-extrabold">Senhas anteriores · {{ pontoBar }}</h2>
+                    <button type="button" class="h-11 rounded-[10px] border border-linha-forte px-4 text-[15px] font-bold" @click="fecharSenhas">Fechar</button>
+                </div>
+                <div class="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+                    <!-- Lista -->
+                    <div class="flex min-h-0 flex-col border-linha md:border-r" :class="senhaAberta ? 'hidden md:flex' : 'flex'">
+                        <form class="flex shrink-0 gap-2 p-3" @submit.prevent="carregarSenhas">
+                            <input v-model="procurarNumero" inputmode="numeric" class="h-12 min-w-0 flex-1 rounded-[10px] border-linha-forte text-lg font-bold" placeholder="Nº da senha" aria-label="Procurar pelo número da senha">
+                            <button type="submit" class="h-12 rounded-[10px] bg-escuro px-4 font-bold text-white">Procurar</button>
+                        </form>
+                        <div class="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+                            <p v-if="aCarregarSenhas" class="py-8 text-center text-suave">A carregar…</p>
+                            <p v-else-if="!listaSenhas.length" class="py-8 text-center text-suave">Sem senhas{{ procurarNumero ? ' com esse número' : '' }}.</p>
+                            <button
+                                v-for="s in listaSenhas"
+                                v-else
+                                :key="s.id"
+                                type="button"
+                                class="mb-2 flex w-full items-center gap-3 rounded-[12px] border px-3 py-2.5 text-left"
+                                :class="senhaAberta?.id === s.id ? 'border-2 border-verde bg-verde-claro' : 'border-linha bg-white'"
+                                @click="escolherSenha(s)"
+                            >
+                                <span class="w-16 shrink-0 text-xl font-extrabold" :class="s.anulada ? 'text-suave line-through' : ''">#{{ s.numero }}</span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-semibold">{{ s.itens.map((i) => `${i.quantidade}x ${i.nome}`).join(', ') }}</span>
+                                    <span class="block text-xs text-suave">{{ s.hora }} · {{ s.metodo_nome }}<template v-if="s.reimpressoes"> · 2a via ×{{ s.reimpressoes }}</template></span>
+                                </span>
+                                <span class="shrink-0 text-right">
+                                    <span class="block font-bold">{{ eur(s.pago) }}</span>
+                                    <span v-if="s.anulada" class="mt-0.5 inline-block rounded-full bg-perigo-claro px-2 text-xs font-extrabold text-perigo-texto">ANULADA</span>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Detalhe -->
+                    <div class="min-h-0 overflow-y-auto p-4" :class="senhaAberta ? 'block' : 'hidden md:block'">
+                        <p v-if="!senhaAberta" class="py-12 text-center text-suave">Toca numa senha para ver o que foi pedido, reimprimir ou anular.</p>
+                        <template v-else>
+                            <div class="flex items-baseline justify-between gap-3">
+                                <span class="text-4xl font-extrabold" :class="senhaAberta.anulada ? 'line-through text-suave' : ''">#{{ senhaAberta.numero }}</span>
+                                <span class="text-sm text-suave">{{ senhaAberta.hora }} · {{ senhaAberta.operador }}</span>
+                            </div>
+                            <div v-if="senhaAberta.anulada" class="mt-3 rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">
+                                Anulada às {{ senhaAberta.anulado_em }} por {{ senhaAberta.anulado_por }} — {{ senhaAberta.motivo_anulacao }}.
+                                Devolvido: {{ eur(senhaAberta.valor_devolvido) }}.
+                            </div>
+                            <ul class="mt-3 divide-y divide-linha-fraca rounded-[12px] border border-linha">
+                                <li v-for="(i, k) in senhaAberta.itens" :key="k" class="flex justify-between gap-3 px-3 py-2 text-[15px]">
+                                    <span class="font-semibold">{{ i.quantidade }}x {{ i.nome }}</span><span>{{ eur(i.valor) }}</span>
+                                </li>
+                            </ul>
+                            <div class="mt-3 space-y-0.5 text-[15px]">
+                                <div v-if="senhaAberta.caucao_cobrada" class="flex justify-between text-laranja-texto"><span>Caução</span><span class="font-bold">+{{ eur(senhaAberta.caucao_cobrada) }}</span></div>
+                                <div v-if="senhaAberta.caucao_descontada" class="flex justify-between text-verde-escuro"><span>Caução devolvida (saldo)</span><span class="font-bold">-{{ eur(senhaAberta.caucao_descontada) }}</span></div>
+                                <div class="flex justify-between text-lg"><span>Pago · {{ senhaAberta.metodo_nome }}</span><strong>{{ eur(senhaAberta.pago) }}</strong></div>
+                                <div v-if="senhaAberta.doacao" class="flex justify-between text-suave"><span>Doação (troco deixado)</span><span>{{ eur(senhaAberta.doacao) }}</span></div>
+                                <div v-if="senhaAberta.reimpressoes" class="text-sm text-suave">Já reimpressa {{ senhaAberta.reimpressoes }}×.</div>
+                            </div>
+
+                            <AvisoErros :errors="acaoSenha.errors" class="mt-3 !p-2" />
+
+                            <div v-if="!senhaAberta.anulada && !aAnular" class="mt-4 grid grid-cols-2 gap-2">
+                                <button type="button" class="h-14 rounded-[10px] bg-escuro text-base font-bold text-white disabled:opacity-45" :disabled="acaoSenha.processing" @click="reimprimir('tudo')">Reimprimir tudo</button>
+                                <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white text-base font-bold disabled:opacity-45" :disabled="acaoSenha.processing" @click="reimprimir('conta')">Só a conta</button>
+                                <p class="col-span-2 text-xs text-suave">A reimpressão sai com "2a VIA" e não abre a gaveta.</p>
+                                <button type="button" class="col-span-2 h-12 rounded-[10px] border border-perigo bg-perigo-claro text-base font-bold text-perigo-texto" @click="aAnular = true">Anular senha…</button>
+                            </div>
+
+                            <div v-if="!senhaAberta.anulada && aAnular" class="mt-4 space-y-3 rounded-[12px] border-2 border-perigo p-3">
+                                <div class="text-lg font-extrabold text-perigo-texto">Anular a senha #{{ senhaAberta.numero }}</div>
+                                <div class="rounded-[10px] bg-fundo p-3 text-[15px]">
+                                    Devolver ao cliente: <strong class="text-xl">{{ eur(aDevolver) }}</strong>
+                                    <span class="block text-sm text-suave">
+                                        <template v-if="senhaAberta.metodo === 'dinheiro'">Em dinheiro, da gaveta (abre ao confirmar).</template>
+                                        <template v-else>Por {{ senhaAberta.metodo_nome }}<template v-if="senhaAberta.caucao_descontada"> — e {{ eur(senhaAberta.caucao_descontada) }} de caução em dinheiro, da gaveta</template>.</template>
+                                    </span>
+                                    <span class="block text-sm text-suave">Os talões ainda por imprimir já não saem. Recolhe as senhas que o cliente tiver.</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button v-for="m in MOTIVOS_RAPIDOS" :key="m" type="button" class="h-10 rounded-full border px-3 text-sm font-bold" :class="motivoAnulacao === m ? 'border-perigo bg-perigo-claro text-perigo-texto' : 'border-linha-forte'" @click="motivoAnulacao = m">{{ m }}</button>
+                                </div>
+                                <input v-model="motivoAnulacao" class="h-12 w-full rounded-[10px] border-linha-forte" placeholder="Motivo (obrigatório)" aria-label="Motivo da anulação">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white text-base font-bold" @click="aAnular = false">Voltar</button>
+                                    <button type="button" class="h-14 rounded-[10px] bg-perigo text-base font-bold text-white disabled:opacity-45" :disabled="motivoAnulacao.trim().length < 3 || acaoSenha.processing" @click="confirmarAnulacao">Confirmar anulação</button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <ChamarComissaoModal

@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Configuracao;
 use App\Models\PrintJob;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PrintAgentController extends Controller
@@ -46,6 +48,28 @@ class PrintAgentController extends Controller
         $limite = now()->subMinutes(max(1, (int) config('services.print_agent.validade_minutos', 10)));
         $this->expirarAntigos($limite);
 
+        // Reservar dentro de uma transacao com trinco: dois agentes a pedir ao
+        // mesmo tempo nunca recebem o mesmo talao (sairia duas vezes)
+        $jobs = DB::transaction(fn () => $this->reservarJobs($agente, $limite));
+
+        return $this->respostaJobs($jobs);
+    }
+
+    /**
+     * O agent.mjs atual. Pedido pelo proprio Raspberry, com o token dele:
+     *   curl -H "Authorization: Bearer TOKEN" APP_URL/api/print-agent/agente.mjs
+     */
+    public function codigoAgente(Request $request): Response
+    {
+        $this->autorizarAgente($request);
+
+        return response(file_get_contents(base_path('local-printer-agent/agent.mjs')), 200, [
+            'Content-Type' => 'text/javascript; charset=utf-8',
+        ]);
+    }
+
+    private function reservarJobs(string $agente, $limite)
+    {
         $jobs = PrintJob::with('impressora')
             ->where('created_at', '>=', $limite)
             ->whereHas('impressora', fn ($query) => $agente !== ''
@@ -68,7 +92,8 @@ class PrintAgentController extends Controller
                     });
             })
             ->orderBy('id')
-            ->limit(10)
+            ->limit(30)
+            ->lockForUpdate()
             ->get();
 
         $jobs->each(fn (PrintJob $job) => $job->update([
@@ -77,6 +102,11 @@ class PrintAgentController extends Controller
             'reservado_ate' => now()->addMinute(),
         ]));
 
+        return $jobs;
+    }
+
+    private function respostaJobs($jobs): JsonResponse
+    {
         return response()->json([
             'jobs' => $jobs->map(fn (PrintJob $job) => [
                 'id' => $job->id,
@@ -118,9 +148,10 @@ class PrintAgentController extends Controller
             'error' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        // Backoff exponencial: espera mais a cada tentativa (30s, 60s, 120s, ate 10min)
+        // Backoff curto (10s, 20s, 40s, ate 1min): quando se repoe o papel ou a
+        // impressora volta, os taloes que estao na fila saem logo
         $tentativas = $printJob->tentativas;
-        $backoffSegundos = min(600, 30 * (2 ** max(0, $tentativas - 1)));
+        $backoffSegundos = min(60, 10 * (2 ** max(0, $tentativas - 1)));
 
         $printJob->update([
             'estado' => 'falhado',

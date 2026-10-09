@@ -8,6 +8,13 @@ use Illuminate\Support\Str;
 
 class Pedido extends Model
 {
+    /** Formas de pagamento no pre-pagamento (POS do bar/cafe). So o dinheiro vai para a gaveta. */
+    public const METODOS_PREPAGO = [
+        'dinheiro' => 'Dinheiro',
+        'mbway' => 'MB WAY',
+        'contactless' => 'Contactless',
+    ];
+
     use HasFactory;
 
     protected $fillable = [
@@ -32,6 +39,12 @@ class Pedido extends Model
         'observacoes',
         'chamado_em',
         'conta_pedida_em',
+        'juntar',
+        'reimpressoes',
+        'anulado_em',
+        'anulado_por',
+        'motivo_anulacao',
+        'valor_devolvido',
     ];
 
     protected $appends = ['total_calculado'];
@@ -42,6 +55,9 @@ class Pedido extends Model
 
     protected $casts = [
         'pago_antecipado' => 'boolean',
+        'juntar' => 'array',
+        'anulado_em' => 'datetime',
+        'valor_devolvido' => 'decimal:2',
         'caucao_cobrada'  => 'decimal:2',
         'caucao_descontada' => 'decimal:2',
         'chamado_em'      => 'datetime',
