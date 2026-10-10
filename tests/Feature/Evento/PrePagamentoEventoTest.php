@@ -871,9 +871,57 @@ class PrePagamentoEventoTest extends TestCase
         $this->assertStringNotContainsString('Baba', $texto, 'Sobremesas nao vao para a cozinha');
         $this->assertLessThan(strpos($texto, 'ACOMPANHAMENTOS'), strpos($texto, 'FRANGO'));
 
-        // As senhas do cliente continuam todas na impressora do posto, como antes
+        // No posto: so as senhas do que nao foi para a cozinha (1 baba + 2 imperiais) e a conta com tudo
+        $noPosto = PrintJob::where('impressora_id', $this->postos[1]->impressora_id)->orderBy('id')->get();
+        $this->assertCount(3 + 1, $noPosto, '3 senhas (sobremesa e bebidas) + conta');
+        $senhas = $noPosto->slice(0, 3)->map(fn ($j) => $this->texto($j))->implode("\n");
+        $this->assertStringNotContainsString('Frango', $senhas, 'A comida que foi para a cozinha nao sai em senha no posto');
+        $this->assertStringNotContainsString('Bifana', $senhas);
+        $this->assertStringContainsString('Baba', $senhas);
+        $conta = $noPosto->last();
+        $this->assertSame('CONTA', $conta->payload['subtitulo']);
+        foreach (['2x Frango', '1x Batata Frita', '1x Bifana', '1x Baba de Camelo', '2x Imperial'] as $esperado) {
+            $this->assertStringContainsString($esperado, $this->texto($conta), 'A conta leva tudo');
+        }
+        $this->assertTrue((bool) $noPosto->first()->payload['abrir_caixa'], 'A gaveta abre com o primeiro talao do posto');
+
+        // So comida: no posto sai so a conta (e abre a gaveta)
+        PrintJob::query()->delete();
+        $this->vender($this->postos[1], [[$this->frango, 1], [$this->batata, 2]], extra: ['enviar_preparacao' => 1])->assertSessionHasNoErrors();
         $noPosto = PrintJob::where('impressora_id', $this->postos[1]->impressora_id)->get();
-        $this->assertCount(7 + 1, $noPosto, '7 senhas (uma por unidade) + conta');
+        $this->assertCount(1, $noPosto);
+        $this->assertSame('CONTA', $noPosto[0]->payload['subtitulo']);
+        $this->assertTrue((bool) $noPosto[0]->payload['abrir_caixa']);
+        $this->assertSame(1, PrintJob::where('impressora_id', $cozinha->id)->count());
+
+        // Sem enviar para a cozinha: tudo como antes, uma senha por unidade no posto
+        PrintJob::query()->delete();
+        $this->vender($this->postos[1], [[$this->frango, 1], [$this->batata, 2]], extra: ['enviar_preparacao' => 0])->assertSessionHasNoErrors();
+        $this->assertSame(3 + 1, PrintJob::where('impressora_id', $this->postos[1]->impressora_id)->count());
+    }
+
+    public function test_posto_webusb_com_cozinha_imprime_so_o_resto_e_a_conta(): void
+    {
+        $this->abrirCaixas();
+        $usb = Impressora::create(['nome' => 'USB balcao', 'secao' => 'cafe', 'tipo' => Impressora::TIPO_WEBUSB, 'ativa' => true]);
+        $this->postos[1]->update(['impressora_id' => $usb->id]);
+        $cozinha = $this->impressoraCozinha($this->postos[1]);
+
+        $escpos = $this->vender($this->postos[1], [[$this->frango, 1], [$this->imperial, 1]], extra: ['enviar_preparacao' => 1])
+            ->assertSessionHasNoErrors()->baseResponse->getSession()->get('imprimir')['escpos'];
+        $this->assertCount(2, $escpos, 'Senha da imperial + conta');
+        $this->assertStringContainsString('Imperial', json_encode($escpos[0]));
+        $this->assertStringNotContainsString('Frango', json_encode($escpos[0]));
+        $this->assertSame('CONTA', $escpos[1]['subtitulo']);
+        $this->assertStringContainsString('1x Frango', json_encode($escpos[1]));
+        $this->assertTrue((bool) $escpos[0]['abrir_caixa']);
+
+        $escpos = $this->vender($this->postos[1], [[$this->frango, 2]], extra: ['enviar_preparacao' => 1])
+            ->assertSessionHasNoErrors()->baseResponse->getSession()->get('imprimir')['escpos'];
+        $this->assertCount(1, $escpos, 'So comida: so a conta');
+        $this->assertSame('CONTA', $escpos[0]['subtitulo']);
+        $this->assertTrue((bool) $escpos[0]['abrir_caixa']);
+        $this->assertSame(2, PrintJob::where('impressora_id', $cozinha->id)->count());
     }
 
     public function test_sem_carregar_no_botao_nao_vai_nada_para_a_cozinha(): void

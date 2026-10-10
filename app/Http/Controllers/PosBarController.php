@@ -381,6 +381,8 @@ class PosBarController extends Controller
     private function imprimirPedido(Pedido $pedido, PrintJobService $printJobs, bool $abrirGaveta, string $sucesso, ?string $segundaVia = null): RedirectResponse
     {
         $pedidoFull = $pedido->fresh('items.produto.categoria', 'pos');
+        // A comida que foi para a cozinha ja nao sai em senha no posto: so na conta
+        $senhas = $this->semCozinha($pedidoFull);
         $juntar = array_map('boolval', (array) ($pedidoFull->juntar ?? []));
         $secaoImp = $this->secaoImpressora();
 
@@ -404,13 +406,13 @@ class PosBarController extends Controller
         if ($viaAgente && $segundaVia === 'conta') {
             $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
         } elseif ($viaAgente && $porSeccao) {
-            $jobs = $printJobs->criarTaloesPrepago($pedidoFull, $secaoImp, $juntar);
+            $jobs = $printJobs->criarTaloesPrepago($senhas, $secaoImp, $juntar);
 
             // A conta sai no fim, para quem esta na caixa conferir
             $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
         } elseif ($viaAgente) {
-            $itensIndividuais = $pedidoFull->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
-            $itensOutros = $pedidoFull->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
+            $itensIndividuais = $senhas->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
+            $itensOutros = $senhas->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
 
             $totalTaloes = (int) $itensIndividuais->sum('quantidade');
             $numero = 0;
@@ -430,7 +432,12 @@ class PosBarController extends Controller
             }
 
             if ($itensOutros->isNotEmpty()) {
-                $jobs[] = $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
+                $jobs[] = $printJobs->criarTalaoBar((clone $pedidoFull)->setRelation('items', $itensOutros), $secaoImp);
+            }
+
+            // A comida foi para a cozinha: no posto sai a conta com tudo
+            if ($senhas !== $pedidoFull) {
+                $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
             }
         }
 
@@ -580,6 +587,12 @@ class PosBarController extends Controller
         $pedido->loadMissing('items.produto.categoria', 'pos');
         $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
 
+        // A conta leva tudo; as senhas nao levam a comida que foi para a cozinha
+        $conta = $pedido;
+        $pedido = $this->semCozinha($pedido);
+        $foiParaCozinha = $pedido !== $conta;
+        $escpos = in_array($modo, ['webusb', 'navegador'], true);
+
         // O cliente pediu alguma seccao junta: essa numa folha, o resto uma a uma
         if ($porSeccao && array_filter($juntar)) {
             $taloes = $printJobs->taloesJuntos($pedido, $juntar);
@@ -609,8 +622,8 @@ class PosBarController extends Controller
                 }
             }
 
-            if ($taloesEscpos !== []) {
-                $taloesEscpos[] = $printJobs->payloadTalaoBar($pedido, 'CONTA');
+            if ($taloesEscpos !== [] || ($foiParaCozinha && $escpos)) {
+                $taloesEscpos[] = $printJobs->payloadTalaoBar($conta, 'CONTA');
             }
 
             return [$taloesCliente, $taloesEscpos];
@@ -654,11 +667,29 @@ class PosBarController extends Controller
             }
         }
 
-        if ($taloesEscpos !== []) {
-            $taloesEscpos[] = $printJobs->payloadTalaoBar($pedido, 'CONTA');
+        if ($taloesEscpos !== [] || ($foiParaCozinha && $escpos)) {
+            $taloesEscpos[] = $printJobs->payloadTalaoBar($conta, 'CONTA');
         }
 
         return [$taloesCliente, $taloesEscpos];
+    }
+
+    /**
+     * O pedido sem a comida que foi mandada para a cozinha (frango,
+     * acompanhamentos, comida): essa ja nao sai em senha no posto, so na
+     * conta. Se o pedido nao foi para a cozinha, devolve-o tal como esta.
+     */
+    private function semCozinha(Pedido $pedido): Pedido
+    {
+        if (! $pedido->enviado_preparacao_id) {
+            return $pedido;
+        }
+
+        $pedido->loadMissing('items.produto.categoria');
+
+        return (clone $pedido)->setRelation('items', $pedido->items
+            ->reject(fn ($i) => in_array($i->secao ?: ($i->produto->categoria->secao ?? null), PrintJobService::SECOES_PREPARACAO, true))
+            ->values());
     }
 
     /** Minutos em que o proprio posto pode anular sem a comissao (engano ao vender). */
