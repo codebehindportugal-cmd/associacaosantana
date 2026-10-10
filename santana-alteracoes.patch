@@ -1,0 +1,3174 @@
+From b3822433aa25f6196a885bb63205d3b11afdb79a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 9 Oct 2026 00:58:24 +0100
+Subject: [PATCH] POS pre-pagamento: preparacao do Carvalhal Fest (3 postos,
+ impressao e testes)
+
+- Impressoras > Agente de impressao: token do agente guardado no site
+  (ver, copiar, gerar, colar o do Raspberry), estado do agente e comando
+  pronto para atualizar o .env do Raspberry. Sem token no site continua a
+  valer o PRINT_AGENT_TOKEN do .env do servidor.
+- POS de pre-pagamento cabe em ecras baixos (portateis/Chromebooks): fica
+  compacto abaixo de 820px de altura e o painel da senha faz scroll se
+  preciso, para o botao Cobrar estar sempre visivel.
+- Pre-pagamento: por omissao uma senha por unidade e a conta no fim. No POS
+  ha um botao por seccao (Comida - com frango e acompanhamentos -,
+  Sobremesas, Bebidas) para juntar essa seccao numa so folha a pedido do
+  cliente; na folha junta, produtos iguais numa linha ("2x Bifana").
+- Produtos com caucao (metro): cartao com Novo (+caucao) e Encher (ja
+  tem, sem caucao), para nao cobrar outra vez a caucao a quem vem encher.
+- Senhas: fechar as caixas todas a meio da noite e reabrir ja nao recomeca a
+  contagem (so recomeca se nao houve senhas nas ultimas 6h).
+- Forma de pagamento no POS: Dinheiro, MB WAY ou Contactless. So o dinheiro
+  tem troco e abre a gaveta; a conta impressa diz a forma de pagamento.
+  Migracao: 'contactless' no enum de pedidos.metodo_pagamento.
+- Senhas anteriores no POS (faixa "Ultimas senhas" sempre visivel, tambem em
+  ecras baixos, e botao no topo; do posto, do dia, pesquisa por numero): ver o
+  pedido, reimprimir (tudo ou so a conta, com "2a VIA", sem abrir a gaveta,
+  com as seccoes juntas como na venda) e anular com motivo (sai das vendas e
+  da caixa, cancela taloes por imprimir, talao ANULADA com o valor a devolver,
+  metros trocados na senha passam a devolucao em dinheiro). Migracao com
+  juntar, reimpressoes e dados da anulacao em pedidos.
+- Caixa: "Na gaveta" conta so o dinheiro (com troco deixado/doacoes e
+  caucoes); MB WAY, Contactless e Multibanco aparecem a parte.
+- Auditoria nunca faz falhar uma venda (e a BD instala de raiz).
+- Agente: uma fila por impressora em paralelo - uma impressora desligada ou
+  sem papel ja nao atrasa nem perde taloes das outras; pausa curta apos falha,
+  retentativas mais rapidas (10s..60s), reserva de trabalhos com trinco (dois
+  agentes nunca imprimem o mesmo talao). O site serve o agent.mjs atual e o
+  backoffice mostra o comando para atualizar o Raspberry.
+- Testes do evento (tests/Feature/Evento, 33 testes contra MySQL):
+  testar-evento.bat no Laragon.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XzVUfejiSkxWEadAANf6ZU
+---
+ app/Http/Controllers/BarController.php        |  11 +-
+ .../Controllers/CaixaDiariaController.php     |  58 +-
+ app/Http/Controllers/ImpressoraController.php |  42 +
+ app/Http/Controllers/PosBarController.php     | 403 ++++++++--
+ app/Http/Controllers/PrintAgentController.php |  72 +-
+ app/Models/Pedido.php                         |  16 +
+ app/Observers/AuditObserver.php               |  20 +
+ app/Services/PrintJobService.php              | 241 +++++-
+ ...00_add_contactless_ao_metodo_pagamento.php |  30 +
+ ...add_anulacao_e_reimpressao_aos_pedidos.php |  42 +
+ docs/montagem-carvalhal-fest.md               |  38 +-
+ local-printer-agent/README.md                 |  11 +
+ local-printer-agent/agent.mjs                 | 103 ++-
+ phpunit.evento.xml                            |  44 ++
+ resources/js/Pages/Caixa/Index.vue            |  13 +-
+ resources/js/Pages/Impressoras/Index.vue      | 131 +++-
+ resources/js/Pages/Pos/Index.vue              | 339 +++++++-
+ resources/js/Pages/Pos/TalaoSenha.vue         |  19 +-
+ resources/js/Pages/Talao/Edit.vue             |   1 +
+ routes/api.php                                |   2 +
+ routes/web.php                                |   4 +
+ tailwind.config.js                            |   4 +
+ testar-evento.bat                             |  31 +
+ .../Feature/Evento/PrePagamentoEventoTest.php | 742 ++++++++++++++++++
+ 24 files changed, 2236 insertions(+), 181 deletions(-)
+ create mode 100644 database/migrations/2026_10_09_000200_add_contactless_ao_metodo_pagamento.php
+ create mode 100644 database/migrations/2026_10_09_000300_add_anulacao_e_reimpressao_aos_pedidos.php
+ create mode 100644 phpunit.evento.xml
+ create mode 100644 testar-evento.bat
+ create mode 100644 tests/Feature/Evento/PrePagamentoEventoTest.php
+
+diff --git a/app/Http/Controllers/BarController.php b/app/Http/Controllers/BarController.php
+index b245a56..f684c5f 100644
+--- a/app/Http/Controllers/BarController.php
++++ b/app/Http/Controllers/BarController.php
+@@ -97,16 +97,7 @@ class BarController extends Controller
+             // Evento com pre-pagamento: um talao por unidade, cada um cortado,
+             // agrupados por seccao. A conta sai no fim.
+             if (TalaoConfig::atual()->taloesPorSeccao()) {
+-                $grupos = $printJobs->unidadesPorSeccao($pedidoFull);
+-                $totalTaloes = array_sum(array_map('count', $grupos));
+-                $numero = 0;
+-
+-                foreach ($grupos as $secao => $unidades) {
+-                    foreach ($unidades as $nome) {
+-                        $numero++;
+-                        $printJobs->criarTalaoBarUnitario($pedidoFull, $nome, $secaoImp, $numero, $totalTaloes, $secao);
+-                    }
+-                }
++                $printJobs->criarTaloesPrepago($pedidoFull, $secaoImp);
+ 
+                 $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
+             } else {
+diff --git a/app/Http/Controllers/CaixaDiariaController.php b/app/Http/Controllers/CaixaDiariaController.php
+index 18db608..2e1e1ab 100644
+--- a/app/Http/Controllers/CaixaDiariaController.php
++++ b/app/Http/Controllers/CaixaDiariaController.php
+@@ -39,7 +39,7 @@ class CaixaDiariaController extends Controller
+             'caixas' => $caixas->map(function (CaixaDiaria $caixa) {
+                 $venda = $this->vendasDoPonto($caixa);
+                 $caucao = $this->caucoesDoPonto($caixa);
+-                $esperado = (float) $caixa->fundo_maneio + (float) ($venda->total ?? 0) + $caucao['saldo'];
++                $esperado = $this->esperadoNaGaveta($caixa, $venda, $caucao);
+ 
+                 return [
+                     'id' => $caixa->id,
+@@ -48,6 +48,13 @@ class CaixaDiariaController extends Controller
+                     'fundo_maneio' => (float) $caixa->fundo_maneio,
+                     'estado' => $caixa->estado,
+                     'vendas' => (float) ($venda->total ?? 0),
++                    'doacoes' => (float) ($venda->doacoes ?? 0),
++                    // Pagamentos que nao vao para a gaveta (conferir com o terminal / telemovel)
++                    'por_metodo' => [
++                        'mbway' => round((float) ($venda->mbway ?? 0), 2),
++                        'contactless' => round((float) ($venda->contactless ?? 0), 2),
++                        'multibanco' => round((float) ($venda->multibanco ?? 0), 2),
++                    ],
+                     'pedidos' => (int) ($venda->pedidos ?? 0),
+                     'esperado_caixa' => round($esperado, 2),
+                     'caucao' => $caucao,
+@@ -113,8 +120,7 @@ class CaixaDiariaController extends Controller
+             'observacoes_fecho' => ['nullable', 'string', 'max:1000'],
+         ]);
+ 
+-        $vendas = $this->vendasDoPonto($caixa)?->total ?? 0;
+-        $esperado = round((float) $caixa->fundo_maneio + (float) $vendas + $this->caucoesDoPonto($caixa)['saldo'], 2);
++        $esperado = $this->esperadoNaGaveta($caixa, $this->vendasDoPonto($caixa), $this->caucoesDoPonto($caixa));
+         $valorContado = round((float) $data['valor_contado'], 2);
+ 
+         $caixa->update([
+@@ -129,10 +135,16 @@ class CaixaDiariaController extends Controller
+         return back()->with('success', 'Caixa fechada para '.$caixa->ponto.'.');
+     }
+ 
++    /** Horas sem senhas a partir das quais a contagem pode recomecar no 1. */
++    private const HORAS_PARA_REPOR_SENHAS = 6;
++
+     /**
+      * A contagem das senhas e partilhada por todos os pontos de bar, por isso
+      * so recomeca quando se abre o primeiro ponto — abrir o segundo a meio da
+      * noite nao pode repetir numeros que ja andam na mao dos clientes.
++     *
++     * Tambem nao recomeca se houve senhas nas ultimas horas: fechar as caixas
++     * todas para contar (troca de turno) e voltar a abrir continua a contagem.
+      * O Restaurante trabalha por mesas e nunca mexe nas senhas.
+      */
+     private function primeiraCaixaDeBar(string $ponto): bool
+@@ -141,9 +153,16 @@ class CaixaDiariaController extends Controller
+             return false;
+         }
+ 
+-        return ! CaixaDiaria::where('estado', 'aberta')
++        $outraAberta = CaixaDiaria::where('estado', 'aberta')
+             ->where('ponto', '!=', 'Restaurante')
+             ->exists();
++
++        $senhasRecentes = Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
++            ->whereNotNull('numero_senha')
++            ->where('created_at', '>=', now()->subHours(self::HORAS_PARA_REPOR_SENHAS))
++            ->exists();
++
++        return ! $outraAberta && ! $senhasRecentes;
+     }
+ 
+     private function reporSenhasBar(): void
+@@ -154,6 +173,33 @@ class CaixaDiariaController extends Controller
+         );
+     }
+ 
++    /**
++     * Dinheiro que tem de estar na gaveta: fundo + o que entrou a dinheiro
++     * (vendas, caucoes cobradas menos as descontadas, troco deixado) menos as
++     * caucoes devolvidas em dinheiro. MB WAY, contactless e multibanco nao
++     * entram na gaveta.
++     */
++    private function esperadoNaGaveta(CaixaDiaria $caixa, ?object $venda, array $caucao): float
++    {
++        return round((float) $caixa->fundo_maneio + (float) ($venda?->entrada_gaveta ?? 0) - (float) $caucao['dinheiro'], 2);
++    }
++
++    private function somasVenda(): array
++    {
++        $metodo = "COALESCE(metodo_pagamento, 'dinheiro')";
++        $pago = 'total + COALESCE(caucao_cobrada, 0) - COALESCE(caucao_descontada, 0) + COALESCE(doacao, 0)';
++
++        return [
++            DB::raw('SUM(total) as total'),
++            DB::raw('SUM(doacao) as doacoes'),
++            DB::raw('COUNT(*) as pedidos'),
++            DB::raw("SUM(CASE WHEN $metodo = 'dinheiro' THEN $pago ELSE 0 END) as entrada_gaveta"),
++            DB::raw("SUM(CASE WHEN $metodo = 'mbway' THEN $pago ELSE 0 END) as mbway"),
++            DB::raw("SUM(CASE WHEN $metodo = 'contactless' THEN $pago ELSE 0 END) as contactless"),
++            DB::raw("SUM(CASE WHEN $metodo = 'multibanco' THEN $pago ELSE 0 END) as multibanco"),
++        ];
++    }
++
+     private function vendasDoPonto(CaixaDiaria $caixa): object
+     {
+         if ($caixa->ponto === 'Restaurante') {
+@@ -161,7 +207,7 @@ class CaixaDiariaController extends Controller
+                 ->where('created_at', '>=', $caixa->created_at)
+                 ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
+                 ->where('estado', 'entregue')
+-                ->select(DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
++                ->select($this->somasVenda())
+                 ->first();
+         }
+ 
+@@ -170,7 +216,7 @@ class CaixaDiariaController extends Controller
+             ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
+             ->where('ponto_bar', $caixa->ponto)
+             ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
+-            ->select(DB::raw('SUM(total) as total'), DB::raw('COUNT(*) as pedidos'))
++            ->select($this->somasVenda())
+             ->first();
+     }
+ 
+diff --git a/app/Http/Controllers/ImpressoraController.php b/app/Http/Controllers/ImpressoraController.php
+index 6dcb653..40e3697 100644
+--- a/app/Http/Controllers/ImpressoraController.php
++++ b/app/Http/Controllers/ImpressoraController.php
+@@ -2,6 +2,7 @@
+ 
+ namespace App\Http\Controllers;
+ 
++use App\Models\Configuracao;
+ use App\Models\Impressora;
+ use App\Models\PosSession;
+ use App\Models\TalaoConfig;
+@@ -9,7 +10,9 @@ use App\Models\PrintJob;
+ use Illuminate\Http\RedirectResponse;
+ use Illuminate\Http\Request;
+ use Illuminate\Support\Carbon;
++use Illuminate\Support\Facades\Cache;
+ use Illuminate\Support\Facades\Log;
++use Illuminate\Support\Str;
+ use Inertia\Inertia;
+ use Inertia\Response;
+ use Symfony\Component\HttpFoundation\StreamedResponse;
+@@ -43,9 +46,48 @@ class ImpressoraController extends Controller
+             'terminais' => PosSession::orderBy('nome')->get(['id', 'nome', 'tipo', 'localizacao', 'impressora_id', 'impressao_navegador', 'ativo']),
+             'tiposTerminal' => ['restaurante', 'reservas', 'bar', 'cafe', 'cotas'],
+             'tiposImpressora' => Impressora::TIPOS,
++            'agente' => $this->estadoAgente(),
+         ]);
+     }
+ 
++    /**
++     * Guarda o token do agente. Sem token no pedido, gera um novo.
++     * Mudar o token desliga os agentes que ainda tenham o antigo.
++     */
++    public function guardarTokenAgente(Request $request): RedirectResponse
++    {
++        $data = $request->validate([
++            'token' => ['nullable', 'string', 'min:16', 'max:120', 'regex:/^[A-Za-z0-9_\-\.]+$/'],
++        ], [
++            'token.min' => 'O token tem de ter pelo menos 16 caracteres.',
++            'token.regex' => 'O token so pode ter letras, numeros, - _ e .',
++        ]);
++
++        $token = ($data['token'] ?? '') ?: Str::random(40);
++
++        Configuracao::updateOrCreate(
++            ['chave' => PrintAgentController::CHAVE_TOKEN],
++            ['valor' => $token, 'descricao' => 'Token do agente de impressao (Raspberry / Windows)'],
++        );
++
++        Cache::forget(PrintAgentController::CACHE_ULTIMO_401);
++
++        return back()->with('success', 'Token do agente guardado. Atualiza o .env do Raspberry com o comando indicado.');
++    }
++
++    private function estadoAgente(): array
++    {
++        $doSite = (string) Configuracao::where('chave', PrintAgentController::CHAVE_TOKEN)->value('valor');
++
++        return [
++            'token' => PrintAgentController::tokenAtual(),
++            'origem' => $doSite !== '' ? 'site' : (config('services.print_agent.token') ? 'servidor' : null),
++            'url' => rtrim((string) config('app.url'), '/'),
++            'ultimo_ok_at' => Cache::get(PrintAgentController::CACHE_ULTIMO_OK),
++            'ultimo_401_at' => Cache::get(PrintAgentController::CACHE_ULTIMO_401),
++        ];
++    }
++
+     /**
+      * Teste de impressao por WebUSB: o browser fala com a impressora USB
+      * sem agente nenhum. Unico caminho nos Chromebooks.
+diff --git a/app/Http/Controllers/PosBarController.php b/app/Http/Controllers/PosBarController.php
+index 9bfc383..84c5753 100644
+--- a/app/Http/Controllers/PosBarController.php
++++ b/app/Http/Controllers/PosBarController.php
+@@ -7,9 +7,11 @@ use App\Models\CaucaoDevolucao;
+ use App\Models\Configuracao;
+ use App\Models\Pedido;
+ use App\Models\PosSession;
++use App\Models\PrintJob;
+ use App\Models\Produto;
+ use App\Models\TalaoConfig;
+ use App\Services\PrintJobService;
++use Illuminate\Http\JsonResponse;
+ use Illuminate\Http\RedirectResponse;
+ use Illuminate\Http\Request;
+ use Illuminate\Support\Facades\DB;
+@@ -27,6 +29,8 @@ class PosBarController extends Controller
+             'posNome' => session('pos_nome'),
+             'pontoBar' => $ponto,
+             'caixaAberta' => $this->caixaAberta($ponto),
++            // Pre-pagamento: o operador pode juntar as senhas de uma seccao se o cliente pedir
++            'juntarFolhas' => TalaoConfig::atual()->taloesPorSeccao(),
+             'produtos' => Produto::with('categoria')
+                 ->disponiveisBar()
+                 ->orderBy('nome')
+@@ -55,15 +59,22 @@ class PosBarController extends Controller
+             'devolvidos' => ['nullable', 'array'],
+             'devolvidos.*.produto_id' => ['required', Rule::exists('produtos', 'id')->where(fn ($q) => $q->where('caucao', '>', 0))],
+             'devolvidos.*.quantidade' => ['required', 'integer', 'min:1', 'max:50'],
++            // Senhas juntas por seccao: que grupos saem numa folha (o resto, uma a uma)
++            'juntar' => ['nullable', 'array'],
++            'juntar.*' => ['boolean'],
++            'metodo_pagamento' => ['nullable', Rule::in(array_keys(Pedido::METODOS_PREPAGO))],
+         ]);
+ 
++        $metodo = $data['metodo_pagamento'] ?? 'dinheiro';
++
++        $juntar = array_map('boolval', array_intersect_key($data['juntar'] ?? [], PrintJobService::GRUPOS_JUNTOS));
+         $ponto = session('pos_localizacao') ?: session('pos_nome');
+ 
+         if (! $this->caixaAberta($ponto)) {
+             return back()->withErrors(['ponto_bar' => 'Abre a caixa deste ponto no backoffice antes de vender.']);
+         }
+ 
+-        return DB::transaction(function () use ($data, $ponto, $printJobs) {
++        return DB::transaction(function () use ($data, $ponto, $printJobs, $juntar, $metodo) {
+             $produtos = Produto::with('categoria')->whereIn('id', collect($data['items'])->pluck('produto_id'))->get()->keyBy('id');
+             $total = round(collect($data['items'])->sum(fn ($item) => (float) $produtos[$item['produto_id']]->preco * (int) $item['quantidade']), 2);
+ 
+@@ -82,8 +93,9 @@ class PosBarController extends Controller
+             }
+ 
+             $aPagar = round($total + $caucaoCobrada - $caucaoDescontada, 2);
+-            $valorRecebido = round((float) $data['valor_recebido'], 2);
+-            $troco = round((float) ($data['troco'] ?? 0), 2);
++            // MB WAY e contactless: paga-se o valor certo, sem troco nem gaveta
++            $valorRecebido = $metodo === 'dinheiro' ? round((float) $data['valor_recebido'], 2) : $aPagar;
++            $troco = $metodo === 'dinheiro' ? round((float) ($data['troco'] ?? 0), 2) : 0.0;
+             $excedente = round($valorRecebido - $aPagar, 2);
+ 
+             if ($valorRecebido < $aPagar) {
+@@ -108,7 +120,7 @@ class PosBarController extends Controller
+                 'valor_recebido' => $valorRecebido,
+                 'troco' => $troco,
+                 'doacao' => max(0, round($excedente - $troco, 2)),
+-                'metodo_pagamento' => 'dinheiro',
++                'metodo_pagamento' => $metodo,
+             ]);
+ 
+             foreach ($data['items'] as $item) {
+@@ -136,102 +148,286 @@ class PosBarController extends Controller
+                 ]);
+             }
+ 
+-            $pedidoFull = $pedido->fresh('items.produto.categoria', 'pos');
+-            $secaoImp   = $this->secaoImpressora();
++            $pedido->update(['juntar' => $juntar ?: null]);
++
++            return $this->imprimirPedido(
++                $pedido,
++                $printJobs,
++                abrirGaveta: $metodo === 'dinheiro',
++                sucesso: 'Senha #'.$pedido->numero_senha.' enviada para a impressora.',
++            );
++        });
++    }
++
++    /**
++     * Senhas anteriores deste ponto (o dia do evento vai das 12h as 12h), para
++     * reimprimir ou anular a pedido do cliente.
++     */
++    public function senhas(Request $request): JsonResponse
++    {
++        $ponto = session('pos_localizacao') ?: session('pos_nome');
++        $numero = (int) $request->query('numero');
++
++        $pedidos = Pedido::where('tipo', 'bar_prepago')
++            ->where('ponto_bar', $ponto)
++            ->where('created_at', '>=', now()->subHours(self::HORAS_SENHAS_ANTERIORES))
++            ->when($numero > 0, fn ($q) => $q->where('numero_senha', $numero))
++            ->with('items.produto')
++            ->latest('id')
++            ->limit(80)
++            ->get();
++
++        return response()->json([
++            'senhas' => $pedidos->map(fn (Pedido $p) => $this->resumoSenha($p))->values(),
++        ]);
++    }
++
++    /** 2a via: tudo (senhas + conta) ou so a conta. */
++    public function reimprimir(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
++    {
++        $this->autorizarSenha($pedido);
++        abort_if($pedido->estado === 'cancelado', 422, 'Esta senha foi anulada.');
++
++        $data = $request->validate(['o' => ['required', Rule::in(['tudo', 'conta'])]]);
++
++        $pedido->increment('reimpressoes');
++
++        return $this->imprimirPedido(
++            $pedido->fresh(),
++            $printJobs,
++            abrirGaveta: false,
++            sucesso: 'Senha #'.$pedido->numero_senha.' reimpressa ('.($data['o'] === 'conta' ? 'so a conta' : 'senhas e conta').').',
++            segundaVia: $data['o'],
++        );
++    }
++
++    /**
++     * Anula a senha a pedido do cliente: deixa de contar nas vendas e na caixa,
++     * os taloes que ainda nao sairam ja nao saem, e sai um talao "ANULADA" com o
++     * valor a devolver. Metros que o cliente tinha trocado nesta senha passam a
++     * devolucao em dinheiro.
++     */
++    public function anular(Request $request, Pedido $pedido, PrintJobService $printJobs): RedirectResponse
++    {
++        $this->autorizarSenha($pedido);
++
++        $data = $request->validate(['motivo' => ['required', 'string', 'min:3', 'max:255']], [
++            'motivo.required' => 'Escreve o motivo da anulacao.',
++            'motivo.min' => 'Escreve o motivo da anulacao.',
++        ]);
++
++        if ($pedido->estado === 'cancelado') {
++            return back()->withErrors(['motivo' => 'Esta senha ja estava anulada.']);
++        }
++
++        if ($pedido->created_at->lt(now()->subHours(self::HORAS_SENHAS_ANTERIORES))) {
++            return back()->withErrors(['motivo' => 'So se anulam senhas do proprio dia. Fala com a comissao.']);
++        }
++
++        return DB::transaction(function () use ($pedido, $data, $printJobs) {
++            $pedido = Pedido::lockForUpdate()->findOrFail($pedido->id);
++
++            if ($pedido->estado === 'cancelado') {
++                return back()->withErrors(['motivo' => 'Esta senha ja estava anulada.']);
++            }
++
++            $pago = round((float) $pedido->total + (float) $pedido->caucao_cobrada - (float) $pedido->caucao_descontada + (float) $pedido->doacao, 2);
++            $metros = round((float) $pedido->caucao_descontada, 2);
++
++            // O cliente tinha trocado metros por bebidas nesta senha: recebe a caucao em dinheiro
++            CaucaoDevolucao::where('pedido_id', $pedido->id)->where('modo', 'bebidas')->update(['modo' => 'dinheiro']);
++
++            $pedido->update([
++                'estado' => 'cancelado',
++                'pago_antecipado' => false,
++                'anulado_em' => now(),
++                'anulado_por' => session('pos_operador') ?: session('pos_nome'),
++                'motivo_anulacao' => $data['motivo'],
++                'valor_devolvido' => $pago + $metros,
++            ]);
++
++            // Taloes desta senha que ainda nao sairam ja nao saem
++            PrintJob::where('printable_type', Pedido::class)
++                ->where('printable_id', $pedido->id)
++                ->whereIn('estado', ['pendente', 'processando', 'falhado'])
++                ->update(['estado' => 'falhado', 'tentativas' => 10, 'ultimo_erro' => 'Senha anulada', 'reservado_ate' => null]);
++
++            $dinheiroDaGaveta = (($pedido->metodo_pagamento ?: 'dinheiro') === 'dinheiro' ? $pago : 0) + $metros;
++            $mensagem = 'Senha #'.$pedido->numero_senha.' anulada. Devolver '.number_format($pago + $metros, 2, ',', ' ').' €'
++                .(($pedido->metodo_pagamento ?: 'dinheiro') !== 'dinheiro' ? ' ('.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento] ?? $pedido->metodo_pagamento).($metros > 0 ? ' + '.number_format($metros, 2, ',', ' ').' € de caucao em dinheiro' : '').')' : '')
++                .'.';
+ 
+             $terminal = PosSession::find(session('pos_id'));
+             $impressora = $terminal?->impressora;
++            $payload = $printJobs->payloadAnulacao($pedido, $pago + $metros);
++            if ($dinheiroDaGaveta > 0) {
++                $payload['abrir_caixa'] = true;
++            }
+ 
+-            // Como imprime este posto e uma definicao da impressora dele:
+-            // rede/usb passam pelo agente, webusb e navegador imprimem na
+-            // propria pagina do talao. Sem impressora definida, mantem-se o
+-            // comportamento antigo por seccao, pelo agente.
+-            $viaAgente = $impressora ? $impressora->usaAgente() : true;
++            if (! $impressora || $impressora->usaAgente()) {
++                $printJobs->paraImpressora($terminal?->impressora_id)->criarPayload($pedido, $payload, $this->secaoImpressora());
+ 
+-            // Sem isto, o talao sairia na primeira impressora da seccao
+-            $printJobs->paraImpressora($terminal?->impressora_id);
++                return to_route('pos.index')->with('success', $mensagem);
++            }
+ 
+-            // Evento com pre-pagamento: sai um talao por UNIDADE, cada um
+-            // cortado, agrupados por seccao para saírem pela ordem das
+-            // tasquinhas. A conta sai no fim.
+-            $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
+-            $jobs = [];
+-
+-            if ($viaAgente && $porSeccao) {
+-                $grupos = $printJobs->unidadesPorSeccao($pedidoFull);
+-                $totalTaloes = array_sum(array_map('count', $grupos));
+-                $numero = 0;
+-
+-                foreach ($grupos as $secao => $unidades) {
+-                    foreach ($unidades as $nome) {
+-                        $numero++;
+-                        $jobs[] = $printJobs->criarTalaoBarUnitario($pedidoFull, $nome, $secaoImp, $numero, $totalTaloes, $secao);
+-                    }
+-                }
++            if ($impressora->tipo === 'webusb') {
++                return to_route('pos.index')->with('success', $mensagem)->with('imprimir', [
++                    'pedido_id' => 'anulada-'.$pedido->id,
++                    'modo' => 'webusb',
++                    'escpos' => [$payload],
++                ]);
++            }
+ 
+-                // A conta sai no fim, para quem esta na caixa conferir
+-                $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
+-            } elseif ($viaAgente) {
+-                $itensIndividuais = $pedidoFull->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
+-                $itensOutros = $pedidoFull->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
+-
+-                $totalTaloes = (int) $itensIndividuais->sum('quantidade');
+-                $numero = 0;
+-
+-                foreach ($itensIndividuais as $item) {
+-                    for ($u = 0; $u < $item->quantidade; $u++) {
+-                        $numero++;
+-                        $jobs[] = $printJobs->criarTalaoBarUnitario(
+-                            $pedidoFull,
+-                            $item->produto->nome,
+-                            $secaoImp,
+-                            $numero,
+-                            $totalTaloes,
+-                            $item->produto->categoria->secao ?? null,
+-                        );
+-                    }
+-                }
++            return to_route('pos.index')->with('success', $mensagem);
++        });
++    }
+ 
+-                if ($itensOutros->isNotEmpty()) {
+-                    $jobs[] = $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
++    /** Horas para tras em que as senhas aparecem no POS (e se podem anular). */
++    private const HORAS_SENHAS_ANTERIORES = 14;
++
++    /** A senha tem de ser do pre-pagamento deste ponto. */
++    private function autorizarSenha(Pedido $pedido): void
++    {
++        $ponto = session('pos_localizacao') ?: session('pos_nome');
++
++        abort_unless($pedido->tipo === 'bar_prepago' && $pedido->ponto_bar === $ponto, 404);
++    }
++
++    private function resumoSenha(Pedido $p): array
++    {
++        $pago = round((float) $p->total + (float) $p->caucao_cobrada - (float) $p->caucao_descontada, 2);
++
++        return [
++            'id' => $p->id,
++            'numero' => $p->numero_senha,
++            'hora' => $p->created_at?->format('H:i'),
++            'operador' => $p->operador_nome,
++            'total' => (float) $p->total,
++            'caucao_cobrada' => (float) $p->caucao_cobrada,
++            'caucao_descontada' => (float) $p->caucao_descontada,
++            'pago' => $pago,
++            'doacao' => (float) $p->doacao,
++            'metodo' => $p->metodo_pagamento ?: 'dinheiro',
++            'metodo_nome' => Pedido::METODOS_PREPAGO[$p->metodo_pagamento ?: 'dinheiro'] ?? $p->metodo_pagamento,
++            'reimpressoes' => (int) $p->reimpressoes,
++            'anulada' => $p->estado === 'cancelado',
++            'anulado_em' => $p->anulado_em?->format('H:i'),
++            'anulado_por' => $p->anulado_por,
++            'motivo_anulacao' => $p->motivo_anulacao,
++            'valor_devolvido' => $p->valor_devolvido !== null ? (float) $p->valor_devolvido : null,
++            'itens' => $p->items->map(fn ($i) => [
++                'nome' => $i->produto?->nome ?? 'Produto',
++                'quantidade' => (int) $i->quantidade,
++                'valor' => round((float) $i->preco_unitario * (int) $i->quantidade, 2),
++            ])->values(),
++        ];
++    }
++
++    /**
++     * Imprime os taloes de um pedido pre-pago na impressora do posto: senhas
++     * (uma por unidade ou juntas por seccao) e a conta no fim. Na 2a via os
++     * taloes levam "2a VIA" e nunca abrem a gaveta.
++     *
++     * @param  string|null  $segundaVia  null (venda), 'tudo' ou 'conta'
++     */
++    private function imprimirPedido(Pedido $pedido, PrintJobService $printJobs, bool $abrirGaveta, string $sucesso, ?string $segundaVia = null): RedirectResponse
++    {
++        $pedidoFull = $pedido->fresh('items.produto.categoria', 'pos');
++        $juntar = array_map('boolval', (array) ($pedidoFull->juntar ?? []));
++        $secaoImp = $this->secaoImpressora();
++
++        $terminal = PosSession::find(session('pos_id'));
++        $impressora = $terminal?->impressora;
++
++        // Como imprime este posto e uma definicao da impressora dele:
++        // rede/usb passam pelo agente, webusb e navegador imprimem na
++        // propria pagina do talao. Sem impressora definida, mantem-se o
++        // comportamento antigo por seccao, pelo agente.
++        $viaAgente = $impressora ? $impressora->usaAgente() : true;
++
++        // Sem isto, o talao sairia na primeira impressora da seccao
++        $printJobs->paraImpressora($terminal?->impressora_id);
++
++        // Evento com pre-pagamento: sai um talao por UNIDADE (ou juntos por
++        // seccao, a pedido do cliente), agrupados por seccao. A conta no fim.
++        $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
++        $jobs = [];
++
++        if ($viaAgente && $segundaVia === 'conta') {
++            $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
++        } elseif ($viaAgente && $porSeccao) {
++            $jobs = $printJobs->criarTaloesPrepago($pedidoFull, $secaoImp, $juntar);
++
++            // A conta sai no fim, para quem esta na caixa conferir
++            $jobs[] = $printJobs->criarTalaoBar($pedidoFull, $secaoImp, 'CONTA');
++        } elseif ($viaAgente) {
++            $itensIndividuais = $pedidoFull->items->filter(fn ($i) => (bool) ($i->produto->talao_individual ?? false));
++            $itensOutros = $pedidoFull->items->filter(fn ($i) => ! (bool) ($i->produto->talao_individual ?? false));
++
++            $totalTaloes = (int) $itensIndividuais->sum('quantidade');
++            $numero = 0;
++
++            foreach ($itensIndividuais as $item) {
++                for ($u = 0; $u < $item->quantidade; $u++) {
++                    $numero++;
++                    $jobs[] = $printJobs->criarTalaoBarUnitario(
++                        $pedidoFull,
++                        $item->produto->nome,
++                        $secaoImp,
++                        $numero,
++                        $totalTaloes,
++                        $item->produto->categoria->secao ?? null,
++                    );
+                 }
+             }
+ 
++            if ($itensOutros->isNotEmpty()) {
++                $jobs[] = $printJobs->criarTalaoBar($pedidoFull->setRelation('items', $itensOutros), $secaoImp);
++            }
++        }
++
++        $jobs = collect($jobs)->filter();
++
++        if ($segundaVia) {
++            $jobs->each(fn (PrintJob $job) => $job->update(['payload' => PrintJobService::marcarSegundaVia($job->payload)]));
++        } elseif ($abrirGaveta && $primeiro = $jobs->first()) {
+             // Venda a dinheiro: a gaveta abre com o primeiro talao que sai
+             // (ESC p no inicio dos bytes), para nao ficar a espera do resto.
+-            if ($primeiro = collect($jobs)->filter()->first()) {
+-                $primeiro->update(['payload' => [...$primeiro->payload, 'abrir_caixa' => true]]);
+-            }
++            $primeiro->update(['payload' => [...$primeiro->payload, 'abrir_caixa' => true]]);
++        }
+ 
+-            $sucesso = 'Senha #'.$pedido->numero_senha.' enviada para a impressora.';
++        // Pelo agente, o talao sai sozinho na impressora.
++        if ($viaAgente) {
++            return to_route('pos.index')->with('success', $sucesso);
++        }
+ 
+-            // Pelo agente, o talao sai sozinho na impressora.
+-            if ($viaAgente) {
+-                return to_route('pos.index')->with('success', $sucesso);
+-            }
++        // WebUSB/navegador: fica-se no ecra de venda e e o proprio POS
++        // que imprime (e abre a gaveta), sem passar pela pagina do talao.
++        $modo = $impressora->tipo;
++        $escpos = [];
+ 
+-            // WebUSB/navegador: fica-se no ecra de venda e e o proprio POS
+-            // que imprime (e abre a gaveta), sem passar pela pagina do talao.
+-            $modo = $impressora->tipo;
+-            $escpos = [];
++        if ($modo === 'webusb') {
++            [, $escpos] = $this->taloesDoPedido($pedidoFull, $printJobs, $modo, $juntar);
+ 
+-            if ($modo === 'webusb') {
+-                [, $escpos] = $this->taloesDoPedido($pedidoFull, $printJobs, $modo);
++            if ($segundaVia === 'conta') {
++                $escpos = array_slice($escpos, -1);
++            }
+ 
+-                if ($escpos !== []) {
+-                    $escpos[0]['abrir_caixa'] = true;
+-                }
++            if ($segundaVia) {
++                $escpos = array_map([PrintJobService::class, 'marcarSegundaVia'], $escpos);
++            } elseif ($escpos !== [] && $abrirGaveta) {
++                $escpos[0]['abrir_caixa'] = true;
+             }
++        }
+ 
+-            return to_route('pos.index')
+-                ->with('success', $sucesso)
+-                ->with('imprimir', [
+-                    'pedido_id' => $pedido->id,
+-                    'modo' => $modo,
+-                    'url' => route('pos.pedido.talao', $pedido),
+-                    'escpos' => $escpos,
+-                ]);
+-        });
++        return to_route('pos.index')
++            ->with('success', $sucesso)
++            ->with('imprimir', [
++                'pedido_id' => $segundaVia ? 'via-'.$pedido->id.'-'.$pedido->reimpressoes : $pedido->id,
++                'modo' => $modo,
++                'url' => route('pos.pedido.talao', $juntar ? [$pedido, 'juntar' => array_map('intval', $juntar)] : $pedido),
++                'escpos' => $escpos,
++            ]);
+     }
+ 
+     /**
+@@ -293,7 +489,7 @@ class PosBarController extends Controller
+         return to_route('pos.index')->with('success', $mensagem);
+     }
+ 
+-    public function talao(Pedido $pedido, PrintJobService $printJobs): Response
++    public function talao(Request $request, Pedido $pedido, PrintJobService $printJobs): Response
+     {
+         abort_unless($pedido->tipo === 'bar_prepago' && (int) $pedido->pos_id === (int) session('pos_id'), 404);
+ 
+@@ -304,7 +500,12 @@ class PosBarController extends Controller
+         $impressora = $terminal?->impressora;
+         $modo = $impressora?->tipo ?? 'agente';
+ 
+-        [$taloesCliente, $taloesEscpos] = $this->taloesDoPedido($pedido, $printJobs, $modo);
++        [$taloesCliente, $taloesEscpos] = $this->taloesDoPedido(
++            $pedido,
++            $printJobs,
++            $modo,
++            array_map('boolval', array_intersect_key((array) $request->query('juntar', []), PrintJobService::GRUPOS_JUNTOS)),
++        );
+ 
+         return Inertia::render('Pos/TalaoSenha', [
+             'pedido' => $pedido,
+@@ -326,11 +527,47 @@ class PosBarController extends Controller
+      *
+      * @return array{0: array, 1: array}
+      */
+-    private function taloesDoPedido(Pedido $pedido, PrintJobService $printJobs, string $modo): array
++    private function taloesDoPedido(Pedido $pedido, PrintJobService $printJobs, string $modo, array $juntar = []): array
+     {
+         $pedido->loadMissing('items.produto.categoria', 'pos');
+         $porSeccao = TalaoConfig::atual()->taloesPorSeccao();
+ 
++        // O cliente pediu alguma seccao junta: essa numa folha, o resto uma a uma
++        if ($porSeccao && array_filter($juntar)) {
++            $taloes = $printJobs->taloesJuntos($pedido, $juntar);
++            $total = count($taloes);
++            $taloesCliente = [];
++            $taloesEscpos = [];
++
++            foreach ($taloes as $i => $talao) {
++                $taloesCliente[] = isset($talao['seccoes'])
++                    ? [
++                        'indice' => $i + 1,
++                        'total' => $total,
++                        'seccoes' => collect($talao['seccoes'])->map(fn ($unidades, $secao) => [
++                            'nome' => $printJobs->nomeSecao($secao),
++                            'unidades' => $unidades,
++                        ])->values()->all(),
++                    ]
++                    : [
++                        'indice' => $i + 1,
++                        'total' => $total,
++                        'produto' => $talao['nome'],
++                        'secao' => $printJobs->nomeSecao($talao['secao']),
++                    ];
++
++                if (in_array($modo, ['webusb', 'navegador'], true)) {
++                    $taloesEscpos[] = $printJobs->payloadTalaoJunto($pedido, $talao, $i + 1, $total);
++                }
++            }
++
++            if ($taloesEscpos !== []) {
++                $taloesEscpos[] = $printJobs->payloadTalaoBar($pedido, 'CONTA');
++            }
++
++            return [$taloesCliente, $taloesEscpos];
++        }
++
+         // O cliente leva um talao por unidade. No pre-pagamento leva tudo;
+         // fora dele, so os produtos marcados como talao individual.
+         $grupos = $porSeccao
+diff --git a/app/Http/Controllers/PrintAgentController.php b/app/Http/Controllers/PrintAgentController.php
+index ca0fdce..d77bbc8 100644
+--- a/app/Http/Controllers/PrintAgentController.php
++++ b/app/Http/Controllers/PrintAgentController.php
+@@ -2,13 +2,37 @@
+ 
+ namespace App\Http\Controllers;
+ 
++use App\Models\Configuracao;
+ use App\Models\PrintJob;
+ use Illuminate\Http\JsonResponse;
++use Illuminate\Http\Response;
+ use Illuminate\Http\Request;
++use Illuminate\Support\Facades\Cache;
++use Illuminate\Support\Facades\DB;
+ use Illuminate\Support\Facades\Log;
+ 
+ class PrintAgentController extends Controller
+ {
++    /** Chave em `configuracoes` com o token definido no backoffice. */
++    public const CHAVE_TOKEN = 'print_agent_token';
++
++    /** Ultimo pedido do agente aceite / recusado por token errado (cache). */
++    public const CACHE_ULTIMO_OK = 'print_agent_ultimo_ok_at';
++
++    public const CACHE_ULTIMO_401 = 'print_agent_ultimo_401_at';
++
++    /**
++     * Token que o agente tem de enviar. O definido no backoffice
++     * (Impressoras > Agente de impressao) tem prioridade; sem ele, usa o
++     * PRINT_AGENT_TOKEN do .env do servidor, como antes.
++     */
++    public static function tokenAtual(): string
++    {
++        $doSite = (string) Configuracao::where('chave', self::CHAVE_TOKEN)->value('valor');
++
++        return $doSite !== '' ? $doSite : (string) config('services.print_agent.token');
++    }
++
+     public function jobs(Request $request): JsonResponse
+     {
+         $this->autorizarAgente($request);
+@@ -24,6 +48,28 @@ class PrintAgentController extends Controller
+         $limite = now()->subMinutes(max(1, (int) config('services.print_agent.validade_minutos', 10)));
+         $this->expirarAntigos($limite);
+ 
++        // Reservar dentro de uma transacao com trinco: dois agentes a pedir ao
++        // mesmo tempo nunca recebem o mesmo talao (sairia duas vezes)
++        $jobs = DB::transaction(fn () => $this->reservarJobs($agente, $limite));
++
++        return $this->respostaJobs($jobs);
++    }
++
++    /**
++     * O agent.mjs atual. Pedido pelo proprio Raspberry, com o token dele:
++     *   curl -H "Authorization: Bearer TOKEN" APP_URL/api/print-agent/agente.mjs
++     */
++    public function codigoAgente(Request $request): Response
++    {
++        $this->autorizarAgente($request);
++
++        return response(file_get_contents(base_path('local-printer-agent/agent.mjs')), 200, [
++            'Content-Type' => 'text/javascript; charset=utf-8',
++        ]);
++    }
++
++    private function reservarJobs(string $agente, $limite)
++    {
+         $jobs = PrintJob::with('impressora')
+             ->where('created_at', '>=', $limite)
+             ->whereHas('impressora', fn ($query) => $agente !== ''
+@@ -46,7 +92,8 @@ class PrintAgentController extends Controller
+                     });
+             })
+             ->orderBy('id')
+-            ->limit(10)
++            ->limit(30)
++            ->lockForUpdate()
+             ->get();
+ 
+         $jobs->each(fn (PrintJob $job) => $job->update([
+@@ -55,6 +102,11 @@ class PrintAgentController extends Controller
+             'reservado_ate' => now()->addMinute(),
+         ]));
+ 
++        return $jobs;
++    }
++
++    private function respostaJobs($jobs): JsonResponse
++    {
+         return response()->json([
+             'jobs' => $jobs->map(fn (PrintJob $job) => [
+                 'id' => $job->id,
+@@ -96,9 +148,10 @@ class PrintAgentController extends Controller
+             'error' => ['nullable', 'string', 'max:2000'],
+         ]);
+ 
+-        // Backoff exponencial: espera mais a cada tentativa (30s, 60s, 120s, ate 10min)
++        // Backoff curto (10s, 20s, 40s, ate 1min): quando se repoe o papel ou a
++        // impressora volta, os taloes que estao na fila saem logo
+         $tentativas = $printJob->tentativas;
+-        $backoffSegundos = min(600, 30 * (2 ** max(0, $tentativas - 1)));
++        $backoffSegundos = min(60, 10 * (2 ** max(0, $tentativas - 1)));
+ 
+         $printJob->update([
+             'estado' => 'falhado',
+@@ -143,10 +196,17 @@ class PrintAgentController extends Controller
+ 
+     private function autorizarAgente(Request $request): void
+     {
+-        $token = (string) config('services.print_agent.token');
++        $token = self::tokenAtual();
+         $recebido = (string) ($request->bearerToken() ?: $request->query('token'));
+ 
+-        abort_if($token === '', 503, 'PRINT_AGENT_TOKEN nao configurado.');
+-        abort_unless(hash_equals($token, $recebido), 401);
++        abort_if($token === '', 503, 'Token do agente nao configurado (Impressoras > Agente de impressao).');
++
++        if (! hash_equals($token, $recebido)) {
++            // Para o backoffice poder avisar "o agente esta a tentar com o token errado"
++            Cache::put(self::CACHE_ULTIMO_401, now()->toIso8601String(), now()->addDay());
++            abort(401);
++        }
++
++        Cache::put(self::CACHE_ULTIMO_OK, now()->toIso8601String(), now()->addDays(30));
+     }
+ }
+diff --git a/app/Models/Pedido.php b/app/Models/Pedido.php
+index bc2bc01..eb1c00c 100644
+--- a/app/Models/Pedido.php
++++ b/app/Models/Pedido.php
+@@ -8,6 +8,13 @@ use Illuminate\Support\Str;
+ 
+ class Pedido extends Model
+ {
++    /** Formas de pagamento no pre-pagamento (POS do bar/cafe). So o dinheiro vai para a gaveta. */
++    public const METODOS_PREPAGO = [
++        'dinheiro' => 'Dinheiro',
++        'mbway' => 'MB WAY',
++        'contactless' => 'Contactless',
++    ];
++
+     use HasFactory;
+ 
+     protected $fillable = [
+@@ -32,6 +39,12 @@ class Pedido extends Model
+         'observacoes',
+         'chamado_em',
+         'conta_pedida_em',
++        'juntar',
++        'reimpressoes',
++        'anulado_em',
++        'anulado_por',
++        'motivo_anulacao',
++        'valor_devolvido',
+     ];
+ 
+     protected $appends = ['total_calculado'];
+@@ -42,6 +55,9 @@ class Pedido extends Model
+ 
+     protected $casts = [
+         'pago_antecipado' => 'boolean',
++        'juntar' => 'array',
++        'anulado_em' => 'datetime',
++        'valor_devolvido' => 'decimal:2',
+         'caucao_cobrada'  => 'decimal:2',
+         'caucao_descontada' => 'decimal:2',
+         'chamado_em'      => 'datetime',
+diff --git a/app/Observers/AuditObserver.php b/app/Observers/AuditObserver.php
+index 0ad1ce3..b7757ba 100644
+--- a/app/Observers/AuditObserver.php
++++ b/app/Observers/AuditObserver.php
+@@ -6,6 +6,7 @@ use App\Models\AuditLog;
+ use Illuminate\Database\Eloquent\Model;
+ use Illuminate\Support\Arr;
+ use Illuminate\Support\Facades\Auth;
++use Illuminate\Support\Facades\Log;
+ 
+ class AuditObserver
+ {
+@@ -54,7 +55,26 @@ class AuditObserver
+         $this->write('apagado', $model, $this->cleanValues($model->getOriginal()), null);
+     }
+ 
++    /**
++     * O registo de auditoria nunca pode fazer falhar a operacao que regista
++     * (ex.: uma venda no POS a meio do evento). Se nao conseguir gravar,
++     * deixa aviso no log e segue.
++     */
+     private function write(string $action, Model $model, ?array $oldValues, ?array $newValues): void
++    {
++        try {
++            $this->gravar($action, $model, $oldValues, $newValues);
++        } catch (\Throwable $e) {
++            Log::warning('Auditoria nao gravada', [
++                'acao' => $action,
++                'modelo' => $model::class,
++                'id' => $model->getKey(),
++                'erro' => $e->getMessage(),
++            ]);
++        }
++    }
++
++    private function gravar(string $action, Model $model, ?array $oldValues, ?array $newValues): void
+     {
+         $request = request();
+         $user = Auth::user();
+diff --git a/app/Services/PrintJobService.php b/app/Services/PrintJobService.php
+index 25cf39c..256ff73 100644
+--- a/app/Services/PrintJobService.php
++++ b/app/Services/PrintJobService.php
+@@ -225,6 +225,240 @@ class PrintJobService
+         return $grupos;
+     }
+ 
++    /**
++     * Grupos de seccoes no modo "senhas juntas por seccao". Cada grupo sai
++     * numa folha (junto) ou uma senha por unidade (separado). O que nao e
++     * bebida nem sobremesa vai para a cozinha.
++     */
++    public const GRUPOS_JUNTOS = [
++        'cozinha' => [],
++        'sobremesas' => ['sobremesas'],
++        'bebidas' => ['bebidas', 'bar', 'cafe'],
++    ];
++
++    /** Por omissao tudo separado: uma senha por unidade. So junta se o cliente pedir. */
++    public const JUNTAR_POR_OMISSAO = [
++        'cozinha' => false,
++        'sobremesas' => false,
++        'bebidas' => false,
++    ];
++
++    public static function grupoDaSeccao(?string $secao): string
++    {
++        foreach (self::GRUPOS_JUNTOS as $grupo => $secoes) {
++            if (in_array($secao, $secoes, true)) {
++                return $grupo;
++            }
++        }
++
++        return 'cozinha';
++    }
++
++    /**
++     * Senhas do pre-pagamento juntas por seccao. Cada grupo (cozinha,
++     * sobremesas, bebidas) sai numa folha se estiver para juntar, ou uma
++     * senha por unidade. $juntar sobrepoe-se a JUNTAR_POR_OMISSAO.
++     *
++     * Cada entrada e uma folha (['seccoes' => [secao => [nomes]]]) ou uma
++     * senha unitaria (['nome' => ..., 'secao' => ...]).
++     *
++     * @param  array<string, bool>  $juntar
++     */
++    public function taloesJuntos(Pedido $pedido, array $juntar = []): array
++    {
++        $juntar = array_merge(self::JUNTAR_POR_OMISSAO, array_intersect_key($juntar, self::GRUPOS_JUNTOS));
++        $grupos = array_fill_keys(array_keys(self::GRUPOS_JUNTOS), []);
++
++        foreach ($this->unidadesPorSeccao($pedido) as $secao => $unidades) {
++            $grupos[self::grupoDaSeccao($secao)][$secao] = $unidades;
++        }
++
++        $taloes = [];
++
++        foreach ($grupos as $grupo => $porSeccao) {
++            if (! $porSeccao) {
++                continue;
++            }
++
++            if ($juntar[$grupo]) {
++                $taloes[] = ['seccoes' => $porSeccao];
++
++                continue;
++            }
++
++            foreach ($porSeccao as $secao => $unidades) {
++                foreach ($unidades as $nome) {
++                    $taloes[] = ['nome' => $nome, 'secao' => $secao];
++                }
++            }
++        }
++
++        return $taloes;
++    }
++
++    /** Payload de uma entrada de taloesJuntos(): folha ou senha unitaria. */
++    public function payloadTalaoJunto(Pedido $pedido, array $talao, int $indice = 1, int $total = 1): array
++    {
++        return isset($talao['seccoes'])
++            ? $this->payloadFolhaJunta($pedido, $talao['seccoes'], $indice, $total)
++            : $this->payloadTalaoUnitario($pedido, $talao['nome'], $indice, $total, $talao['secao']);
++    }
++
++    /**
++     * Uma folha com varias seccoes: senha, e por cada seccao o titulo e uma
++     * linha por unidade, para quem entrega ir riscando.
++     *
++     * @param  array<string, array<int, string>>  $porSeccao
++     */
++    public function payloadFolhaJunta(Pedido $pedido, array $porSeccao, int $indice = 1, int $total = 1): array
++    {
++        $talao = TalaoConfig::atual();
++        $linhas = [
++            ...$talao->linhasCabecalho(),
++            'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
++            'Hora: '.now()->format('H:i'),
++            ...($pedido->numero_senha ? [[
++                'texto' => 'SENHA #'.$pedido->numero_senha,
++                'alinhamento' => 'centro',
++                'tamanho' => 'grande',
++            ]] : []),
++        ];
++
++        foreach ($porSeccao as $secao => $unidades) {
++            $linhas[] = '------------------------------';
++            $linhas[] = [
++                'texto' => mb_strtoupper($this->nomeSecao($secao), 'UTF-8'),
++                'alinhamento' => 'centro',
++            ];
++
++            // Produtos iguais numa linha so: "2x Bifana"
++            foreach (array_count_values($unidades) as $nome => $quantidade) {
++                $linhas[] = [
++                    'texto' => $quantidade.'x '.$nome,
++                    'alinhamento' => 'centro',
++                    'tamanho' => 'grande',
++                ];
++            }
++        }
++
++        $linhas[] = '------------------------------';
++
++        if ($total > 1) {
++            $linhas[] = ['texto' => 'Talao '.$indice.' de '.$total, 'alinhamento' => 'centro'];
++        }
++
++        return [
++            'titulo' => $talao->tituloImpresso(),
++            'subtitulo' => 'SENHA',
++            'linhas' => [...$linhas, ...$talao->linhasInstrucoes()],
++            'cortar' => true,
++        ];
++    }
++
++    /**
++     * Cria as senhas do cliente no pre-pagamento: uma por unidade, menos os
++     * grupos que o cliente pediu juntos numa folha. A conta fica a cargo de quem chama.
++     *
++     * @return array<int, PrintJob|null>
++     */
++    public function criarTaloesPrepago(Pedido $pedido, string $secaoImpressora, array $juntar = []): array
++    {
++        if (array_filter($juntar)) {
++            $taloes = $this->taloesJuntos($pedido, $juntar);
++            $impressora = $this->impressoraParaSecao($secaoImpressora);
++            $jobs = [];
++
++            if (! $impressora) {
++                return [];
++            }
++
++            foreach ($taloes as $i => $talao) {
++                $jobs[] = PrintJob::create([
++                    'impressora_id' => $impressora->id,
++                    'printable_type' => $pedido::class,
++                    'printable_id' => $pedido->id,
++                    'tipo' => 'talao_bar',
++                    'payload' => $this->payloadTalaoJunto($pedido, $talao, $i + 1, count($taloes)),
++                ]);
++            }
++
++            return $jobs;
++        }
++
++        $grupos = $this->unidadesPorSeccao($pedido);
++        $totalTaloes = array_sum(array_map('count', $grupos));
++        $numero = 0;
++        $jobs = [];
++
++        foreach ($grupos as $secao => $unidades) {
++            foreach ($unidades as $nome) {
++                $numero++;
++                $jobs[] = $this->criarTalaoBarUnitario($pedido, $nome, $secaoImpressora, $numero, $totalTaloes, $secao);
++            }
++        }
++
++        return $jobs;
++    }
++
++    /**
++     * Marca um talao como 2a via: aviso grande no topo, para quem entrega
++     * saber que aquela senha ja foi impressa antes. Nunca abre a gaveta.
++     */
++    public static function marcarSegundaVia(array $payload): array
++    {
++        $aviso = ['texto' => '*** 2a VIA ***', 'alinhamento' => 'centro', 'tamanho' => 'grande'];
++
++        return [
++            ...$payload,
++            'subtitulo' => trim(($payload['subtitulo'] ?? '').' 2a VIA'),
++            'linhas' => [$aviso, ...($payload['linhas'] ?? [])],
++            'abrir_caixa' => false,
++        ];
++    }
++
++    /** Talao de senha anulada: para ficar registo na caixa e dar ao cliente. */
++    public function payloadAnulacao(Pedido $pedido, float $devolver): array
++    {
++        $talao = TalaoConfig::atual();
++
++        return [
++            'titulo' => $talao->tituloImpresso(),
++            'subtitulo' => 'ANULADA',
++            'linhas' => [
++                ['texto' => 'SENHA #'.$pedido->numero_senha, 'alinhamento' => 'centro', 'tamanho' => 'grande'],
++                ['texto' => 'ANULADA', 'alinhamento' => 'centro', 'tamanho' => 'grande'],
++                '------------------------------',
++                'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
++                'Vendida as: '.$pedido->created_at?->format('H:i'),
++                'Anulada as: '.now()->format('H:i'),
++                'Por: '.($pedido->anulado_por ?: '-'),
++                'Motivo: '.($pedido->motivo_anulacao ?: '-'),
++                'Pagamento: '.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento ?: 'dinheiro'] ?? $pedido->metodo_pagamento),
++                '------------------------------',
++                ['texto' => 'Devolver: '.$this->euros($devolver), 'alinhamento' => 'centro', 'tamanho' => 'grande'],
++            ],
++            'cortar' => true,
++        ];
++    }
++
++    /** Cria um trabalho de impressao com um payload ja feito. */
++    public function criarPayload(Pedido $pedido, array $payload, string $secaoImpressora = 'bar'): ?PrintJob
++    {
++        $impressora = $this->impressoraParaSecao($secaoImpressora);
++
++        if (! $impressora) {
++            return null;
++        }
++
++        return PrintJob::create([
++            'impressora_id' => $impressora->id,
++            'printable_type' => $pedido::class,
++            'printable_id' => $pedido->id,
++            'tipo' => 'talao_bar',
++            'payload' => $payload,
++        ]);
++    }
++
+     /** Nome legivel da seccao, para o cliente saber onde levantar. */
+     public function nomeSecao(?string $secao): string
+     {
+@@ -549,8 +783,11 @@ class PrintJobService
+             ))->all(),
+             '------------------------------',
+             ...$this->linhasCaucao($pedido, $total),
+-            'Recebido: '.$this->euros($valorRecebido),
+-            'Troco: '.$this->euros($troco),
++            'Pagamento: '.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento ?: 'dinheiro'] ?? $pedido->metodo_pagamento),
++            ...(($pedido->metodo_pagamento ?: 'dinheiro') === 'dinheiro' ? [
++                'Recebido: '.$this->euros($valorRecebido),
++                'Troco: '.$this->euros($troco),
++            ] : []),
+             ...($doacao > 0 ? ['Donativo: '.$this->euros($doacao)] : []),
+             '',
+             ...TalaoConfig::atual()->linhasRodape(),
+diff --git a/database/migrations/2026_10_09_000200_add_contactless_ao_metodo_pagamento.php b/database/migrations/2026_10_09_000200_add_contactless_ao_metodo_pagamento.php
+new file mode 100644
+index 0000000..8385d6e
+--- /dev/null
++++ b/database/migrations/2026_10_09_000200_add_contactless_ao_metodo_pagamento.php
+@@ -0,0 +1,30 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Support\Facades\DB;
++
++return new class extends Migration
++{
++    /**
++     * Pre-pagamento: pagamento por contactless (cartao/telemovel no terminal).
++     * A coluna e um ENUM e recusava o valor novo.
++     */
++    public function up(): void
++    {
++        if (DB::getDriverName() !== 'mysql' && DB::getDriverName() !== 'mariadb') {
++            return;
++        }
++
++        DB::statement("ALTER TABLE pedidos MODIFY metodo_pagamento ENUM('dinheiro','mbway','multibanco','transferencia','contactless') NULL");
++    }
++
++    public function down(): void
++    {
++        if (DB::getDriverName() !== 'mysql' && DB::getDriverName() !== 'mariadb') {
++            return;
++        }
++
++        DB::statement("UPDATE pedidos SET metodo_pagamento = 'multibanco' WHERE metodo_pagamento = 'contactless'");
++        DB::statement("ALTER TABLE pedidos MODIFY metodo_pagamento ENUM('dinheiro','mbway','multibanco','transferencia') NULL");
++    }
++};
+diff --git a/database/migrations/2026_10_09_000300_add_anulacao_e_reimpressao_aos_pedidos.php b/database/migrations/2026_10_09_000300_add_anulacao_e_reimpressao_aos_pedidos.php
+new file mode 100644
+index 0000000..d29c42b
+--- /dev/null
++++ b/database/migrations/2026_10_09_000300_add_anulacao_e_reimpressao_aos_pedidos.php
+@@ -0,0 +1,42 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++return new class extends Migration
++{
++    /**
++     * POS do pre-pagamento: ver as senhas anteriores, reimprimir (2a via) e
++     * anular a pedido do cliente. Guarda quem anulou, quando e porque, e as
++     * opcoes de impressao da senha (seccoes juntas) para a 2a via sair igual.
++     */
++    public function up(): void
++    {
++        Schema::table('pedidos', function (Blueprint $table) {
++            if (! Schema::hasColumn('pedidos', 'juntar')) {
++                $table->json('juntar')->nullable();
++            }
++            if (! Schema::hasColumn('pedidos', 'reimpressoes')) {
++                $table->unsignedSmallInteger('reimpressoes')->default(0);
++            }
++            if (! Schema::hasColumn('pedidos', 'anulado_em')) {
++                $table->timestamp('anulado_em')->nullable();
++                $table->string('anulado_por')->nullable();
++                $table->string('motivo_anulacao', 255)->nullable();
++                $table->decimal('valor_devolvido', 10, 2)->nullable();
++            }
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::table('pedidos', function (Blueprint $table) {
++            foreach (['juntar', 'reimpressoes', 'anulado_em', 'anulado_por', 'motivo_anulacao', 'valor_devolvido'] as $coluna) {
++                if (Schema::hasColumn('pedidos', $coluna)) {
++                    $table->dropColumn($coluna);
++                }
++            }
++        });
++    }
++};
+diff --git a/docs/montagem-carvalhal-fest.md b/docs/montagem-carvalhal-fest.md
+index 5d5710b..f4a4b17 100644
+--- a/docs/montagem-carvalhal-fest.md
++++ b/docs/montagem-carvalhal-fest.md
+@@ -31,6 +31,17 @@ talões para levantar em cada tasquinha.
+    sai alinhado.
+ 8. **Contas da Festa:** acrescentar as associações participantes e carregar em
+    **Igualar percentagens**. Gerar o **link partilhado** e distribuí-lo.
++9. **Ensaio:** no Laragon, correr `testar-evento.bat` (testes dos 3 postos de
++   pré-pagamento: senhas sem repetidos, impressão por posto, cauções, caixa e
++   agente). Só fazer deploy com tudo a verde.
++10. **Raspberry:** depois do deploy, em *Impressoras → Agente de impressão*:
++    - o estado tem de dizer **Agente ligado** (se disser token errado, colar o
++      token do Raspberry em "Usar um token que já tens");
++    - copiar o comando **Atualizar o programa do agente** e colá-lo no terminal
++      do Raspberry (a versão nova não deixa uma impressora parada atrasar as
++      outras).
++11. **Teste real em cada posto:** uma venda com 2 imperiais e 1 bifana — têm de
++    sair 3 senhas e a conta no fim, na impressora desse posto, e a gaveta abrir.
+ 
+ ## No ChromeOS
+ 
+@@ -39,8 +50,31 @@ sistema. Se lá estiver, o ChromeOS fica com ela e o browser não a abre.
+ 
+ ## Durante o evento
+ 
+-- As senhas recomeçam no 1 quando se abre a **primeira** caixa de bar do dia.
+-  Abrir a segunda caixa a meio da noite não mexe na contagem.
++- **Senhas:** a contagem é uma só para os 3 postos de pré-pagamento (e para o
++  pré-pago do backoffice) — dois postos nunca dão o mesmo número. Recomeça no 1
++  ao abrir a **primeira** caixa do dia, e só se não houve senhas nas últimas
++  6 horas: fechar as caixas todas a meio da noite (troca de turno) e voltar a
++  abrir continua a contagem.
++- **Juntar senhas:** por omissão sai uma senha por unidade. Se o cliente pedir,
++  no POS toca-se em *Comida* (inclui frango e acompanhamentos), *Sobremesas* ou
++  *Bebidas* para essa secção sair numa só folha. A conta sai sempre no fim.
++- **Metro/caução:** *Novo* cobra a caução; *Encher* é para quem já traz o metro
++  (sem caução). Metro devolvido: *Devolução de caução* → em bebidas ou dinheiro.
++- **Senhas anteriores** (botão no topo do POS, ou tocar numa das últimas
++  senhas): ver o que foi pedido e pago. *Reimprimir tudo* ou *Só a conta* sai
++  com "2a VIA" e não abre a gaveta. *Anular senha* pede o motivo, mostra quanto
++  devolver ao cliente, tira a senha das vendas e da caixa, cancela os talões que
++  ainda não saíram e imprime um talão "ANULADA" (abre a gaveta se houver
++  dinheiro a devolver). Só se anulam senhas do próprio posto e do próprio dia.
++- **Impressora sem papel/desligada:** as outras continuam a imprimir. Os talões
++  dessa ficam em espera e saem quando ela voltar (até 10 minutos; depois disso
++  já não saem — reimprimir em *Senhas anteriores*).
++- **Pagamento:** no POS escolhe-se *Dinheiro*, *MB WAY* ou *Contactless*
++  antes de cobrar. Só o dinheiro tem troco e abre a gaveta. Volta sempre a
++  *Dinheiro* depois de cada venda.
++- **Caixa:** "Na gaveta" é só o dinheiro (fundo + vendas a dinheiro + troco
++  deixado + cauções, menos cauções devolvidas). MB WAY e Contactless aparecem à
++  parte, para conferir no terminal / telemóvel.
+ - Para acrescentar um posto num pico de afluência: *Impressoras → Postos POS →
+   Novo posto*. Se for um telemóvel, não tem impressora própria — o talão sai
+   onde estiver a impressora que lhe atribuíres.
+diff --git a/local-printer-agent/README.md b/local-printer-agent/README.md
+index 6a5262f..de99ee8 100644
+--- a/local-printer-agent/README.md
++++ b/local-printer-agent/README.md
+@@ -60,6 +60,17 @@ No backoffice, a impressora fica com tipo **Rede**, IP + porta 9100 e
+ arrancar, que posto esta a tratar, e de minuto a minuto avisa se nao ha
+ trabalhos para esse posto.
+ 
++## Atualizar o agente no Raspberry
++
++Depois de atualizar o site, em *Impressoras > Agente de impressao* ha um
++comando pronto a copiar ("Atualizar o programa do agente"). Colado no terminal
++do Raspberry, vai buscar o `agent.mjs` novo ao site (com o token do `.env`),
++confirma que esta bem escrito e reinicia o servico.
++
++O agente imprime cada impressora na sua fila, em paralelo: uma impressora sem
++papel ou desligada nao atrasa as outras. Os taloes dela voltam a fila e saem
++quando ela voltar.
++
+ ## Varios agentes
+ 
+ Se houver mais do que um agente, da a cada um o seu `AGENTE` no `.env` e poe
+diff --git a/local-printer-agent/agent.mjs b/local-printer-agent/agent.mjs
+index f9acd3b..dcd4886 100644
+--- a/local-printer-agent/agent.mjs
++++ b/local-printer-agent/agent.mjs
+@@ -337,30 +337,93 @@ const imprimir = async (job) => {
+ 
+ let ultimoErro = '';
+ let semTrabalhos = 0;
++let aCorrer = false;
++
++/** Impressoras que falharam ha pouco: nao se volta a esperar pelo timeout delas logo a seguir. */
++const PAUSA_APOS_FALHA_MS = 15000;
++const pausadas = new Map();
++
++/** Identifica a impressora fisica de um trabalho (cada uma tem a sua fila). */
++const chaveImpressora = (job) => {
++    const p = job.printer ?? {};
++    return (p.tipo === 'usb' ? `usb:${p.dispositivo ?? ''}` : `rede:${p.host ?? ''}:${p.porta ?? 9100}`);
++};
++
++/**
++ * Imprime os trabalhos de UMA impressora, pela ordem (senhas e depois a conta).
++ * Se a impressora nao responder, os restantes trabalhos dela voltam logo para a
++ * fila como falhados (sem esperar o timeout de cada um) e tentam outra vez daqui
++ * a pouco. As outras impressoras nao ficam a espera desta.
++ */
++const devolverAFila = (trabalhos, motivo) => Promise.all(trabalhos.map((j) => api(`jobs/${j.id}/fail`, {
++    method: 'POST',
++    body: JSON.stringify({ error: motivo }),
++}).catch(() => {})));
++
++const imprimirFila = async (trabalhos) => {
++    const chave = chaveImpressora(trabalhos[0]);
++    const nome = trabalhos[0].printer?.nome;
++
++    if ((pausadas.get(chave) ?? 0) > Date.now()) {
++        await devolverAFila(trabalhos, `Impressora ${nome} sem resposta ha pouco - a tentar outra vez daqui a nada.`);
++        return;
++    }
++
++    for (let i = 0; i < trabalhos.length; i++) {
++        const job = trabalhos[i];
++        try {
++            await imprimir(job);
++            pausadas.delete(chave);
++            await api(`jobs/${job.id}/done`, { method: 'POST', body: '{}' });
++            console.log(`Impresso job #${job.id} em ${job.printer.nome}`);
++            await sleep(PRINT_DELAY_MS);
++        } catch (error) {
++            console.error(`Falhou job #${job.id} em ${nome}: ${error.message}`);
++            pausadas.set(chave, Date.now() + PAUSA_APOS_FALHA_MS);
++            const restantes = trabalhos.slice(i);
++            await devolverAFila(restantes, `Impressora ${nome} sem resposta: ${error.message}`);
++            if (restantes.length > 1) {
++                console.error(`  -> ${restantes.length - 1} talao(oes) de ${nome} voltam a fila para tentar outra vez.`);
++            }
++            return;
++        }
++    }
++};
+ 
+ const ciclo = async () => {
++    // Um ciclo de cada vez: dois ciclos ao mesmo tempo trocavam a ordem dos taloes
++    if (aCorrer) {
++        return;
++    }
++    aCorrer = true;
++
+     try {
+-        const { jobs } = await api('jobs');
+-        if (ultimoErro) {
+-            console.log('[ok] Ligacao ao site restabelecida.');
+-            ultimoErro = '';
+-        }
+-        // De minuto a minuto sem trabalhos, lembra o que o agente esta a filtrar
+-        semTrabalhos = (jobs ?? []).length ? 0 : semTrabalhos + 1;
+-        if (semTrabalhos && semTrabalhos % Math.max(1, Math.round(60 / POLL_SECONDS)) === 0) {
+-            console.log(`... sem trabalhos para ${AGENTE ? `o posto "${AGENTE}"` : 'impressoras sem posto atribuido'}.`);
+-        }
++        // Enquanto houver trabalho, vai buscar mais logo a seguir (sem esperar o intervalo)
++        for (let voltas = 0; voltas < 20; voltas++) {
++            const { jobs } = await api('jobs');
++            if (ultimoErro) {
++                console.log('[ok] Ligacao ao site restabelecida.');
++                ultimoErro = '';
++            }
+ 
+-        for (const job of jobs ?? []) {
+-            try {
+-                await imprimir(job);
+-                await api(`jobs/${job.id}/done`, { method: 'POST', body: '{}' });
+-                console.log(`Impresso job #${job.id} em ${job.printer.nome}`);
+-                await sleep(PRINT_DELAY_MS);
+-            } catch (error) {
+-                await api(`jobs/${job.id}/fail`, { method: 'POST', body: JSON.stringify({ error: error.message }) });
+-                console.error(`Falhou job #${job.id}: ${error.message}`);
++            const lista = jobs ?? [];
++            // De minuto a minuto sem trabalhos, lembra o que o agente esta a filtrar
++            semTrabalhos = lista.length ? 0 : semTrabalhos + 1;
++            if (semTrabalhos && semTrabalhos % Math.max(1, Math.round(60 / POLL_SECONDS)) === 0) {
++                console.log(`... sem trabalhos para ${AGENTE ? `o posto "${AGENTE}"` : 'impressoras sem posto atribuido'}.`);
++            }
++            if (!lista.length) {
++                break;
+             }
++
++            // Uma fila por impressora, todas em paralelo
++            const filas = new Map();
++            for (const job of lista) {
++                const chave = chaveImpressora(job);
++                if (!filas.has(chave)) filas.set(chave, []);
++                filas.get(chave).push(job);
++            }
++            await Promise.all([...filas.values()].map(imprimirFila));
+         }
+     } catch (error) {
+         const codigo = error.cause?.code ?? error.cause?.errors?.[0]?.code;
+@@ -370,6 +433,8 @@ const ciclo = async () => {
+             console.error(`[!] Erro a falar com ${APP_URL}: ${msg}`);
+             ultimoErro = msg;
+         }
++    } finally {
++        aCorrer = false;
+     }
+ };
+ 
+diff --git a/phpunit.evento.xml b/phpunit.evento.xml
+new file mode 100644
+index 0000000..a94b88d
+--- /dev/null
++++ b/phpunit.evento.xml
+@@ -0,0 +1,44 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!--
++  Ensaio do evento (pre-pagamento com 3 postos) contra MySQL.
++  Usa uma base de dados SO para testes: e apagada e recriada a cada teste.
++
++  Laragon:  criar a base de dados "santana_test" (HeidiSQL ou: mysql -uroot -e "CREATE DATABASE santana_test")
++            e correr:  testar-evento.bat   (ou: php artisan test e a opcao configuration a apontar para este ficheiro)
++  Outra BD: definir DB_DATABASE, DB_USERNAME e DB_PASSWORD no ambiente antes de correr.
++-->
++<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
++         bootstrap="vendor/autoload.php"
++         colors="true">
++    <testsuites>
++        <testsuite name="Evento">
++            <directory>tests/Feature/Evento</directory>
++        </testsuite>
++    </testsuites>
++    <source>
++        <include>
++            <directory>app</directory>
++        </include>
++    </source>
++    <php>
++        <env name="APP_ENV" value="testing"/>
++        <env name="APP_KEY" value="base64:ZW5zYWlvLWV2ZW50by1hcmRjLXNhbnRhbmEtMzJieSE="/>
++        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
++        <env name="BCRYPT_ROUNDS" value="4"/>
++        <env name="BROADCAST_CONNECTION" value="null"/>
++        <env name="CACHE_STORE" value="array"/>
++        <env name="DB_CONNECTION" value="mysql"/>
++        <env name="DB_HOST" value="127.0.0.1"/>
++        <env name="DB_PORT" value="3306"/>
++        <env name="DB_DATABASE" value="santana_test"/>
++        <env name="DB_USERNAME" value="root"/>
++        <env name="DB_PASSWORD" value=""/>
++        <env name="DB_URL" value=""/>
++        <env name="MAIL_MAILER" value="array"/>
++        <env name="QUEUE_CONNECTION" value="sync"/>
++        <env name="SESSION_DRIVER" value="array"/>
++        <env name="PRINT_AGENT_TOKEN" value=""/>
++        <env name="VAPID_PUBLIC_KEY" value=""/>
++    </php>
++</phpunit>
+diff --git a/resources/js/Pages/Caixa/Index.vue b/resources/js/Pages/Caixa/Index.vue
+index 8a9c9c8..15e11ec 100644
+--- a/resources/js/Pages/Caixa/Index.vue
++++ b/resources/js/Pages/Caixa/Index.vue
+@@ -208,10 +208,19 @@ const fecharCaixa = (caixa) => {
+ 
+                                 <div v-if="caixasPorPonto[ponto]" class="grid grid-cols-3 gap-2 text-sm">
+                                     <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Fundo</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].fundo_maneio) }}</strong></div>
+-                                    <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Vendas</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].vendas) }}</strong></div>
+-                                    <div class="min-w-0 rounded-[10px] p-2.5" :class="caixasPorPonto[ponto].estado === 'aberta' ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo'"><div :class="caixasPorPonto[ponto].estado === 'aberta' ? '' : 'text-suave-2'">Esperado</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></div>
++                                    <div class="min-w-0 rounded-[10px] bg-fundo p-2.5"><div class="text-suave-2">Vendas (todas)</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].vendas) }}</strong></div>
++                                    <div class="min-w-0 rounded-[10px] p-2.5" :class="caixasPorPonto[ponto].estado === 'aberta' ? 'bg-verde-claro text-verde-escuro' : 'bg-fundo'"><div :class="caixasPorPonto[ponto].estado === 'aberta' ? '' : 'text-suave-2'">Na gaveta</div><strong class="break-words">{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></div>
+                                 </div>
+ 
++                                <div v-if="caixasPorPonto[ponto] && (Number(caixasPorPonto[ponto].por_metodo?.mbway) > 0 || Number(caixasPorPonto[ponto].por_metodo?.contactless) > 0 || Number(caixasPorPonto[ponto].por_metodo?.multibanco) > 0)" class="flex flex-col gap-1 rounded-[10px] bg-fundo p-2.5 text-sm">
++                                    <div class="font-bold text-suave">Fora da gaveta — conferir no terminal / telemóvel</div>
++                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.mbway) > 0" class="flex justify-between"><span>MB WAY</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.mbway) }}</strong></div>
++                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.contactless) > 0" class="flex justify-between"><span>Contactless</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.contactless) }}</strong></div>
++                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.multibanco) > 0" class="flex justify-between"><span>Multibanco</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.multibanco) }}</strong></div>
++                                </div>
++                                <p v-if="caixasPorPonto[ponto] && Number(caixasPorPonto[ponto].doacoes) > 0" class="text-sm text-suave">
++                                    Inclui <strong class="text-tinta">{{ euros(caixasPorPonto[ponto].doacoes) }}</strong> de troco deixado pelos clientes (doações).
++                                </p>
+                                 <div v-if="temCaucao(caixasPorPonto[ponto])" class="flex flex-col gap-1 rounded-[10px] bg-laranja-claro p-2.5 text-sm text-laranja-texto">
+                                     <div class="font-bold">Cauções (metros, jarros…) — já incluídas no esperado</div>
+                                     <div class="flex justify-between"><span>Recebidas</span><strong>{{ euros(caixasPorPonto[ponto].caucao.recebidas) }}</strong></div>
+diff --git a/resources/js/Pages/Impressoras/Index.vue b/resources/js/Pages/Impressoras/Index.vue
+index d11cf24..e11a459 100644
+--- a/resources/js/Pages/Impressoras/Index.vue
++++ b/resources/js/Pages/Impressoras/Index.vue
+@@ -28,6 +28,10 @@ const props = defineProps({
+         type: Object,
+         default: () => ({}),
+     },
++    agente: {
++        type: Object,
++        default: () => ({}),
++    },
+ })
+ 
+ const showModal = ref(false)
+@@ -272,6 +276,56 @@ const ligacaoCurta = {
+     navegador: 'Browser (não corta)',
+ }
+ 
++// Token do agente (Raspberry / Windows)
++const verToken = ref(false)
++const copiado = ref('')
++const tokenForm = useForm({ token: '' })
++const tokenAgente = computed(() => props.agente?.token ?? '')
++const tokenVisivel = computed(() => {
++    const t = tokenAgente.value
++    if (!t) return 'Sem token definido'
++    return verToken.value ? t : t.slice(0, 4) + '••••••••••••' + t.slice(-4)
++})
++const comandoAtualizarPi = computed(() =>
++    'cd ~/printer-agent && set -a && . ./.env && set +a && curl -fsS -H "Authorization: Bearer $PRINT_AGENT_TOKEN" "${APP_URL%/}/api/print-agent/agente.mjs" -o agent.novo.mjs && node --check agent.novo.mjs && mv agent.novo.mjs agent.mjs && sudo systemctl restart printer-agent && echo AGENTE ATUALIZADO',
++)
++const comandoPi = computed(() =>
++    `sed -i 's|^PRINT_AGENT_TOKEN=.*|PRINT_AGENT_TOKEN=${tokenAgente.value}|' ~/printer-agent/.env && sudo systemctl restart printer-agent`,
++)
++const avisoAgente = computed(() => {
++    const ok = props.agente?.ultimo_ok_at ? new Date(props.agente.ultimo_ok_at) : null
++    const recusado = props.agente?.ultimo_401_at ? new Date(props.agente.ultimo_401_at) : null
++    if (recusado && (!ok || recusado > ok) && Date.now() - recusado < 5 * 60 * 1000) {
++        return { nivel: 'erro', texto: 'Há um agente a tentar ligar com o token errado. Atualiza o .env dele com o comando abaixo.' }
++    }
++    if (ok && Date.now() - ok < 2 * 60 * 1000) {
++        return { nivel: 'ok', texto: 'Agente ligado — último contacto ' + ok.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) + '.' }
++    }
++    if (ok) {
++        return { nivel: 'aviso', texto: 'Sem contacto do agente desde ' + ok.toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' }) + '.' }
++    }
++    return { nivel: 'aviso', texto: 'Ainda não houve contacto de nenhum agente.' }
++})
++async function copiar(texto, qual) {
++    try {
++        await navigator.clipboard.writeText(texto)
++        copiado.value = qual
++        setTimeout(() => (copiado.value = ''), 2000)
++    } catch {
++        window.prompt('Copia daqui:', texto)
++    }
++}
++function guardarToken() {
++    tokenForm.post(route('impressoras.token-agente'), {
++        preserveScroll: true,
++        onSuccess: () => tokenForm.reset(),
++    })
++}
++function gerarNovoToken() {
++    if (!window.confirm('Gerar um token novo? Os agentes com o token antigo deixam de imprimir até atualizares o .env deles.')) return
++    useForm({}).post(route('impressoras.token-agente'), { preserveScroll: true })
++}
++
+ const retentarForm = useForm({})
+ function retentarFalhados() {
+     retentarForm.post(route('impressoras.retentar-falhados'), { onFinish: () => carregarFila() })
+@@ -491,19 +545,74 @@ function retentarFalhados() {
+             </form>
+ 
+             <!-- Agente de impressão -->
+-            <section class="cartao flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5">
+-                <div class="min-w-0 max-w-3xl">
+-                    <h3 class="text-lg font-extrabold">Agente de impressão</h3>
+-                    <p class="mt-1 text-sm text-suave">
+-                        Corre no computador de cada posto: em Windows com as impressoras por USB, ou num
+-                        Raspberry Pi na rede das impressoras. O script abaixo é para Linux/Raspberry.
++            <section class="cartao flex flex-col gap-5 p-4 sm:p-5">
++                <div class="flex flex-wrap items-center justify-between gap-4">
++                    <div class="min-w-0 max-w-3xl">
++                        <h3 class="text-lg font-extrabold">Agente de impressão</h3>
++                        <p class="mt-1 text-sm text-suave">
++                            Corre num Raspberry Pi na rede das impressoras (ou num PC Windows). Vai buscar os talões
++                            a este site com o token abaixo — tem de ser igual ao <code class="font-mono">PRINT_AGENT_TOKEN</code> do <code class="font-mono">.env</code> dele.
++                        </p>
++                    </div>
++                    <a :href="route('impressoras.download-agente')" class="inline-flex h-12 shrink-0 items-center gap-2 rounded-[10px] bg-tinta px-5 text-[15px] font-bold text-white transition hover:bg-escuro-2">
++                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
++                        Download setup-pi.sh
++                    </a>
++                </div>
++
++                <div
++                    class="rounded-[10px] px-4 py-3 text-sm font-semibold"
++                    :class="{
++                        'bg-red-50 text-red-800': avisoAgente.nivel === 'erro',
++                        'bg-emerald-50 text-emerald-800': avisoAgente.nivel === 'ok',
++                        'bg-amber-50 text-amber-900': avisoAgente.nivel === 'aviso',
++                    }"
++                    role="status"
++                >
++                    {{ avisoAgente.texto }}
++                </div>
++
++                <div class="flex flex-col gap-2">
++                    <span class="text-sm font-bold">Token do agente</span>
++                    <div class="flex flex-wrap items-center gap-2">
++                        <code class="min-w-0 flex-1 break-all rounded-md bg-fundo px-3 py-2.5 font-mono text-sm">{{ tokenVisivel }}</code>
++                        <button v-if="tokenAgente" type="button" class="btn-sec h-11" @click="verToken = !verToken">{{ verToken ? 'Esconder' : 'Mostrar' }}</button>
++                        <button v-if="tokenAgente" type="button" class="btn-sec h-11" @click="copiar(tokenAgente, 'token')">{{ copiado === 'token' ? 'Copiado ✓' : 'Copiar' }}</button>
++                        <button type="button" class="btn-sec h-11" @click="gerarNovoToken">Gerar novo</button>
++                    </div>
++                    <p v-if="agente?.origem === 'servidor'" class="text-xs text-suave">
++                        Este token vem do <code class="font-mono">.env</code> do servidor. Ao gerar ou definir um aqui, passa a valer o do site.
+                     </p>
+-                    <code class="mt-2 inline-block rounded-md bg-fundo px-2 py-1 font-mono text-xs text-tinta">chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh</code>
+                 </div>
+-                <a :href="route('impressoras.download-agente')" class="inline-flex h-12 shrink-0 items-center gap-2 rounded-[10px] bg-tinta px-5 text-[15px] font-bold text-white transition hover:bg-escuro-2">
+-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>
+-                    Download setup-pi.sh
+-                </a>
++
++                <form class="flex flex-col gap-2" @submit.prevent="guardarToken">
++                    <label for="token-agente" class="text-sm font-bold">Usar um token que já tens</label>
++                    <p class="text-xs text-suave">Ex.: o que está no <code class="font-mono">.env</code> do Raspberry (<code class="font-mono">grep TOKEN ~/printer-agent/.env</code>). Assim não tens de mexer no Raspberry.</p>
++                    <div class="flex flex-wrap gap-2">
++                        <input id="token-agente" v-model="tokenForm.token" type="text" autocomplete="off" spellcheck="false" class="min-w-0 flex-1 rounded-[10px] border-gray-300 font-mono text-sm" placeholder="cola aqui o token" />
++                        <button type="submit" class="btn-pri h-11" :disabled="tokenForm.processing || !tokenForm.token">Guardar</button>
++                    </div>
++                    <InputError :message="tokenForm.errors.token" />
++                </form>
++
++                <div v-if="tokenAgente" class="flex flex-col gap-2">
++                    <span class="text-sm font-bold">Atualizar o Raspberry com este token</span>
++                    <p class="text-xs text-suave">Cola no terminal do Raspberry. Muda o token no <code class="font-mono">.env</code> e reinicia o agente.</p>
++                    <div class="flex flex-wrap items-start gap-2">
++                        <code class="min-w-0 flex-1 break-all rounded-md bg-fundo px-3 py-2.5 font-mono text-xs">{{ comandoPi }}</code>
++                        <button type="button" class="btn-sec h-11" @click="copiar(comandoPi, 'comando')">{{ copiado === 'comando' ? 'Copiado ✓' : 'Copiar comando' }}</button>
++                    </div>
++                    <p class="text-xs text-suave">Instalação nova: <code class="font-mono">chmod +x setup-pi.sh &amp;&amp; ./setup-pi.sh</code> e, quando pedir o token, cola o de cima.</p>
++                </div>
++
++                <div class="flex flex-col gap-2">
++                    <span class="text-sm font-bold">Atualizar o programa do agente no Raspberry</span>
++                    <p class="text-xs text-suave">Depois de cada atualização do site. Cola no terminal do Raspberry: vai buscar a versão nova ao site (com o token dele), confirma que está bem e reinicia.</p>
++                    <div class="flex flex-wrap items-start gap-2">
++                        <code class="min-w-0 flex-1 break-all rounded-md bg-fundo px-3 py-2.5 font-mono text-xs">{{ comandoAtualizarPi }}</code>
++                        <button type="button" class="btn-sec h-11" @click="copiar(comandoAtualizarPi, 'atualizar')">{{ copiado === 'atualizar' ? 'Copiado ✓' : 'Copiar comando' }}</button>
++                    </div>
++                </div>
+             </section>
+         </div>
+ 
+diff --git a/resources/js/Pages/Pos/Index.vue b/resources/js/Pages/Pos/Index.vue
+index b1a07af..870236c 100644
+--- a/resources/js/Pages/Pos/Index.vue
++++ b/resources/js/Pages/Pos/Index.vue
+@@ -6,11 +6,14 @@ import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
+ import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
+ import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
+ import { ImpressoraUsb } from '@/escpos';
++import axios from 'axios';
+ 
+ const props = defineProps({
+     posNome: String,
+     pontoBar: String,
+     caixaAberta: Boolean,
++    // Modelo do talao junta tudo numa folha: o cliente pode pedir sobremesas/bebidas a parte
++    juntarFolhas: Boolean,
+     produtos: Array,
+     senhasHoje: Array,
+ });
+@@ -19,7 +22,34 @@ const agora = ref(new Date());
+ const carrinho = ref([]);
+ const recebido = ref('');
+ const trocoEntregue = ref('');
+-const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0 });
++const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0, juntar: {}, metodo_pagamento: 'dinheiro' });
++
++// Forma de pagamento: so o dinheiro tem troco e abre a gaveta
++const METODOS = [
++    { id: 'dinheiro', label: 'Dinheiro' },
++    { id: 'mbway', label: 'MB WAY' },
++    { id: 'contactless', label: 'Contactless' },
++];
++const metodo = ref('dinheiro');
++const emDinheiro = computed(() => metodo.value === 'dinheiro');
++
++// Senhas: por omissao uma por unidade. Se o cliente pedir, junta-se um grupo numa folha.
++const GRUPOS = [
++    { chave: 'cozinha', label: 'Comida', secoes: null, junto: false },
++    { chave: 'sobremesas', label: 'Sobremesas', secoes: ['sobremesas'], junto: false },
++    { chave: 'bebidas', label: 'Bebidas', secoes: ['bebidas', 'bar', 'cafe'], junto: false },
++];
++const grupoDe = (secao) => GRUPOS.find((g) => g.secoes?.includes(secao))?.chave ?? 'cozinha';
++const juntarPadrao = () => Object.fromEntries(GRUPOS.map((g) => [g.chave, g.junto]));
++const juntar = ref(juntarPadrao());
++// So aparece o botao de um grupo quando a senha tem pelo menos 2 unidades dele
++const gruposNaSenha = computed(() => {
++    if (!props.juntarFolhas) return [];
++    return GRUPOS.filter((g) => carrinho.value
++        .filter((i) => grupoDe(i.secao) === g.chave)
++        .reduce((soma, i) => soma + i.quantidade, 0) >= 2);
++});
++const alternarJuntar = (chave) => { juntar.value = { ...juntar.value, [chave]: !juntar.value[chave] }; };
+ let relogio = null;
+ let refresh = null;
+ 
+@@ -114,11 +144,75 @@ const doacao = computed(() => Math.max(0, troco.value - trocoRegistado.value));
+ const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
+ const hora = (data) => new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+ const logout = () => router.post(route('pos.logout'));
++
++// ---- Senhas anteriores: ver, reimprimir (2a via) e anular ----
++const painelSenhas = ref(false);
++const listaSenhas = ref([]);
++const procurarNumero = ref('');
++const aCarregarSenhas = ref(false);
++const senhaAberta = ref(null);
++const aAnular = ref(false);
++const motivoAnulacao = ref('');
++const acaoSenha = useForm({ o: 'tudo', motivo: '' });
++const MOTIVOS_RAPIDOS = ['Engano no pedido', 'Cliente desistiu', 'Pagamento não passou'];
++
++const carregarSenhas = async () => {
++    aCarregarSenhas.value = true;
++    try {
++        const { data } = await axios.get(route('pos.senhas'), { params: { numero: procurarNumero.value || undefined } });
++        listaSenhas.value = data.senhas ?? [];
++        if (senhaAberta.value) {
++            senhaAberta.value = listaSenhas.value.find((s) => s.id === senhaAberta.value.id) ?? senhaAberta.value;
++        }
++    } finally {
++        aCarregarSenhas.value = false;
++    }
++};
++const abrirSenhas = async (id = null) => {
++    painelSenhas.value = true;
++    senhaAberta.value = null;
++    aAnular.value = false;
++    procurarNumero.value = '';
++    await carregarSenhas();
++    if (id) senhaAberta.value = listaSenhas.value.find((s) => s.id === id) ?? null;
++};
++const fecharSenhas = () => {
++    painelSenhas.value = false;
++    senhaAberta.value = null;
++    aAnular.value = false;
++    acaoSenha.clearErrors();
++};
++const escolherSenha = (senha) => {
++    senhaAberta.value = senha;
++    aAnular.value = false;
++    motivoAnulacao.value = '';
++    acaoSenha.clearErrors();
++};
++const reimprimir = (o) => {
++    acaoSenha.o = o;
++    acaoSenha.post(route('pos.pedido.reimprimir', senhaAberta.value.id), { preserveScroll: true, onSuccess: () => fecharSenhas() });
++};
++const aDevolver = computed(() => {
++    const s = senhaAberta.value;
++    if (!s) return 0;
++    return Number(s.pago) + Number(s.doacao) + Number(s.caucao_descontada);
++});
++const confirmarAnulacao = () => {
++    acaoSenha.motivo = motivoAnulacao.value;
++    acaoSenha.post(route('pos.pedido.anular', senhaAberta.value.id), { preserveScroll: true, onSuccess: () => fecharSenhas() });
++};
+ const chamandoComissao = ref(false);
+ 
+-const adicionar = (produto) => {
+-    const item = carrinho.value.find((linha) => linha.produto_id === produto.id);
+-    item ? item.quantidade++ : carrinho.value.push({ produto_id: produto.id, nome: produto.nome, preco: produto.preco, caucao: Number(produto.caucao || 0), jaTem: 0, quantidade: 1 });
++// jaTem: o cliente traz o metro/jarro para voltar a encher - nao se cobra caucao
++const adicionar = (produto, { jaTem = false } = {}) => {
++    let item = carrinho.value.find((linha) => linha.produto_id === produto.id);
++    if (item) {
++        item.quantidade++;
++    } else {
++        item = { produto_id: produto.id, nome: produto.nome, preco: produto.preco, caucao: Number(produto.caucao || 0), secao: produto.categoria?.secao ?? null, jaTem: 0, quantidade: 1 };
++        carrinho.value.push(item);
++    }
++    if (jaTem) item.jaTem = Math.min(item.quantidade, (item.jaTem || 0) + 1);
+ };
+ 
+ const alterar = (item, delta) => {
+@@ -129,11 +223,15 @@ const alterar = (item, delta) => {
+ const cobrar = () => {
+     form.items = carrinho.value.map(({ produto_id, quantidade, jaTem }) => ({ produto_id, quantidade, ja_tem: Math.min(jaTem || 0, quantidade) }));
+     form.devolvidos = devolvidos.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
+-    form.valor_recebido = recebido.value || Math.max(0, aPagar.value);
+-    form.troco = trocoRegistado.value;
++    form.metodo_pagamento = metodo.value;
++    form.valor_recebido = emDinheiro.value ? (recebido.value || Math.max(0, aPagar.value)) : Math.max(0, aPagar.value);
++    form.troco = emDinheiro.value ? trocoRegistado.value : 0;
++    form.juntar = Object.fromEntries(Object.entries(juntar.value).map(([k, v]) => [k, v ? 1 : 0]));
+     form.post(route('pos.prepago.store'), {
+         preserveScroll: true,
+         onSuccess: () => {
++            metodo.value = 'dinheiro';
++            juntar.value = juntarPadrao();
+             carrinho.value = [];
+             devolvidos.value = [];
+             recebido.value = '';
+@@ -245,6 +343,8 @@ const escolherRecebido = (valor) => {
+ const doouTroco = computed(() => trocoEntregue.value !== '' && Number(trocoEntregue.value) === 0 && troco.value > 0);
+ const alternarDoacao = () => { trocoEntregue.value = doouTroco.value ? '' : 0; };
+ const limparSenha = () => {
++    metodo.value = 'dinheiro';
++    juntar.value = juntarPadrao();
+     carrinho.value = [];
+     devolvidos.value = [];
+     recebido.value = '';
+@@ -257,12 +357,16 @@ const limparSenha = () => {
+     <ChamadaFuncionarioAlert />
+     <ComissaoChamadasAlert />
+     <main class="flex min-h-screen flex-col bg-fundo font-sans text-tinta tabular-nums lg:h-[100dvh] lg:overflow-hidden">
+-        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:py-0">
++        <header class="flex shrink-0 flex-wrap items-center justify-between gap-2 bg-escuro px-4 py-2.5 text-white sm:px-6 lg:h-16 lg:py-0 lg:curto:h-12">
+             <div class="flex min-w-0 items-baseline gap-4">
+                 <h1 class="text-xl font-extrabold">POS {{ pontoBar }}</h1>
+                 <span class="truncate text-sm text-escuro-inativo">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) }}</span>
+             </div>
+             <div class="flex gap-2.5">
++                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="abrirSenhas()">
++                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>
++                    Senhas anteriores
++                </button>
+                 <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-laranja px-4 text-[15px] font-bold text-white" @click="chamandoComissao = true">
+                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                     Chamar comissão
+@@ -306,9 +410,31 @@ const limparSenha = () => {
+                     Sem produtos nesta secção.
+                 </div>
+                 <div v-else class="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto pb-1 sm:grid-cols-3 xl:grid-cols-4">
++                    <template v-for="produto in produtosVisiveis" :key="produto.id">
++                    <!-- Produto com caucao (metro, jarro): novo paga caucao, encher nao -->
++                    <div
++                        v-if="Number(produto.caucao) > 0"
++                        class="relative flex min-h-[124px] min-w-0 flex-col overflow-hidden rounded-[14px] bg-white p-3"
++                        :class="[cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha', !caixaAberta ? 'opacity-45' : '']"
++                    >
++                        <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" :class="secaoDe(produto).text">
++                            <span class="h-2 w-2 rounded-full" :class="secaoDe(produto).dot"></span>{{ secaoDe(produto).label }}
++                        </span>
++                        <span class="mt-1 block break-words pr-9 text-lg font-bold leading-tight">{{ produto.nome }} <span class="text-base font-medium text-suave">{{ eur(produto.preco) }}</span></span>
++                        <span v-if="cartQty[produto.id]" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ cartQty[produto.id] }}</span>
++                        <div class="mt-auto grid grid-cols-2 gap-2 pt-2">
++                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-laranja bg-laranja-claro px-1 leading-tight text-laranja-texto disabled:cursor-not-allowed" :disabled="!caixaAberta" @click="adicionar(produto)">
++                                <span class="text-[15px] font-bold">Novo</span>
++                                <span class="text-xs font-semibold">+{{ eur(produto.caucao) }}</span>
++                            </button>
++                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-verde bg-verde-claro px-1 leading-tight text-verde-escuro disabled:cursor-not-allowed" :disabled="!caixaAberta" @click="adicionar(produto, { jaTem: true })">
++                                <span class="text-[15px] font-bold">Encher</span>
++                                <span class="text-xs font-semibold">sem caução</span>
++                            </button>
++                        </div>
++                    </div>
+                     <button
+-                        v-for="produto in produtosVisiveis"
+-                        :key="produto.id"
++                        v-else
+                         type="button"
+                         class="relative flex min-h-[124px] min-w-0 flex-col items-start overflow-hidden rounded-[14px] bg-white p-4 text-left disabled:cursor-not-allowed disabled:opacity-45"
+                         :class="cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha'"
+@@ -323,24 +449,30 @@ const limparSenha = () => {
+                         <span class="mt-auto pt-3 text-base font-medium text-suave">{{ eur(produto.preco) }}</span>
+                         <span v-if="cartQty[produto.id]" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ cartQty[produto.id] }}</span>
+                     </button>
++                    </template>
+                 </div>
+ 
+-                <section aria-label="Últimas senhas" class="hidden shrink-0 rounded-[14px] border border-linha bg-white px-4 py-3 md:block">
+-                    <h2 class="mb-2 text-sm font-extrabold uppercase tracking-wider text-suave">Últimas senhas</h2>
+-                    <div class="grid max-h-32 gap-2 overflow-y-auto md:grid-cols-3 xl:grid-cols-4">
+-                        <div v-for="pedido in senhasHoje" :key="pedido.id" class="rounded-[10px] bg-fundo px-2.5 py-2">
++                <section aria-label="Últimas senhas" class="shrink-0 rounded-[14px] border border-linha bg-white px-4 py-3 curto:px-3 curto:py-2">
++                    <div class="mb-2 flex items-center justify-between gap-2 curto:mb-1.5">
++                        <h2 class="text-sm font-extrabold uppercase tracking-wider text-suave">Últimas senhas <span class="font-semibold normal-case tracking-normal">— toca para reimprimir ou anular</span></h2>
++                        <button type="button" class="h-9 shrink-0 rounded-[8px] border border-linha-forte px-3 text-sm font-bold" @click="abrirSenhas()">Ver todas</button>
++                    </div>
++                    <p v-if="!senhasHoje?.length" class="text-sm text-suave">Ainda não há senhas neste posto.</p>
++                    <!-- Ecras baixos: uma fila so, com scroll para o lado -->
++                    <div class="grid max-h-32 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4 curto:flex curto:max-h-none curto:overflow-x-auto curto:overflow-y-hidden curto:pb-1 [&>button]:curto:w-44 [&>button]:curto:shrink-0">
++                        <button v-for="pedido in senhasHoje" :key="pedido.id" type="button" class="min-w-0 rounded-[10px] bg-fundo px-2.5 py-2 text-left hover:bg-linha-fraca" :class="pedido.estado === 'cancelado' ? 'opacity-60' : ''" @click="abrirSenhas(pedido.id)">
+                             <div class="flex items-baseline justify-between gap-2">
+-                                <span class="text-lg font-extrabold">#{{ pedido.numero_senha }}</span>
++                                <span class="text-lg font-extrabold" :class="pedido.estado === 'cancelado' ? 'line-through' : ''">#{{ pedido.numero_senha }}</span>
+                                 <span class="text-xs text-suave">{{ hora(pedido.created_at) }}</span>
+                             </div>
+-                            <span class="block truncate text-xs text-suave">{{ pedido.items.map((item) => `${item.quantidade}x ${item.produto?.nome}`).join(', ') }}</span>
+-                        </div>
++                            <span class="block truncate text-xs text-suave">{{ pedido.estado === 'cancelado' ? 'ANULADA · ' : '' }}{{ pedido.items.map((item) => `${item.quantidade}x ${item.produto?.nome}`).join(', ') }}</span>
++                        </button>
+                     </div>
+                 </section>
+             </section>
+ 
+-            <aside aria-label="Senha" class="flex min-h-0 flex-col border-t border-linha bg-white lg:border-l lg:border-t-0">
+-                <div class="flex shrink-0 items-center justify-between border-b border-linha px-5 py-3.5">
++            <aside aria-label="Senha" class="flex min-h-0 flex-col border-t lg:overflow-y-auto border-linha bg-white lg:border-l lg:border-t-0">
++                <div class="flex shrink-0 items-center justify-between border-b border-linha px-5 py-3.5 curto:py-2">
+                     <h2 class="text-xl font-extrabold">Senha</h2>
+                     <div class="flex gap-2">
+                         <button v-if="produtosCaucao.length" type="button" class="h-11 rounded-[10px] border border-laranja bg-laranja-claro px-4 text-[15px] font-bold text-laranja-texto disabled:opacity-45" :disabled="!caixaAberta" :aria-expanded="painelMetro" @click="painelMetro = !painelMetro">Devolução de caução</button>
+@@ -367,9 +499,9 @@ const limparSenha = () => {
+                         </div>
+                     </div>
+                 </div>
+-                <div class="min-h-[120px] flex-1 overflow-y-auto px-5">
++                <div class="min-h-[120px] flex-1 overflow-y-auto px-5 curto:min-h-[84px]">
+                     <p v-if="!carrinho.length && !devolvidos.length" class="py-10 text-center text-[15px] text-suave">Escolhe os produtos.</p>
+-                    <div v-for="d in devolvidos" :key="`dev-${d.produto_id}`" class="flex items-center gap-3 border-b border-linha-fraca py-3 text-verde-escuro">
++                    <div v-for="d in devolvidos" :key="`dev-${d.produto_id}`" class="flex items-center gap-3 border-b border-linha-fraca py-3 text-verde-escuro curto:py-1.5">
+                         <span class="min-w-0 flex-1 truncate text-[17px] font-bold">{{ d.nome }} devolvido</span>
+                         <div class="flex items-center gap-2">
+                             <button type="button" aria-label="Retirar um devolvido" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterarDevolvido(d, -1)">
+@@ -382,7 +514,7 @@ const limparSenha = () => {
+                         </div>
+                         <span class="w-20 text-right text-base font-bold">-{{ eur(d.caucao * d.quantidade) }}</span>
+                     </div>
+-                    <div v-for="item in carrinho" :key="item.produto_id" class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-linha-fraca py-3">
++                    <div v-for="item in carrinho" :key="item.produto_id" class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-linha-fraca py-3 curto:py-1.5">
+                         <span class="min-w-0 flex-1 truncate text-[17px] font-bold">{{ item.nome }}</span>
+                         <div class="flex items-center gap-2">
+                             <button type="button" aria-label="Retirar um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-fundo" @click="alterar(item, -1)">
+@@ -397,7 +529,7 @@ const limparSenha = () => {
+                         <div v-if="item.caucao > 0" class="flex w-full items-center gap-2 rounded-[10px] bg-laranja-claro px-3 py-2" role="group" :aria-label="`Caução de ${item.nome}`">
+                             <span class="min-w-0 flex-1 text-[15px] font-bold text-laranja-texto">
+                                 <template v-if="comCaucao(item)">Caução {{ comCaucao(item) }}x +{{ eur(item.caucao * comCaucao(item)) }}</template>
+-                                <template v-else>Sem caução (já tem)</template>
++                                <template v-else>Encher — sem caução</template>
+                             </span>
+                             <span class="text-[15px] font-semibold text-suave">Já tem</span>
+                             <button type="button" aria-label="Já tem menos um" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte bg-white disabled:opacity-40" :disabled="!(item.jaTem > 0)" @click="item.jaTem = Math.max(0, (item.jaTem || 0) - 1)">
+@@ -410,7 +542,7 @@ const limparSenha = () => {
+                         </div>
+                     </div>
+                 </div>
+-                <div class="shrink-0 space-y-3 border-t border-linha bg-fundo p-5">
++                <div class="shrink-0 space-y-3 border-t border-linha bg-fundo p-5 curto:space-y-2 curto:p-3">
+                     <div v-if="caucaoCobrada || caucaoDescontada" class="space-y-0.5 text-[15px]">
+                         <div class="flex justify-between text-suave"><span>Produtos</span><span class="font-bold">{{ eur(total) }}</span></div>
+                         <div v-if="caucaoCobrada" class="flex justify-between text-laranja-texto"><span>Caução</span><span class="font-bold">+{{ eur(caucaoCobrada) }}</span></div>
+@@ -418,18 +550,32 @@ const limparSenha = () => {
+                     </div>
+                     <div class="flex items-end justify-between gap-2">
+                         <span class="text-[15px] text-suave">A pagar · {{ artigos }} artigos</span>
+-                        <span class="text-4xl font-extrabold">{{ eur(Math.max(0, aPagar)) }}</span>
++                        <span class="text-4xl font-extrabold curto:text-3xl">{{ eur(Math.max(0, aPagar)) }}</span>
+                     </div>
+                     <p v-if="saldoExcedido" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-bold text-perigo-texto">O saldo das cauções devolvidas ({{ eur(caucaoDescontada) }}) é maior que a senha. Junta mais bebidas ou devolve o resto em dinheiro.</p>
+-                    <div>
++                    <div role="group" aria-label="Forma de pagamento" class="grid grid-cols-3 gap-2">
++                        <button
++                            v-for="m in METODOS"
++                            :key="m.id"
++                            type="button"
++                            class="h-12 rounded-[10px] text-base font-bold curto:h-10"
++                            :class="metodo === m.id ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white text-tinta'"
++                            :aria-pressed="metodo === m.id"
++                            @click="metodo = m.id"
++                        >{{ m.label }}</button>
++                    </div>
++                    <p v-if="!emDinheiro" class="rounded-[10px] bg-fundo px-3 py-2 text-[15px] font-semibold text-suave">
++                        Confirma o pagamento de <strong class="text-tinta">{{ eur(Math.max(0, aPagar)) }}</strong> por {{ METODOS.find((m) => m.id === metodo)?.label }} antes de cobrar. Não abre a gaveta.
++                    </p>
++                    <div v-if="emDinheiro">
+                         <span class="text-sm font-semibold text-suave">Recebido</span>
+                         <div role="group" aria-label="Valor recebido" class="mt-1 grid grid-cols-4 gap-2">
+-                            <button type="button" class="h-14 rounded-[10px] text-base font-bold" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="escolherRecebido('')">Certo</button>
++                            <button type="button" class="h-14 rounded-[10px] text-base font-bold curto:h-11" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="escolherRecebido('')">Certo</button>
+                             <button
+                                 v-for="v in notasRapidas"
+                                 :key="v"
+                                 type="button"
+-                                class="h-14 rounded-[10px] text-base font-bold"
++                                class="h-14 rounded-[10px] text-base font-bold curto:h-11"
+                                 :class="String(recebido) === String(v) ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                 :aria-pressed="String(recebido) === String(v)"
+                                 @click="escolherRecebido(v)"
+@@ -438,40 +584,159 @@ const limparSenha = () => {
+                         <div class="mt-2 grid grid-cols-2 gap-2">
+                             <label class="block min-w-0">
+                                 <span class="mb-1 block truncate text-sm font-semibold text-suave">Outro valor</span>
+-                                <input v-model="recebido" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" placeholder="0,00">
++                                <input v-model="recebido" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold curto:h-10 text-tinta focus:border-verde focus:ring-verde" placeholder="0,00">
+                             </label>
+                             <label class="block min-w-0">
+                                 <span class="mb-1 block truncate text-sm font-semibold text-suave">Troco entregue</span>
+-                                <input v-model="trocoEntregue" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold text-tinta focus:border-verde focus:ring-verde" :placeholder="eur(troco)">
++                                <input v-model="trocoEntregue" inputmode="decimal" class="h-12 w-full rounded-[10px] border-linha-forte bg-white text-lg font-bold curto:h-10 text-tinta focus:border-verde focus:ring-verde" :placeholder="eur(troco)">
+                             </label>
+                         </div>
+                     </div>
+-                    <div class="grid grid-cols-2 gap-2">
+-                        <div class="rounded-[10px] border border-laranja bg-laranja-claro px-3 py-2">
++                    <div v-if="emDinheiro" class="grid grid-cols-2 gap-2">
++                        <div class="rounded-[10px] border border-laranja bg-laranja-claro px-3 py-2 curto:py-1">
+                             <span class="block text-sm font-bold text-laranja-texto">Troco a dar</span>
+-                            <span class="block text-2xl font-extrabold">{{ eur(trocoRegistado) }}</span>
++                            <span class="block text-2xl font-extrabold curto:text-xl">{{ eur(trocoRegistado) }}</span>
+                         </div>
+-                        <div class="rounded-[10px] border border-linha-forte bg-fundo px-3 py-2">
++                        <div class="rounded-[10px] border border-linha-forte bg-fundo px-3 py-2 curto:py-1">
+                             <span class="block text-sm font-bold text-suave">Doação</span>
+-                            <span class="block text-2xl font-extrabold">{{ eur(doacao) }}</span>
++                            <span class="block text-2xl font-extrabold curto:text-xl">{{ eur(doacao) }}</span>
+                         </div>
+                     </div>
+                     <button
++                        v-if="emDinheiro && (troco > 0 || doouTroco)"
+                         type="button"
+-                        class="h-14 w-full rounded-[10px] border border-laranja text-base font-bold disabled:opacity-45"
++                        class="h-14 w-full rounded-[10px] border border-laranja text-base font-bold disabled:opacity-45 curto:h-11"
+                         :class="doouTroco ? 'bg-laranja text-white' : 'bg-laranja-claro text-laranja-texto'"
+                         :aria-pressed="doouTroco"
+                         :disabled="troco <= 0"
+                         @click="alternarDoacao"
+                     >{{ doouTroco ? 'Cliente doou o troco — anular' : 'Cliente doa o troco' }}</button>
++                    <div v-if="gruposNaSenha.length" role="group" aria-label="Juntar senhas por secção" class="flex flex-col gap-1.5 curto:gap-1">
++                        <span class="text-sm font-semibold text-suave curto:text-xs">Juntar senhas numa folha — comida inclui frango e acomp.</span>
++                        <div class="grid grid-cols-3 gap-2">
++                            <button
++                                v-for="g in gruposNaSenha"
++                                :key="g.chave"
++                                type="button"
++                                role="switch"
++                                class="flex h-12 min-w-0 flex-col items-center justify-center overflow-hidden rounded-[10px] px-1 leading-tight curto:h-10"
++                                :class="juntar[g.chave] ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white text-tinta'"
++                                :aria-checked="juntar[g.chave]"
++                                @click="alternarJuntar(g.chave)"
++                            >
++                                <span class="max-w-full truncate text-[15px] font-bold">{{ g.label }}</span>
++                                <span class="text-xs font-semibold" :class="juntar[g.chave] ? '' : 'text-suave'">{{ juntar[g.chave] ? '✓ juntas' : 'separadas' }}</span>
++                            </button>
++                        </div>
++                    </div>
+                     <AvisoErros :errors="form.errors" class="!p-2" />
+-                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || saldoExcedido || form.processing" @click="cobrar">
+-                        Cobrar e tirar senha
++                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold curto:h-14 text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || saldoExcedido || form.processing" @click="cobrar">
++                        {{ emDinheiro ? 'Cobrar e tirar senha' : `Cobrar ${METODOS.find((m) => m.id === metodo)?.label} e tirar senha` }}
+                     </button>
+                 </div>
+             </aside>
+         </div>
+ 
++        <!-- Senhas anteriores -->
++        <div v-if="painelSenhas" class="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Senhas anteriores" @click.self="fecharSenhas">
++            <div class="flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white sm:h-[min(640px,92dvh)] sm:rounded-[16px]">
++                <div class="flex shrink-0 items-center gap-3 border-b border-linha px-4 py-3">
++                    <button v-if="senhaAberta" type="button" class="flex h-11 w-11 items-center justify-center rounded-[10px] border border-linha-forte md:hidden" aria-label="Voltar à lista" @click="senhaAberta = null">
++                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
++                    </button>
++                    <h2 class="min-w-0 flex-1 truncate text-xl font-extrabold">Senhas anteriores · {{ pontoBar }}</h2>
++                    <button type="button" class="h-11 rounded-[10px] border border-linha-forte px-4 text-[15px] font-bold" @click="fecharSenhas">Fechar</button>
++                </div>
++                <div class="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
++                    <!-- Lista -->
++                    <div class="flex min-h-0 flex-col border-linha md:border-r" :class="senhaAberta ? 'hidden md:flex' : 'flex'">
++                        <form class="flex shrink-0 gap-2 p-3" @submit.prevent="carregarSenhas">
++                            <input v-model="procurarNumero" inputmode="numeric" class="h-12 min-w-0 flex-1 rounded-[10px] border-linha-forte text-lg font-bold" placeholder="Nº da senha" aria-label="Procurar pelo número da senha">
++                            <button type="submit" class="h-12 rounded-[10px] bg-escuro px-4 font-bold text-white">Procurar</button>
++                        </form>
++                        <div class="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
++                            <p v-if="aCarregarSenhas" class="py-8 text-center text-suave">A carregar…</p>
++                            <p v-else-if="!listaSenhas.length" class="py-8 text-center text-suave">Sem senhas{{ procurarNumero ? ' com esse número' : '' }}.</p>
++                            <button
++                                v-for="s in listaSenhas"
++                                v-else
++                                :key="s.id"
++                                type="button"
++                                class="mb-2 flex w-full items-center gap-3 rounded-[12px] border px-3 py-2.5 text-left"
++                                :class="senhaAberta?.id === s.id ? 'border-2 border-verde bg-verde-claro' : 'border-linha bg-white'"
++                                @click="escolherSenha(s)"
++                            >
++                                <span class="w-16 shrink-0 text-xl font-extrabold" :class="s.anulada ? 'text-suave line-through' : ''">#{{ s.numero }}</span>
++                                <span class="min-w-0 flex-1">
++                                    <span class="block truncate text-sm font-semibold">{{ s.itens.map((i) => `${i.quantidade}x ${i.nome}`).join(', ') }}</span>
++                                    <span class="block text-xs text-suave">{{ s.hora }} · {{ s.metodo_nome }}<template v-if="s.reimpressoes"> · 2a via ×{{ s.reimpressoes }}</template></span>
++                                </span>
++                                <span class="shrink-0 text-right">
++                                    <span class="block font-bold">{{ eur(s.pago) }}</span>
++                                    <span v-if="s.anulada" class="mt-0.5 inline-block rounded-full bg-perigo-claro px-2 text-xs font-extrabold text-perigo-texto">ANULADA</span>
++                                </span>
++                            </button>
++                        </div>
++                    </div>
++                    <!-- Detalhe -->
++                    <div class="min-h-0 overflow-y-auto p-4" :class="senhaAberta ? 'block' : 'hidden md:block'">
++                        <p v-if="!senhaAberta" class="py-12 text-center text-suave">Toca numa senha para ver o que foi pedido, reimprimir ou anular.</p>
++                        <template v-else>
++                            <div class="flex items-baseline justify-between gap-3">
++                                <span class="text-4xl font-extrabold" :class="senhaAberta.anulada ? 'line-through text-suave' : ''">#{{ senhaAberta.numero }}</span>
++                                <span class="text-sm text-suave">{{ senhaAberta.hora }} · {{ senhaAberta.operador }}</span>
++                            </div>
++                            <div v-if="senhaAberta.anulada" class="mt-3 rounded-[10px] bg-perigo-claro p-3 text-sm font-semibold text-perigo-texto">
++                                Anulada às {{ senhaAberta.anulado_em }} por {{ senhaAberta.anulado_por }} — {{ senhaAberta.motivo_anulacao }}.
++                                Devolvido: {{ eur(senhaAberta.valor_devolvido) }}.
++                            </div>
++                            <ul class="mt-3 divide-y divide-linha-fraca rounded-[12px] border border-linha">
++                                <li v-for="(i, k) in senhaAberta.itens" :key="k" class="flex justify-between gap-3 px-3 py-2 text-[15px]">
++                                    <span class="font-semibold">{{ i.quantidade }}x {{ i.nome }}</span><span>{{ eur(i.valor) }}</span>
++                                </li>
++                            </ul>
++                            <div class="mt-3 space-y-0.5 text-[15px]">
++                                <div v-if="senhaAberta.caucao_cobrada" class="flex justify-between text-laranja-texto"><span>Caução</span><span class="font-bold">+{{ eur(senhaAberta.caucao_cobrada) }}</span></div>
++                                <div v-if="senhaAberta.caucao_descontada" class="flex justify-between text-verde-escuro"><span>Caução devolvida (saldo)</span><span class="font-bold">-{{ eur(senhaAberta.caucao_descontada) }}</span></div>
++                                <div class="flex justify-between text-lg"><span>Pago · {{ senhaAberta.metodo_nome }}</span><strong>{{ eur(senhaAberta.pago) }}</strong></div>
++                                <div v-if="senhaAberta.doacao" class="flex justify-between text-suave"><span>Doação (troco deixado)</span><span>{{ eur(senhaAberta.doacao) }}</span></div>
++                                <div v-if="senhaAberta.reimpressoes" class="text-sm text-suave">Já reimpressa {{ senhaAberta.reimpressoes }}×.</div>
++                            </div>
++
++                            <AvisoErros :errors="acaoSenha.errors" class="mt-3 !p-2" />
++
++                            <div v-if="!senhaAberta.anulada && !aAnular" class="mt-4 grid grid-cols-2 gap-2">
++                                <button type="button" class="h-14 rounded-[10px] bg-escuro text-base font-bold text-white disabled:opacity-45" :disabled="acaoSenha.processing" @click="reimprimir('tudo')">Reimprimir tudo</button>
++                                <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white text-base font-bold disabled:opacity-45" :disabled="acaoSenha.processing" @click="reimprimir('conta')">Só a conta</button>
++                                <p class="col-span-2 text-xs text-suave">A reimpressão sai com "2a VIA" e não abre a gaveta.</p>
++                                <button type="button" class="col-span-2 h-12 rounded-[10px] border border-perigo bg-perigo-claro text-base font-bold text-perigo-texto" @click="aAnular = true">Anular senha…</button>
++                            </div>
++
++                            <div v-if="!senhaAberta.anulada && aAnular" class="mt-4 space-y-3 rounded-[12px] border-2 border-perigo p-3">
++                                <div class="text-lg font-extrabold text-perigo-texto">Anular a senha #{{ senhaAberta.numero }}</div>
++                                <div class="rounded-[10px] bg-fundo p-3 text-[15px]">
++                                    Devolver ao cliente: <strong class="text-xl">{{ eur(aDevolver) }}</strong>
++                                    <span class="block text-sm text-suave">
++                                        <template v-if="senhaAberta.metodo === 'dinheiro'">Em dinheiro, da gaveta (abre ao confirmar).</template>
++                                        <template v-else>Por {{ senhaAberta.metodo_nome }}<template v-if="senhaAberta.caucao_descontada"> — e {{ eur(senhaAberta.caucao_descontada) }} de caução em dinheiro, da gaveta</template>.</template>
++                                    </span>
++                                    <span class="block text-sm text-suave">Os talões ainda por imprimir já não saem. Recolhe as senhas que o cliente tiver.</span>
++                                </div>
++                                <div class="flex flex-wrap gap-2">
++                                    <button v-for="m in MOTIVOS_RAPIDOS" :key="m" type="button" class="h-10 rounded-full border px-3 text-sm font-bold" :class="motivoAnulacao === m ? 'border-perigo bg-perigo-claro text-perigo-texto' : 'border-linha-forte'" @click="motivoAnulacao = m">{{ m }}</button>
++                                </div>
++                                <input v-model="motivoAnulacao" class="h-12 w-full rounded-[10px] border-linha-forte" placeholder="Motivo (obrigatório)" aria-label="Motivo da anulação">
++                                <div class="grid grid-cols-2 gap-2">
++                                    <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white text-base font-bold" @click="aAnular = false">Voltar</button>
++                                    <button type="button" class="h-14 rounded-[10px] bg-perigo text-base font-bold text-white disabled:opacity-45" :disabled="motivoAnulacao.trim().length < 3 || acaoSenha.processing" @click="confirmarAnulacao">Confirmar anulação</button>
++                                </div>
++                            </div>
++                        </template>
++                    </div>
++                </div>
++            </div>
++        </div>
++
+         <ChamarComissaoModal
+             v-if="chamandoComissao"
+             :operador-nome="posNome"
+diff --git a/resources/js/Pages/Pos/TalaoSenha.vue b/resources/js/Pages/Pos/TalaoSenha.vue
+index 1c22755..0cd69d6 100644
+--- a/resources/js/Pages/Pos/TalaoSenha.vue
++++ b/resources/js/Pages/Pos/TalaoSenha.vue
+@@ -42,6 +42,13 @@ const rodape = computed(() => props.talao?.rodape ?? []);
+ const instrucoes = computed(() => props.talao?.instrucoes ?? []);
+ const taloes = computed(() => props.taloesCliente ?? []);
+ 
++// Folha junta: produtos iguais numa linha so ("2x Bifana")
++const agruparUnidades = (unidades) => Object.values((unidades ?? []).reduce((acc, nome) => {
++    acc[nome] = acc[nome] ?? { nome, quantidade: 0 };
++    acc[nome].quantidade++;
++    return acc;
++}, {}));
++
+ const linhasConta = computed(() => (props.pedido.items || []).map((item) => ({
+     id: item.id,
+     nome: item.produto?.nome ?? 'Produto',
+@@ -123,11 +130,17 @@ onMounted(() => {
+                 <div class="talao-numero font-sans text-[88px] font-extrabold leading-none tracking-[-.02em]">#{{ senha }}</div>
+             </div>
+ 
+-            <div class="text-[22px] font-bold leading-tight">1x {{ talaoSeccao.produto }}</div>
+-            <div v-if="talaoSeccao.secao" class="mt-1.5 inline-block bg-black px-3 py-1 text-base font-bold uppercase tracking-[.08em] text-white">{{ talaoSeccao.secao }}</div>
++            <template v-if="talaoSeccao.seccoes">
++                <div v-for="s in talaoSeccao.seccoes" :key="s.nome" class="border-b border-dashed border-black py-2 last:border-b-0">
++                    <div class="mb-1 inline-block bg-black px-3 py-0.5 text-sm font-bold uppercase tracking-[.08em] text-white">{{ s.nome }}</div>
++                    <div v-for="linha in agruparUnidades(s.unidades)" :key="linha.nome" class="text-lg font-bold leading-snug">{{ linha.quantidade }}x {{ linha.nome }}</div>
++                </div>
++            </template>
++            <div v-else class="text-[22px] font-bold leading-tight">1x {{ talaoSeccao.produto }}</div>
++            <div v-if="!talaoSeccao.seccoes && talaoSeccao.secao" class="mt-1.5 inline-block bg-black px-3 py-1 text-base font-bold uppercase tracking-[.08em] text-white">{{ talaoSeccao.secao }}</div>
+ 
+             <div v-if="talaoSeccao.total > 1" class="mt-2.5 text-xs font-bold">
+-                Talão {{ talaoSeccao.indice }} de {{ talaoSeccao.total }}
++                {{ talaoSeccao.seccoes ? 'Folha' : 'Talão' }} {{ talaoSeccao.indice }} de {{ talaoSeccao.total }}
+             </div>
+ 
+             <div v-if="instrucoes.length" class="mt-2.5 border-t border-dashed border-black pt-2 text-[11px] font-bold leading-snug">
+diff --git a/resources/js/Pages/Talao/Edit.vue b/resources/js/Pages/Talao/Edit.vue
+index aa6f5c0..35151f7 100644
+--- a/resources/js/Pages/Talao/Edit.vue
++++ b/resources/js/Pages/Talao/Edit.vue
+@@ -260,6 +260,7 @@ const categoriasComProdutos = computed(() => props.categorias.filter((c) => (c.p
+                                 <span class="block text-suave">
+                                     O cliente paga tudo à cabeça e cada unidade sai no seu talão, cortado, com a senha e a
+                                     secção onde se levanta. Saem agrupados por secção e a conta vem no fim. Tudo na mesma impressora, a do posto.
++                                    Se o cliente pedir, no POS junta-se uma secção (comida, sobremesas ou bebidas) numa só folha.
+                                 </span>
+                                 <span class="mt-1 block text-suave">
+                                     <strong class="text-tinta">Desligado (restaurante e café):</strong> o funcionamento do costume, incluindo a festa anual — o pedido
+diff --git a/routes/api.php b/routes/api.php
+index b360451..e10f1a6 100644
+--- a/routes/api.php
++++ b/routes/api.php
+@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Route;
+ 
+ Route::prefix('print-agent')->name('print-agent.')->group(function () {
+     Route::get('jobs', [PrintAgentController::class, 'jobs'])->name('jobs');
++    // Versao atual do agent.mjs, para atualizar o Raspberry com um comando
++    Route::get('agente.mjs', [PrintAgentController::class, 'codigoAgente'])->name('codigo');
+     Route::post('jobs/{printJob}/done', [PrintAgentController::class, 'done'])->name('jobs.done');
+     Route::post('jobs/{printJob}/fail', [PrintAgentController::class, 'fail'])->name('jobs.fail');
+ });
+diff --git a/routes/web.php b/routes/web.php
+index f8483be..22618ec 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -120,6 +120,9 @@ Route::middleware('pos.auth')->prefix('pos')->name('pos.')->group(function () {
+     Route::post('/prepago', [PosBarController::class, 'storePrepago'])->name('prepago.store');
+     Route::post('/caucao/devolver', [PosBarController::class, 'devolverCaucao'])->name('caucao.devolver');
+     Route::get('/pedido/{pedido}/talao', [PosBarController::class, 'talao'])->name('pedido.talao');
++    Route::get('/senhas', [PosBarController::class, 'senhas'])->name('senhas');
++    Route::post('/pedido/{pedido}/reimprimir', [PosBarController::class, 'reimprimir'])->name('pedido.reimprimir');
++    Route::post('/pedido/{pedido}/anular', [PosBarController::class, 'anular'])->name('pedido.anular');
+     // Compatibilidade com builds antigos (bar/café)
+     Route::post('/chamar-comissao', [ChamadaComissaoController::class, 'store'])->name('comissao.chamar.antigo');
+ });
+@@ -282,6 +285,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
+     Route::put('contas-festa/{contasFesta}', [FestaContaController::class, 'update'])->name('contas-festa.update');
+     Route::delete('contas-festa/{contasFesta}', [FestaContaController::class, 'destroy'])->name('contas-festa.destroy');
+     Route::get('impressoras/download-agente', [ImpressoraController::class, 'downloadAgente'])->name('impressoras.download-agente');
++    Route::post('impressoras/token-agente', [ImpressoraController::class, 'guardarTokenAgente'])->name('impressoras.token-agente');
+     Route::post('impressoras/retentar-falhados', [ImpressoraController::class, 'retentarFalhados'])->name('impressoras.retentar-falhados');
+     Route::get('impressoras/status-jobs', [ImpressoraController::class, 'statusJobs'])->name('impressoras.status-jobs');
+     Route::get('impressoras/teste-usb', [ImpressoraController::class, 'testeUsb'])->name('impressoras.teste-usb');
+diff --git a/tailwind.config.js b/tailwind.config.js
+index 726371d..50dbe99 100644
+--- a/tailwind.config.js
++++ b/tailwind.config.js
+@@ -12,6 +12,10 @@ export default {
+ 
+     theme: {
+         extend: {
++            screens: {
++                // Ecras baixos (portateis/Chromebooks deitados): compacta o POS
++                curto: { raw: '(max-height: 820px)' },
++            },
+             fontFamily: {
+                 sans: ['Archivo', ...defaultTheme.fontFamily.sans],
+                 display: ['Archivo', ...defaultTheme.fontFamily.sans],
+diff --git a/testar-evento.bat b/testar-evento.bat
+new file mode 100644
+index 0000000..338946c
+--- /dev/null
++++ b/testar-evento.bat
+@@ -0,0 +1,31 @@
++@echo off
++:: ============================================================
++::  Ensaio do evento: corre os testes do pre-pagamento (3 postos,
++::  senhas, impressao, caucoes, caixa, agente do Raspberry).
++::  Usa uma base de dados SO de testes (santana_test), que e apagada
++::  e recriada - nunca toca na base de dados do site.
++:: ============================================================
++cd /d C:\laragon\www\associacaosantana
++
++if not exist vendor\autoload.php (
++    echo A instalar dependencias PHP...
++    call composer install
++)
++
++echo A preparar a base de dados de testes (santana_test)...
++mysql -uroot -e "CREATE DATABASE IF NOT EXISTS santana_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
++if errorlevel 1 (
++    echo ERRO: nao consegui falar com o MySQL do Laragon. Carrega em "Start All" no Laragon e tenta outra vez.
++    pause & exit /b 1
++)
++
++php vendor\bin\phpunit -c phpunit.evento.xml --testdox
++if errorlevel 1 (
++    echo.
++    echo ==========  HA TESTES A FALHAR - NAO FAZER DEPLOY  ==========
++    pause & exit /b 1
++)
++
++echo.
++echo ==========  TUDO OK - pode fazer deploy  ==========
++pause
+diff --git a/tests/Feature/Evento/PrePagamentoEventoTest.php b/tests/Feature/Evento/PrePagamentoEventoTest.php
+new file mode 100644
+index 0000000..99213b5
+--- /dev/null
++++ b/tests/Feature/Evento/PrePagamentoEventoTest.php
+@@ -0,0 +1,742 @@
++<?php
++
++namespace Tests\Feature\Evento;
++
++use App\Models\CaixaDiaria;
++use App\Models\Categoria;
++use App\Models\Configuracao;
++use App\Models\Impressora;
++use App\Models\Pedido;
++use App\Models\PosSession;
++use App\Models\PrintJob;
++use App\Models\Produto;
++use App\Models\TalaoConfig;
++use App\Models\User;
++use Database\Seeders\RoleSeeder;
++use Illuminate\Foundation\Testing\RefreshDatabase;
++use Illuminate\Support\Carbon;
++use Tests\TestCase;
++
++/**
++ * Ensaio do evento: 3 postos de pre-pagamento a vender ao mesmo tempo,
++ * cada um com a sua impressora (pelo Raspberry) e a sua caixa.
++ *
++ * Correr:  php artisan test --configuration=phpunit.evento.xml
++ */
++class PrePagamentoEventoTest extends TestCase
++{
++    use RefreshDatabase;
++
++    private User $admin;
++
++    /** @var array<int, PosSession> */
++    private array $postos = [];
++
++    private Produto $imperial;
++    private Produto $metro;
++    private Produto $bifana;
++    private Produto $frango;
++    private Produto $batata;
++    private Produto $baba;
++
++    protected function setUp(): void
++    {
++        parent::setUp();
++
++        $this->seed(RoleSeeder::class);
++        $this->admin = User::factory()->create();
++        $this->admin->assignRole('admin');
++
++        TalaoConfig::query()->update(['em_uso' => false]);
++        TalaoConfig::create([
++            'nome' => 'Evento',
++            'titulo' => 'Carvalhal Fest',
++            'rodape' => 'Obrigado',
++            'prepago_apenas_individuais' => true,
++            'ativo' => true,
++            'em_uso' => true,
++        ]);
++        TalaoConfig::esquecer();
++
++        $bebidas = Categoria::firstOrCreate(['nome' => 'Bebidas'], ['secao' => 'bebidas']);
++        $comida = Categoria::firstOrCreate(['nome' => 'Comida'], ['secao' => 'comida']);
++        $frango = Categoria::firstOrCreate(['nome' => 'Frango'], ['secao' => 'frango']);
++        $acomp = Categoria::firstOrCreate(['nome' => 'Acompanhamentos'], ['secao' => 'acompanhamentos']);
++        $sobremesas = Categoria::firstOrCreate(['nome' => 'Sobremesas'], ['secao' => 'sobremesas']);
++
++        $this->imperial = $this->produto($bebidas, 'Imperial', 1.50);
++        $this->metro = $this->produto($bebidas, 'Metro de Imperial', 12.00, caucao: 5.00);
++        $this->bifana = $this->produto($comida, 'Bifana', 3.50);
++        $this->frango = $this->produto($frango, 'Frango', 8.00);
++        $this->batata = $this->produto($acomp, 'Batata Frita', 2.00);
++        $this->baba = $this->produto($sobremesas, 'Baba de Camelo', 2.50);
++
++        // 3 postos, cada um com a sua impressora de rede pelo Raspberry
++        foreach ([1 => '10.0.0.201', 2 => '10.0.0.202', 3 => '10.0.0.203'] as $n => $ip) {
++            $impressora = Impressora::create([
++                'nome' => "Impressora Pre $n",
++                'secao' => 'cafe',
++                'tipo' => Impressora::TIPO_REDE,
++                'host' => $ip,
++                'porta' => 9100,
++                'ativa' => true,
++            ]);
++
++            $this->postos[$n] = PosSession::create([
++                'nome' => $n === 1 ? 'Pre pagamento' : "Pre pagamento $n",
++                'pin' => '1234',
++                'localizacao' => $n === 1 ? 'Pre Pagamento' : "Pre Pagamento $n",
++                'tipo' => 'cafe',
++                'impressora_id' => $impressora->id,
++                'ativo' => true,
++            ]);
++        }
++    }
++
++    // ------------------------------------------------------------------
++    //  Senhas
++    // ------------------------------------------------------------------
++
++    public function test_os_tres_postos_nunca_repetem_o_numero_de_senha(): void
++    {
++        $this->abrirCaixas();
++
++        for ($i = 0; $i < 30; $i++) {
++            $this->vender($this->postos[($i % 3) + 1], [[$this->imperial, 1]])->assertRedirect();
++        }
++
++        $senhas = Pedido::where('tipo', 'bar_prepago')->pluck('numero_senha');
++
++        $this->assertCount(30, $senhas);
++        $this->assertCount(30, $senhas->unique(), 'Ha senhas repetidas entre postos');
++        $this->assertEquals(range(1, 30), $senhas->sort()->values()->all());
++
++        // Cada posto vendeu 10
++        foreach ($this->postos as $posto) {
++            $this->assertSame(10, Pedido::where('ponto_bar', $posto->localizacao)->count());
++        }
++    }
++
++    public function test_o_prepago_do_backoffice_partilha_a_mesma_contagem_de_senhas(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);
++        $this->actingAs($this->admin)->post(route('bar.store-prepago'), [
++            'ponto_bar' => $this->postos[2]->localizacao,
++            'valor_recebido' => 10,
++            'items' => [['produto_id' => $this->imperial->id, 'quantidade' => 1]],
++        ])->assertRedirect();
++        $this->vender($this->postos[3], [[$this->imperial, 1]]);
++
++        $this->assertEquals([1, 2, 3], Pedido::orderBy('id')->pluck('numero_senha')->all());
++    }
++
++    public function test_abrir_a_segunda_e_terceira_caixa_a_meio_nao_recomeca_as_senhas(): void
++    {
++        $this->abrirCaixa($this->postos[1]);
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);
++
++        $this->abrirCaixa($this->postos[2]);
++        $this->abrirCaixa($this->postos[3]);
++
++        $this->vender($this->postos[2], [[$this->imperial, 1]]);
++        $this->vender($this->postos[3], [[$this->imperial, 1]]);
++
++        $this->assertEquals([1, 2, 3, 4], Pedido::orderBy('id')->pluck('numero_senha')->all());
++    }
++
++    public function test_fechar_todas_as_caixas_a_meio_da_noite_e_reabrir_nao_repete_senhas(): void
++    {
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);
++        $this->vender($this->postos[2], [[$this->imperial, 1]]);
++
++        // Ex.: troca de turno — fecham-se as 3 para contar e voltam a abrir
++        foreach (CaixaDiaria::aberta()->get() as $caixa) {
++            $this->actingAs($this->admin)->patch(route('caixa.fechar', $caixa), ['valor_contado' => 50])->assertRedirect();
++        }
++        $this->travel(20)->minutes();
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[3], [[$this->imperial, 1]]);
++
++        $this->assertEquals([1, 2, 3], Pedido::orderBy('id')->pluck('numero_senha')->all(),
++            'Reabrir as caixas a meio do evento recomecou as senhas: ia haver numeros repetidos nas maos dos clientes');
++    }
++
++    public function test_no_dia_seguinte_as_senhas_recomecam_no_1(): void
++    {
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);
++        $this->vender($this->postos[2], [[$this->imperial, 1]]);
++
++        foreach (CaixaDiaria::aberta()->get() as $caixa) {
++            $this->actingAs($this->admin)->patch(route('caixa.fechar', $caixa), ['valor_contado' => 50]);
++        }
++
++        $this->travelTo(Carbon::tomorrow()->setTime(18, 0));
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);
++
++        $this->assertSame(1, (int) Pedido::latest('id')->value('numero_senha'));
++    }
++
++    // ------------------------------------------------------------------
++    //  Venda
++    // ------------------------------------------------------------------
++
++    public function test_com_a_caixa_fechada_o_posto_nao_vende(): void
++    {
++        $this->abrirCaixa($this->postos[1]);
++
++        $this->vender($this->postos[2], [[$this->imperial, 1]])->assertSessionHasErrors('ponto_bar');
++
++        $this->assertSame(0, Pedido::count());
++        $this->assertSame(0, PrintJob::count());
++    }
++
++    public function test_valor_recebido_abaixo_do_total_e_recusado(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[1], [[$this->frango, 1]], recebido: 5)->assertSessionHasErrors('valor_recebido');
++
++        $this->assertSame(0, Pedido::count());
++        $this->assertSame(0, (int) Configuracao::where('chave', 'ultima_senha_bar')->value('valor'),
++            'Uma venda recusada nao pode gastar um numero de senha');
++    }
++
++    public function test_produto_indisponivel_no_bar_e_recusado(): void
++    {
++        $this->abrirCaixas();
++        $this->imperial->update(['disponivel_bar' => false]);
++
++        $this->vender($this->postos[1], [[$this->imperial, 1]])->assertSessionHasErrors('items.0.produto_id');
++        $this->assertSame(0, Pedido::count());
++    }
++
++    public function test_uma_falha_no_registo_de_auditoria_nao_impede_a_venda(): void
++    {
++        $this->abrirCaixas();
++        \Illuminate\Support\Facades\Schema::rename('audit_logs', 'audit_logs_fora');
++
++        try {
++            $this->vender($this->postos[1], [[$this->imperial, 2]])->assertSessionHasNoErrors()->assertRedirect();
++        } finally {
++            \Illuminate\Support\Facades\Schema::rename('audit_logs_fora', 'audit_logs');
++        }
++
++        $this->assertSame(1, Pedido::count());
++        $this->assertSame(3, PrintJob::count());
++    }
++
++    // ------------------------------------------------------------------
++    //  Impressao
++    // ------------------------------------------------------------------
++
++    public function test_cada_posto_imprime_na_sua_impressora_uma_senha_por_unidade_e_a_conta_no_fim(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[2], [[$this->bifana, 2], [$this->imperial, 1]]);
++
++        $jobs = PrintJob::orderBy('id')->get();
++
++        $this->assertCount(4, $jobs, '3 senhas (1 por unidade) + 1 conta');
++        $this->assertSame([$this->postos[2]->impressora_id], $jobs->pluck('impressora_id')->unique()->values()->all(),
++            'Os taloes sairam numa impressora que nao e a do posto');
++
++        $subtitulos = $jobs->map(fn ($j) => $j->payload['subtitulo'] ?? null)->all();
++        $this->assertSame('CONTA', end($subtitulos), 'A conta tem de sair no fim');
++
++        $this->assertTrue((bool) ($jobs->first()->payload['abrir_caixa'] ?? false), 'A gaveta abre com o primeiro talao');
++        $this->assertFalse((bool) ($jobs->last()->payload['abrir_caixa'] ?? false));
++
++        $senha = Pedido::first()->numero_senha;
++        foreach ($jobs->take(3) as $job) {
++            $this->assertStringContainsString('SENHA #'.$senha, $this->texto($job));
++        }
++    }
++
++    public function test_juntar_por_seccao_comida_frango_e_acompanhamentos_numa_folha_resto_separado(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[1], [
++            [$this->bifana, 2], [$this->frango, 1], [$this->batata, 1], [$this->baba, 2], [$this->imperial, 3],
++        ], juntar: ['cozinha' => 1, 'sobremesas' => 0, 'bebidas' => 0]);
++
++        $jobs = PrintJob::orderBy('id')->get();
++        // 1 folha cozinha + 2 sobremesas + 3 bebidas + conta
++        $this->assertCount(7, $jobs);
++
++        $folha = $this->texto($jobs[0]);
++        foreach (['COMIDA', 'FRANGO', 'ACOMPANHAMENTOS', 'Bifana', 'Frango', 'Batata Frita'] as $esperado) {
++            $this->assertStringContainsString($esperado, $folha);
++        }
++        $this->assertStringContainsString('2x Bifana', $folha, 'Produtos iguais juntos numa linha na folha junta');
++        $this->assertStringNotContainsString('1x Bifana', $folha);
++        $this->assertStringNotContainsString('Baba', $folha);
++        $this->assertSame('CONTA', $jobs->last()->payload['subtitulo']);
++    }
++
++    public function test_juntar_bebidas_a_pedido_do_cliente(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[3], [[$this->imperial, 3], [$this->bifana, 1]], juntar: ['bebidas' => 1]);
++
++        // 1 folha bebidas + 1 senha bifana + conta
++        $this->assertSame(3, PrintJob::count());
++    }
++
++    public function test_sem_juntar_tudo_sai_separado_por_omissao(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[1], [[$this->imperial, 3], [$this->bifana, 2], [$this->baba, 1]]);
++
++        $this->assertSame(7, PrintJob::count(), '6 senhas + conta');
++    }
++
++    // ------------------------------------------------------------------
++    //  Caucao do metro
++    // ------------------------------------------------------------------
++
++    public function test_metro_novo_cobra_caucao_e_encher_nao_cobra(): void
++    {
++        $this->abrirCaixas();
++
++        // Novo
++        $this->vender($this->postos[1], [[$this->metro, 1]], recebido: 17)->assertSessionHasNoErrors();
++        // Encher: o cliente ja tem o metro
++        $this->vender($this->postos[1], [[$this->metro, 1, 1]], recebido: 12)->assertSessionHasNoErrors();
++
++        [$novo, $encher] = Pedido::orderBy('id')->get();
++
++        $this->assertEquals(5.00, (float) $novo->caucao_cobrada);
++        $this->assertEquals(0.00, (float) $encher->caucao_cobrada, 'Quem vem encher nao pode pagar outra caucao');
++        $this->assertEquals(12.00, (float) $encher->total);
++    }
++
++    public function test_metro_devolvido_desconta_na_senha_e_dinheiro_sai_da_gaveta(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[1], [[$this->metro, 1]], recebido: 17);
++
++        // Devolve o metro e usa o saldo em imperiais (5 EUR -> 4 imperiais = 6 EUR, paga 1)
++        $this->vender($this->postos[2], [[$this->imperial, 4]], recebido: 1, devolvidos: [[$this->metro, 1]])->assertSessionHasNoErrors();
++        $this->assertEquals(5.00, (float) Pedido::latest('id')->value('caucao_descontada'));
++
++        // Saldo maior do que a senha e recusado
++        $this->vender($this->postos[2], [[$this->imperial, 1]], recebido: 0, devolvidos: [[$this->metro, 1]])
++            ->assertSessionHasErrors('devolvidos');
++
++        // Devolucao em dinheiro
++        $this->withSession($this->sessao($this->postos[3]))
++            ->post(route('pos.caucao.devolver'), ['produto_id' => $this->metro->id, 'quantidade' => 1])
++            ->assertRedirect();
++        $this->assertDatabaseHas('caucao_devolucoes', ['modo' => 'dinheiro', 'ponto' => $this->postos[3]->localizacao, 'valor_total' => 5.00]);
++    }
++
++    // ------------------------------------------------------------------
++    //  Caixa
++    // ------------------------------------------------------------------
++
++    public function test_fecho_de_caixa_bate_com_o_dinheiro_na_gaveta_em_cada_posto(): void
++    {
++        $this->abrirCaixas(fundo: 50);
++
++        // Posto 1: imperial 1,50 paga com 2 e o cliente deixa o troco (0,50 de doacao)
++        $this->vender($this->postos[1], [[$this->imperial, 1]], recebido: 2, troco: 0);
++        // Posto 1: metro novo 12 + 5 caucao, paga 20, troco 3
++        $this->vender($this->postos[1], [[$this->metro, 1]], recebido: 20, troco: 3);
++        // Posto 2: frango 8, paga certo
++        $this->vender($this->postos[2], [[$this->frango, 1]], recebido: 8);
++        // Posto 3: metro devolvido em dinheiro (sai 5 da gaveta)
++        $this->withSession($this->sessao($this->postos[3]))
++            ->post(route('pos.caucao.devolver'), ['produto_id' => $this->metro->id, 'quantidade' => 1]);
++
++        $gaveta = [
++            1 => 50 + 2 + (20 - 3),
++            2 => 50 + 8,
++            3 => 50 - 5,
++        ];
++
++        $caixas = collect($this->actingAs($this->admin)->get(route('caixa.index'))->viewData('page')['props']['caixas'])
++            ->keyBy('ponto');
++
++        foreach ($gaveta as $n => $dinheiro) {
++            $this->assertEquals($dinheiro, $caixas[$this->postos[$n]->localizacao]['esperado_caixa'],
++                "O esperado na caixa do posto $n nao bate com o dinheiro na gaveta");
++        }
++
++        $this->assertEquals(13.50, $caixas[$this->postos[1]->localizacao]['vendas'], 'A caucao nao e venda');
++    }
++
++    // ------------------------------------------------------------------
++    //  Forma de pagamento
++    // ------------------------------------------------------------------
++
++    public function test_mbway_e_contactless_nao_abrem_a_gaveta_nem_tem_troco(): void
++    {
++        $this->abrirCaixas();
++
++        foreach (['mbway' => 'MB WAY', 'contactless' => 'Contactless'] as $metodo => $nome) {
++            PrintJob::query()->delete();
++
++            // Mesmo que venha um valor recebido maior (ecra ainda com o valor do dinheiro), cobra o certo
++            $this->vender($this->postos[1], [[$this->metro, 1]], recebido: 50, troco: 0, metodo: $metodo)->assertSessionHasNoErrors();
++
++            $pedido = Pedido::latest('id')->first();
++            $this->assertSame($metodo, $pedido->metodo_pagamento);
++            $this->assertEquals(17.00, (float) $pedido->valor_recebido);
++            $this->assertEquals(0.00, (float) $pedido->troco);
++            $this->assertEquals(0.00, (float) $pedido->doacao);
++
++            $jobs = PrintJob::orderBy('id')->get();
++            $this->assertFalse($jobs->contains(fn ($j) => (bool) ($j->payload['abrir_caixa'] ?? false)), "$nome nao pode abrir a gaveta");
++
++            $conta = $this->texto($jobs->last());
++            $this->assertStringContainsString('Pagamento: '.$nome, $conta);
++            $this->assertStringNotContainsString('Troco', $conta);
++        }
++    }
++
++    public function test_dinheiro_abre_a_gaveta_e_mostra_o_troco_na_conta(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[1], [[$this->imperial, 1]], recebido: 5, troco: 3.50);
++
++        $jobs = PrintJob::orderBy('id')->get();
++        $this->assertTrue((bool) ($jobs->first()->payload['abrir_caixa'] ?? false));
++        $conta = $this->texto($jobs->last());
++        $this->assertStringContainsString('Pagamento: Dinheiro', $conta);
++        $this->assertStringContainsString('Troco: 3,50 EUR', $conta);
++    }
++
++    public function test_forma_de_pagamento_desconhecida_e_recusada(): void
++    {
++        $this->abrirCaixas();
++
++        $this->vender($this->postos[1], [[$this->imperial, 1]], metodo: 'cheque')->assertSessionHasErrors('metodo_pagamento');
++        $this->assertSame(0, Pedido::count());
++    }
++
++    public function test_na_caixa_so_o_dinheiro_conta_para_a_gaveta_e_mbway_contactless_aparecem_a_parte(): void
++    {
++        $this->abrirCaixas(fundo: 50);
++
++        $this->vender($this->postos[1], [[$this->imperial, 2]], recebido: 5, troco: 2);              // 3 a dinheiro
++        $this->vender($this->postos[1], [[$this->frango, 1]], metodo: 'mbway');                       // 8 MB WAY
++        $this->vender($this->postos[1], [[$this->metro, 1]], metodo: 'contactless');                  // 12 + 5 caucao
++        $this->vender($this->postos[1], [[$this->imperial, 4]], devolvidos: [[$this->metro, 1]], metodo: 'mbway'); // 6 - 5 = 1 MB WAY
++
++        $caixa = collect($this->actingAs($this->admin)->get(route('caixa.index'))->viewData('page')['props']['caixas'])
++            ->firstWhere('ponto', $this->postos[1]->localizacao);
++
++        $this->assertEquals(50 + 3, $caixa['esperado_caixa'], 'So o dinheiro entra na gaveta');
++        $this->assertEquals(3 + 8 + 12 + 6, $caixa['vendas']);
++        $this->assertEquals(9.00, $caixa['por_metodo']['mbway']);
++        $this->assertEquals(17.00, $caixa['por_metodo']['contactless']);
++    }
++
++    // ------------------------------------------------------------------
++    //  Senhas anteriores: reimprimir e anular
++    // ------------------------------------------------------------------
++
++    public function test_lista_de_senhas_so_mostra_as_do_proprio_posto_e_procura_por_numero(): void
++    {
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);   // #1
++        $this->vender($this->postos[2], [[$this->bifana, 1]]);     // #2
++        $this->vender($this->postos[1], [[$this->frango, 1]]);     // #3
++
++        $lista = $this->withSession($this->sessao($this->postos[1]))->getJson(route('pos.senhas'))->assertOk()->json('senhas');
++        $this->assertEquals([3, 1], array_column($lista, 'numero'));
++        $this->assertSame('Frango', $lista[0]['itens'][0]['nome']);
++
++        $uma = $this->withSession($this->sessao($this->postos[1]))->getJson(route('pos.senhas', ['numero' => 1]))->json('senhas');
++        $this->assertEquals([1], array_column($uma, 'numero'));
++    }
++
++    public function test_reimprimir_tudo_sai_com_2a_via_igual_ao_original_e_nao_abre_a_gaveta(): void
++    {
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->bifana, 2], [$this->frango, 1], [$this->imperial, 1]], juntar: ['cozinha' => 1]);
++        $pedido = Pedido::first();
++        $originais = PrintJob::count();   // 1 folha cozinha + 1 imperial + conta = 3
++        $this->assertSame(3, $originais);
++
++        $this->withSession($this->sessao($this->postos[1]))
++            ->post(route('pos.pedido.reimprimir', $pedido), ['o' => 'tudo'])->assertRedirect();
++
++        $via = PrintJob::where('id', '>', PrintJob::orderBy('id')->skip($originais - 1)->value('id'))->orderBy('id')->get();
++        $this->assertCount($originais, $via, 'A 2a via tem de sair igual (com as seccoes juntas como na venda)');
++        foreach ($via as $job) {
++            $this->assertStringContainsString('2a VIA', $this->texto($job));
++            $this->assertFalse((bool) ($job->payload['abrir_caixa'] ?? false));
++            $this->assertSame($this->postos[1]->impressora_id, $job->impressora_id);
++        }
++        $this->assertSame(1, $pedido->fresh()->reimpressoes);
++    }
++
++    public function test_reimprimir_so_a_conta(): void
++    {
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->imperial, 3]]);
++        $antes = PrintJob::count();
++
++        $this->withSession($this->sessao($this->postos[1]))
++            ->post(route('pos.pedido.reimprimir', Pedido::first()), ['o' => 'conta']);
++
++        $this->assertSame($antes + 1, PrintJob::count());
++        $this->assertSame('CONTA 2a VIA', PrintJob::latest('id')->first()->payload['subtitulo']);
++    }
++
++    public function test_anular_senha_a_dinheiro_tira_das_vendas_da_caixa_e_abre_a_gaveta_para_devolver(): void
++    {
++        $this->abrirCaixas(fundo: 50);
++        $this->vender($this->postos[1], [[$this->frango, 1]], recebido: 10, troco: 2);      // fica
++        $this->vender($this->postos[1], [[$this->bifana, 2]], recebido: 10, troco: 3);      // 7 -> anulada
++        $anular = Pedido::latest('id')->first();
++
++        // Ainda ha taloes desta senha por imprimir: ja nao podem sair
++        $this->withSession($this->sessao($this->postos[1]))
++            ->post(route('pos.pedido.anular', $anular), ['motivo' => 'Cliente desistiu'])
++            ->assertSessionHasNoErrors()->assertRedirect();
++
++        $anular->refresh();
++        $this->assertSame('cancelado', $anular->estado);
++        $this->assertEquals(7.00, (float) $anular->valor_devolvido);
++        $this->assertSame('Cliente desistiu', $anular->motivo_anulacao);
++
++        $this->assertSame(0, PrintJob::where('printable_id', $anular->id)->where('estado', 'pendente')
++            ->where('payload->subtitulo', '!=', 'ANULADA')->count(), 'Os taloes por imprimir da senha anulada nao podem sair');
++
++        $talao = PrintJob::latest('id')->first();
++        $this->assertSame('ANULADA', $talao->payload['subtitulo']);
++        $this->assertTrue((bool) $talao->payload['abrir_caixa'], 'Abre a gaveta para devolver o dinheiro');
++        $this->assertStringContainsString('Devolver: 7,00 EUR', $this->texto($talao));
++
++        $caixa = collect($this->actingAs($this->admin)->get(route('caixa.index'))->viewData('page')['props']['caixas'])
++            ->firstWhere('ponto', $this->postos[1]->localizacao);
++        $this->assertEquals(8.00, $caixa['vendas'], 'A senha anulada nao conta nas vendas');
++        $this->assertEquals(50 + 8, $caixa['esperado_caixa'], 'O dinheiro devolvido saiu da gaveta');
++
++        // Anulada: nao se reimprime nem se anula outra vez
++        $this->withSession($this->sessao($this->postos[1]))->post(route('pos.pedido.reimprimir', $anular), ['o' => 'tudo'])->assertStatus(422);
++        $this->withSession($this->sessao($this->postos[1]))->post(route('pos.pedido.anular', $anular), ['motivo' => 'outra vez'])->assertSessionHasErrors('motivo');
++    }
++
++    public function test_anular_senha_mbway_nao_abre_a_gaveta(): void
++    {
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->frango, 1]], metodo: 'mbway');
++
++        $this->withSession($this->sessao($this->postos[1]))
++            ->post(route('pos.pedido.anular', Pedido::first()), ['motivo' => 'Pagamento nao passou'])->assertSessionHasNoErrors();
++
++        $this->assertFalse((bool) (PrintJob::latest('id')->first()->payload['abrir_caixa'] ?? false));
++    }
++
++    public function test_anular_senha_paga_com_metro_devolvido_devolve_a_caucao_em_dinheiro(): void
++    {
++        $this->abrirCaixas(fundo: 50);
++        $this->vender($this->postos[1], [[$this->metro, 1]], recebido: 17);                                       // +17 gaveta
++        $this->vender($this->postos[1], [[$this->imperial, 4]], recebido: 1, devolvidos: [[$this->metro, 1]]);   // +1 gaveta
++        $anular = Pedido::latest('id')->first();
++
++        $this->withSession($this->sessao($this->postos[1]))
++            ->post(route('pos.pedido.anular', $anular), ['motivo' => 'Engano no pedido'])->assertSessionHasNoErrors();
++
++        $this->assertEquals(6.00, (float) $anular->fresh()->valor_devolvido, '1 EUR pago + 5 EUR de caucao do metro');
++        $this->assertDatabaseHas('caucao_devolucoes', ['pedido_id' => $anular->id, 'modo' => 'dinheiro']);
++
++        $caixa = collect($this->actingAs($this->admin)->get(route('caixa.index'))->viewData('page')['props']['caixas'])
++            ->firstWhere('ponto', $this->postos[1]->localizacao);
++        $this->assertEquals(50 + 17 + 1 - 6, $caixa['esperado_caixa']);
++    }
++
++    public function test_nao_se_mexe_em_senhas_de_outro_posto_e_o_motivo_e_obrigatorio(): void
++    {
++        $this->abrirCaixas();
++        $this->vender($this->postos[2], [[$this->imperial, 1]]);
++        $pedido = Pedido::first();
++
++        $this->withSession($this->sessao($this->postos[1]))->post(route('pos.pedido.reimprimir', $pedido), ['o' => 'tudo'])->assertNotFound();
++        $this->withSession($this->sessao($this->postos[1]))->post(route('pos.pedido.anular', $pedido), ['motivo' => 'x'])->assertNotFound();
++        $this->withSession($this->sessao($this->postos[2]))->post(route('pos.pedido.anular', $pedido), ['motivo' => ''])->assertSessionHasErrors('motivo');
++
++        $this->assertSame('pronto', $pedido->fresh()->estado);
++    }
++
++    // ------------------------------------------------------------------
++    //  Agente do Raspberry
++    // ------------------------------------------------------------------
++
++    public function test_agente_com_token_errado_e_recusado_e_o_backoffice_fica_a_saber(): void
++    {
++        config(['services.print_agent.token' => 'token-do-servidor-1234567890']);
++
++        $this->getJson(route('print-agent.jobs'), ['Authorization' => 'Bearer errado'])->assertStatus(401);
++
++        $props = $this->actingAs($this->admin)->get(route('impressoras.index'))->viewData('page')['props'];
++        $this->assertNotNull($props['agente']['ultimo_401_at'] ?? null);
++    }
++
++    public function test_token_definido_no_site_passa_a_valer_e_o_antigo_deixa_de_servir(): void
++    {
++        config(['services.print_agent.token' => 'token-do-servidor-1234567890']);
++        $this->getJson(route('print-agent.jobs'), ['Authorization' => 'Bearer token-do-servidor-1234567890'])->assertOk();
++
++        $this->actingAs($this->admin)->post(route('impressoras.token-agente'), ['token' => 'token-do-raspberry-0987654321'])
++            ->assertSessionHasNoErrors();
++
++        $this->getJson(route('print-agent.jobs'), ['Authorization' => 'Bearer token-do-raspberry-0987654321'])->assertOk();
++        $this->getJson(route('print-agent.jobs'), ['Authorization' => 'Bearer token-do-servidor-1234567890'])->assertStatus(401);
++    }
++
++    public function test_o_raspberry_leva_os_taloes_dos_3_postos_e_marca_como_impressos(): void
++    {
++        $token = 'token-do-raspberry-0987654321';
++        $this->actingAs($this->admin)->post(route('impressoras.token-agente'), ['token' => $token]);
++        $this->abrirCaixas();
++
++        foreach ($this->postos as $posto) {
++            $this->vender($posto, [[$this->imperial, 1]]);
++        }
++
++        $jobs = $this->getJson(route('print-agent.jobs'), ['Authorization' => "Bearer $token"])->assertOk()->json('jobs');
++
++        $this->assertCount(6, $jobs, '3 postos x (1 senha + 1 conta)');
++        $this->assertEqualsCanonicalizing(['10.0.0.201', '10.0.0.202', '10.0.0.203'],
++            collect($jobs)->pluck('printer.host')->unique()->values()->all());
++
++        foreach ($jobs as $job) {
++            $this->postJson(route('print-agent.jobs.done', $job['id']), [], ['Authorization' => "Bearer $token"])->assertOk();
++        }
++
++        $this->assertSame(6, PrintJob::where('estado', 'impresso')->count());
++        $this->assertSame([], $this->getJson(route('print-agent.jobs'), ['Authorization' => "Bearer $token"])->json('jobs') ?? []);
++    }
++
++    public function test_agente_com_nome_so_leva_as_impressoras_dele(): void
++    {
++        $token = 'token-do-raspberry-0987654321';
++        $this->actingAs($this->admin)->post(route('impressoras.token-agente'), ['token' => $token]);
++        Impressora::find($this->postos[3]->impressora_id)->update(['agente' => 'pi-tenda']);
++        $this->abrirCaixas();
++
++        foreach ($this->postos as $posto) {
++            $this->vender($posto, [[$this->imperial, 1]]);
++        }
++
++        $semNome = $this->getJson(route('print-agent.jobs'), ['Authorization' => "Bearer $token"])->json('jobs');
++        $tenda = $this->getJson(route('print-agent.jobs').'?agente=pi-tenda', ['Authorization' => "Bearer $token"])->json('jobs');
++
++        $this->assertCount(4, $semNome);
++        $this->assertCount(2, $tenda);
++        $this->assertSame(['10.0.0.203'], collect($tenda)->pluck('printer.host')->unique()->values()->all());
++    }
++
++    public function test_o_raspberry_descarrega_a_versao_atual_do_agente_com_o_token_dele(): void
++    {
++        $token = 'token-do-raspberry-0987654321';
++        $this->actingAs($this->admin)->post(route('impressoras.token-agente'), ['token' => $token]);
++
++        $this->get(route('print-agent.codigo'), ['Authorization' => 'Bearer errado'])->assertStatus(401);
++
++        $codigo = $this->get(route('print-agent.codigo'), ['Authorization' => "Bearer $token"])->assertOk()->getContent();
++        $this->assertStringContainsString('imprimirFila', $codigo, 'Tem de servir o agente com uma fila por impressora');
++        $this->assertSame(file_get_contents(base_path('local-printer-agent/agent.mjs')), $codigo);
++    }
++
++    public function test_taloes_antigos_nao_saem_quando_o_raspberry_volta(): void
++    {
++        $token = 'token-do-raspberry-0987654321';
++        $this->actingAs($this->admin)->post(route('impressoras.token-agente'), ['token' => $token]);
++        $this->abrirCaixas();
++        $this->vender($this->postos[1], [[$this->imperial, 1]]);
++
++        $this->travel(30)->minutes();
++
++        $this->assertSame([], $this->getJson(route('print-agent.jobs'), ['Authorization' => "Bearer $token"])->json('jobs') ?? []);
++    }
++
++    // ------------------------------------------------------------------
++    //  Ajudas
++    // ------------------------------------------------------------------
++
++    private function produto(Categoria $categoria, string $nome, float $preco, float $caucao = 0): Produto
++    {
++        return Produto::create([
++            'categoria_id' => $categoria->id,
++            'nome' => $nome,
++            'preco' => $preco,
++            'caucao' => $caucao,
++            'disponivel' => true,
++            'disponivel_bar' => true,
++        ]);
++    }
++
++    private function abrirCaixa(PosSession $posto, float $fundo = 50): void
++    {
++        $this->actingAs($this->admin)
++            ->post(route('caixa.store'), ['ponto' => $posto->localizacao, 'fundo_maneio' => $fundo])
++            ->assertSessionHasNoErrors();
++    }
++
++    private function abrirCaixas(float $fundo = 50): void
++    {
++        foreach ($this->postos as $posto) {
++            $this->abrirCaixa($posto, $fundo);
++        }
++    }
++
++    private function sessao(PosSession $posto): array
++    {
++        return [
++            'pos_id' => $posto->id,
++            'pos_nome' => $posto->nome,
++            'pos_tipo' => $posto->tipo,
++            'pos_localizacao' => $posto->localizacao,
++            'pos_operador' => 'Teste',
++        ];
++    }
++
++    /**
++     * @param  array<int, array{0: Produto, 1: int, 2?: int}>  $itens  [produto, quantidade, ja_tem]
++     */
++    private function vender(PosSession $posto, array $itens, ?float $recebido = null, ?float $troco = null, array $juntar = [], array $devolvidos = [], string $metodo = 'dinheiro')
++    {
++        $total = collect($itens)->sum(fn ($i) => (float) $i[0]->preco * $i[1]
++            + (float) $i[0]->caucao * max(0, $i[1] - ($i[2] ?? 0)));
++
++        auth()->logout();
++
++        return $this->withSession($this->sessao($posto))->post(route('pos.prepago.store'), [
++            'valor_recebido' => $recebido ?? $total,
++            'troco' => $troco ?? max(0, ($recebido ?? $total) - $total),
++            'items' => collect($itens)->map(fn ($i) => [
++                'produto_id' => $i[0]->id,
++                'quantidade' => $i[1],
++                'ja_tem' => $i[2] ?? 0,
++            ])->all(),
++            'devolvidos' => collect($devolvidos)->map(fn ($d) => ['produto_id' => $d[0]->id, 'quantidade' => $d[1]])->all(),
++            'juntar' => $juntar,
++            'metodo_pagamento' => $metodo,
++        ]);
++    }
++
++    private function texto(PrintJob $job): string
++    {
++        return collect($job->payload['linhas'] ?? [])
++            ->map(fn ($l) => is_array($l) ? ($l['texto'] ?? '') : $l)
++            ->implode("\n");
++    }
++}
+-- 
+2.43.0
+

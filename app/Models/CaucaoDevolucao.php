@@ -13,6 +13,7 @@ class CaucaoDevolucao extends Model
     protected $table = 'caucao_devolucoes';
 
     protected $fillable = [
+        'uuid',
         'produto_id',
         'pedido_id',
         'pos_id',

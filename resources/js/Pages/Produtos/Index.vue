@@ -16,6 +16,7 @@ const form = useForm({
     preco: '',
     caucao: 0,
     stock_atual: 0,
+    gerir_stock: false,
     disponivel: true,
     disponivel_restaurante: true,
     disponivel_bar: true,
@@ -65,6 +66,7 @@ const atualizarProduto = (produto) => {
         preco: produto.preco,
         caucao: produto.caucao ?? 0,
         stock_atual: produto.stock_atual,
+        gerir_stock: !!produto.gerir_stock,
         disponivel: produto.disponivel,
         disponivel_restaurante: produto.disponivel_restaurante,
         disponivel_bar: produto.disponivel_bar,
@@ -144,6 +146,7 @@ const filtrosAtivo = [['', 'Todos'], ['ativos', 'Ativos'], ['inativos', 'Inativo
                         <label class="flex h-11 cursor-pointer items-center gap-2 rounded-full border border-[#C6E2D4] bg-verde-claro px-3.5 text-[15px] font-bold text-verde-escuro"><input v-model="form.disponivel" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Ativo</label>
                         <label class="flex h-11 cursor-pointer items-center gap-2 rounded-full border border-[#C6E2D4] bg-verde-claro px-3.5 text-[15px] font-bold text-verde-escuro"><input v-model="form.disponivel_restaurante" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Restaurante</label>
                         <label class="flex h-11 cursor-pointer items-center gap-2 rounded-full border border-[#C6E2D4] bg-verde-claro px-3.5 text-[15px] font-bold text-verde-escuro"><input v-model="form.disponivel_bar" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Bar</label>
+                        <label class="flex h-11 cursor-pointer items-center gap-2 rounded-full border border-linha-forte bg-white px-3.5 text-[15px] font-bold" title="Cada venda desconta do stock e o produto sai do POS quando chega a zero"><input v-model="form.gerir_stock" type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde">Gerir stock</label>
                         <label class="flex h-11 items-center gap-2 rounded-full border border-linha-forte bg-white px-3.5 text-[15px] font-bold" title="Valor devolvido quando o cliente entrega o artigo (ex.: metro, jarro de vinho)">
                             Caução
                             <input v-model="form.caucao" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Caução" class="h-8 w-20 rounded-lg border-linha-forte px-2 text-right text-[15px] focus:border-verde focus:ring-verde">
@@ -215,10 +218,13 @@ const filtrosAtivo = [['', 'Todos'], ['ativos', 'Ativos'], ['inativos', 'Inativo
                             <span class="pl-1 text-suave-2">€</span>
                         </span>
                     </label>
-                    <label class="flex min-w-0 flex-col gap-1">
-                        <span class="text-xs font-bold text-suave-2">Stock</span>
-                        <input v-model="produto.stock_atual" type="number" min="0" step="0.001" class="h-11 w-full min-w-0 rounded-lg border-linha-forte px-2.5 text-right text-base focus:border-verde focus:ring-verde">
-                    </label>
+                    <div class="flex min-w-0 flex-col gap-1">
+                        <label class="flex cursor-pointer items-center gap-1 text-xs font-bold text-suave-2" title="Cada venda desconta do stock e o produto sai do POS quando chega a zero">
+                            <input v-model="produto.gerir_stock" type="checkbox" class="h-3.5 w-3.5 rounded border-linha-forte text-verde focus:ring-verde">
+                            Stock<span v-if="produto.gerir_stock && Number(produto.stock_atual) <= 0" class="text-perigo-texto"> · esgotado</span>
+                        </label>
+                        <input v-model="produto.stock_atual" type="number" min="0" step="0.001" :aria-label="`Stock de ${produto.nome}`" class="h-11 w-full min-w-0 rounded-lg px-2.5 text-right text-base focus:border-verde focus:ring-verde" :class="produto.gerir_stock ? 'border-verde font-bold' : 'border-linha-forte'">
+                    </div>
                     <div class="col-span-3 flex flex-col gap-1 md:col-span-1">
                         <span class="text-xs font-bold text-suave-2">Ativo</span>
                         <button type="button" role="switch" :aria-checked="!!produto.disponivel" :aria-label="`${produto.nome} ativo`"

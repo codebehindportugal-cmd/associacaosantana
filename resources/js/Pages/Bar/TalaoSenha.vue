@@ -66,7 +66,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeprint', updatePrintPageS
             </div>
             <div class="ticket-token my-3 border-y border-dashed border-black py-2.5 text-center">
                 <div class="text-[11px] uppercase tracking-[.12em]">Número da senha</div>
-                <div class="ticket-number font-sans text-[88px] font-extrabold leading-none tracking-[-.02em]">#{{ pedido.numero_senha || pedido.id }}</div>
+                <div class="ticket-number font-sans text-[88px] font-extrabold leading-none tracking-[-.02em]">#{{ pedido.codigo_senha || pedido.numero_senha || pedido.id }}</div>
             </div>
             <div class="ticket-items text-lg font-bold leading-relaxed">
                 <div v-for="item in itemsImpressao" :key="item.printKey" class="flex justify-between gap-2">

@@ -1,14 +1,19 @@
 <script setup>
-import { Link, router } from '@inertiajs/vue3'; // Link still used for fechadas-hoje and back button
+import { Link, router, usePage } from '@inertiajs/vue3'; // Link still used for fechadas-hoje and back button
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
 import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
 import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
+import PosCaixaPainel from '@/Components/PosCaixaPainel.vue';
 
 const chamandoComissao = ref(false);
 
-const props = defineProps({ mesas: Array, pedidosFechadosHoje: { type: Array, default: () => [] }, reservasSemMesa: { type: Array, default: () => [] } });
+const props = defineProps({ mesas: Array, pedidosFechadosHoje: { type: Array, default: () => [] }, reservasSemMesa: { type: Array, default: () => [] }, caixa: { type: Object, default: null } });
+// Caixa do restaurante: leitura e fecho no proprio POS
+const painelCaixa = ref(false);
+const page = usePage();
+const aviso = computed(() => page.props.flash?.success);
 let refresh = null;
 const qrAberto = ref(false);
 const qrDataUrl = ref('');
@@ -180,9 +185,15 @@ const submesasAPagar = (mesa) => (!mesaAPagar(mesa) && pedidosAPagar(mesa).lengt
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3M21 14v7h-7" /></svg>
                     QR preçário
                 </button>
+                <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="painelCaixa = true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 11h18M8 4h8" /></svg>
+                    Caixa
+                </button>
                 <button type="button" class="h-11 rounded-[10px] bg-laranja px-4 text-[15px] font-bold text-white" @click="chamandoComissao = true">Chamar comissão</button>
             </div>
         </header>
+        <div v-if="aviso" role="status" class="bg-verde px-6 py-3 text-[17px] font-bold text-white">{{ aviso }}</div>
+        <PosCaixaPainel v-if="painelCaixa" :caixa="caixa" titulo="Restaurante" rota-leitura="pos.rest.caixa.leitura" rota-fechar="pos.rest.caixa.fechar" rotulo-vendas="contas" @fechar="painelCaixa = false" />
         <ChamarComissaoModal v-if="chamandoComissao" @fechar="chamandoComissao = false" />
 
         <div class="flex-1 px-4 pb-6 sm:px-6">

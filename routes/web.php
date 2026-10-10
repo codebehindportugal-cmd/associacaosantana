@@ -27,6 +27,8 @@ use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PedidoItemController;
 use App\Http\Controllers\PagesController;
 use App\Http\Controllers\PosBarController;
+use App\Http\Controllers\PosCaixaController;
+use App\Http\Controllers\PosOfflineController;
 use App\Http\Controllers\PosCotasController;
 use App\Http\Controllers\PosPainelController;
 use App\Http\Controllers\PosLoginController;
@@ -119,6 +121,13 @@ Route::middleware('pos.auth')->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [PosBarController::class, 'index'])->name('index');
     Route::post('/prepago', [PosBarController::class, 'storePrepago'])->name('prepago.store');
     Route::post('/caucao/devolver', [PosBarController::class, 'devolverCaucao'])->name('caucao.devolver');
+    Route::post('/juntar-padrao', [PosBarController::class, 'guardarJuntarPadrao'])->name('juntar-padrao');
+    Route::post('/caixa/leitura', [PosCaixaController::class, 'leitura'])->name('caixa.leitura');
+    Route::post('/caixa/fechar', [PosCaixaController::class, 'fechar'])->name('caixa.fechar');
+    Route::get('/caixa/{caixa}/talao', [PosCaixaController::class, 'talao'])->name('caixa.talao');
+    // Posto sem internet: dados para guardar no computador e envio das vendas
+    Route::get('/offline/dados', [PosOfflineController::class, 'dados'])->name('offline.dados');
+    Route::post('/offline/enviar', [PosOfflineController::class, 'enviar'])->name('offline.enviar');
     Route::get('/pedido/{pedido}/talao', [PosBarController::class, 'talao'])->name('pedido.talao');
     Route::get('/senhas', [PosBarController::class, 'senhas'])->name('senhas');
     Route::post('/pedido/{pedido}/reimprimir', [PosBarController::class, 'reimprimir'])->name('pedido.reimprimir');
@@ -144,6 +153,9 @@ Route::middleware('pos.auth')->prefix('pos-rest')->name('pos.rest.')->group(func
     Route::patch('/pedido/{pedido}/estado', [PosRestController::class, 'atualizarEstado'])->name('pedido.estado');
     Route::post('/mesa/{mesa}/extra', [PosRestController::class, 'pedidoExtra'])->name('pedido.extra');
     Route::get('/historico', [PosRestController::class, 'historico'])->name('historico');
+    Route::post('/caixa/leitura', [PosCaixaController::class, 'leitura'])->name('caixa.leitura');
+    Route::post('/caixa/fechar', [PosCaixaController::class, 'fechar'])->name('caixa.fechar');
+    Route::get('/caixa/{caixa}/talao', [PosCaixaController::class, 'talao'])->name('caixa.talao');
     Route::patch('/reserva/{reserva}/associar', [PosRestController::class, 'associarReserva'])->name('reserva.associar');
 });
 
@@ -246,6 +258,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('caixa', [CaixaDiariaController::class, 'index'])->name('caixa.index');
     Route::post('caixa', [CaixaDiariaController::class, 'store'])->name('caixa.store');
     Route::patch('caixa/{caixa}/fechar', [CaixaDiariaController::class, 'fechar'])->name('caixa.fechar');
+    Route::get('caixa/{caixa}/talao', [CaixaDiariaController::class, 'talao'])->name('caixa.talao');
+    Route::post('caixa/{caixa}/imprimir', [CaixaDiariaController::class, 'imprimir'])->name('caixa.imprimir');
     Route::get('bar', [BarController::class, 'index'])->name('bar.index');
     Route::get('bar/nova-conta', [BarController::class, 'novaContaBar'])->name('bar.nova-conta');
     Route::post('bar/nova-conta', [BarController::class, 'storeContaBar'])->name('bar.store-conta');
@@ -313,4 +327,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('pos-painel/pin', [PosPainelController::class, 'atualizarPin'])->name('pos-painel.pin');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__.'/auth.php';

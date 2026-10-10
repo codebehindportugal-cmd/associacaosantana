@@ -95,9 +95,10 @@ export const escpos = (payload = {}, codepage = 'cp860') => {
     };
 
     return juntar([
-        // ESC p 0 — abre a gaveta do dinheiro
-        payload.abrir_caixa ? bytes(0x1b, 0x70, 0x00, 0x19, 0xfa) : new Uint8Array(0),
         bytes(0x1b, 0x40),
+        // ESC p — abre a gaveta do dinheiro, depois do ESC @ (o reiniciar cortava o
+        // impulso em algumas impressoras), nos dois conectores (pino 2 e 5), 50 ms
+        payload.abrir_caixa ? bytes(0x1b, 0x70, 0x00, 0x19, 0xfa, 0x1b, 0x70, 0x01, 0x19, 0xfa) : new Uint8Array(0),
         bytes(...(codepageCommands[codepage] ?? codepageCommands.cp860)),
         bytes(0x1b, 0x61, 0x01),
         bytes(0x1b, 0x21, 0x18),

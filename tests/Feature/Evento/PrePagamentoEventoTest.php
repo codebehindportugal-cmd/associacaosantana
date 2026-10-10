@@ -331,9 +331,10 @@ class PrePagamentoEventoTest extends TestCase
         $this->vender($this->postos[2], [[$this->imperial, 4]], recebido: 1, devolvidos: [[$this->metro, 1]])->assertSessionHasNoErrors();
         $this->assertEquals(5.00, (float) Pedido::latest('id')->value('caucao_descontada'));
 
-        // Saldo maior do que a senha e recusado
-        $this->vender($this->postos[2], [[$this->imperial, 1]], recebido: 0, devolvidos: [[$this->metro, 1]])
-            ->assertSessionHasErrors('devolvidos');
+        // Saldo maior do que a senha: o resto (5 - 1,50 = 3,50) sai da gaveta como troco
+        $this->vender($this->postos[2], [[$this->imperial, 1]], recebido: 0, troco: 3.50, devolvidos: [[$this->metro, 1]])
+            ->assertSessionHasNoErrors();
+        $this->assertEquals(3.50, (float) Pedido::latest('id')->value('troco'));
 
         // Devolucao em dinheiro
         $this->withSession($this->sessao($this->postos[3]))
@@ -682,6 +683,153 @@ class PrePagamentoEventoTest extends TestCase
             'disponivel' => true,
             'disponivel_bar' => true,
         ]);
+    }
+
+    public function test_fecho_de_caixa_imprime_talao_com_dinheiro_e_mbway(): void
+    {
+        $this->abrirCaixa($this->postos[1], 50);
+
+        $this->vender($this->postos[1], [[$this->imperial, 2]])->assertSessionHasNoErrors();                    // 3,00 dinheiro
+        $this->vender($this->postos[1], [[$this->imperial, 4]], metodo: 'mbway')->assertSessionHasNoErrors();   // 6,00 MB WAY
+        $this->vender($this->postos[1], [[$this->metro, 1]])->assertSessionHasNoErrors();                       // 12 + 5 caucao
+
+        $caixa = CaixaDiaria::where('ponto', $this->postos[1]->localizacao)->firstOrFail();
+        PrintJob::query()->delete();
+
+        // Leitura sem fechar: sai na impressora do posto
+        $this->actingAs($this->admin)->post(route('caixa.imprimir', $caixa))->assertSessionHasNoErrors();
+        $leitura = PrintJob::where('tipo', 'talao_caixa')->sole();
+        $this->assertSame($this->postos[1]->impressora_id, $leitura->impressora_id);
+        $this->assertSame('LEITURA DE CAIXA', $leitura->payload['subtitulo']);
+
+        $this->actingAs($this->admin)->patch(route('caixa.fechar', $caixa), [
+            'valor_contado' => 70,
+            'contagem' => ['50' => 1, '10' => 2, '0.5' => 0],
+        ])->assertSessionHasNoErrors();
+
+        $caixa->refresh();
+        $this->assertSame(['50' => 1, '10' => 2], $caixa->contagem);
+        $this->assertEquals(0, (float) $caixa->diferenca); // 50 + 3 + 17 = 70
+
+        $fecho = PrintJob::where('tipo', 'talao_caixa')->latest('id')->first();
+        $this->assertSame('FECHO DE CAIXA', $fecho->payload['subtitulo']);
+        $texto = collect($fecho->payload['linhas'])->map(fn ($l) => is_array($l) ? $l['texto'] : $l)->implode("\n");
+        $this->assertMatchesRegularExpression('/^Dinheiro +20,00 EUR$/m', $texto);
+        $this->assertMatchesRegularExpression('/^MB WAY +6,00 EUR$/m', $texto);
+        $this->assertMatchesRegularExpression('/^Contado +70,00 EUR$/m', $texto);
+        $this->assertStringContainsString('CERTO', $texto);
+        $this->assertMatchesRegularExpression('/^1 x 50,00 +50,00 EUR$/m', $texto);
+        // Linhas de valores cabem numa linha da impressora (32 colunas)
+        foreach (collect($fecho->payload['linhas'])->filter(fn ($l) => is_string($l) && str_ends_with($l, ' EUR')) as $l) {
+            $this->assertLessThanOrEqual(32, mb_strlen($l), $l);
+        }
+    }
+
+    public function test_sem_impressora_do_agente_o_talao_abre_no_browser(): void
+    {
+        $this->abrirCaixa($this->postos[2], 20);
+        Impressora::query()->update(['tipo' => Impressora::TIPO_NAVEGADOR]);
+        $caixa = CaixaDiaria::where('ponto', $this->postos[2]->localizacao)->firstOrFail();
+
+        $this->actingAs($this->admin)->patch(route('caixa.fechar', $caixa), ['valor_contado' => 18])
+            ->assertSessionHas('talao_caixa', route('caixa.talao', $caixa));
+
+        $this->actingAs($this->admin)->get(route('caixa.talao', $caixa))->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Caixa/Talao')->where('payload.subtitulo', 'FECHO DE CAIXA')->where('modo', 'navegador'));
+    }
+
+    public function test_fecho_no_pos_pede_pin_e_imprime_com_produtos_vendidos(): void
+    {
+        $this->abrirCaixa($this->postos[1], 50);
+        $this->imperial->update(['gerir_stock' => true, 'stock_atual' => 10]);
+        $this->vender($this->postos[1], [[$this->imperial, 3]])->assertSessionHasNoErrors(); // 4,50
+        PrintJob::query()->delete();
+
+        $sessao = $this->sessao($this->postos[1]);
+
+        // PIN errado nao fecha
+        $this->withSession($sessao)->post(route('pos.caixa.fechar'), ['valor_contado' => 54.5, 'pin' => '0000'])
+            ->assertSessionHasErrors('pin');
+        $this->assertSame('aberta', CaixaDiaria::where('ponto', $this->postos[1]->localizacao)->value('estado'));
+
+        $this->withSession($sessao)->post(route('pos.caixa.fechar'), ['valor_contado' => 54, 'pin' => '1234'])
+            ->assertSessionHasNoErrors()->assertSessionHas('success', 'Caixa fechada. Faltam 0,50 €.');
+
+        $caixa = CaixaDiaria::where('ponto', $this->postos[1]->localizacao)->firstOrFail();
+        $this->assertSame('fechada', $caixa->estado);
+        $this->assertSame('Teste', $caixa->fechado_por_nome);
+        $this->assertNull($caixa->fechado_user_id);
+
+        $job = PrintJob::where('tipo', 'talao_caixa')->sole();
+        $this->assertSame($this->postos[1]->impressora_id, $job->impressora_id);
+        $linhas = collect($job->payload['linhas'])->map(fn ($l) => is_array($l) ? $l['texto'] : $l);
+        $this->assertContains('3 x Imperial', $linhas);
+        $this->assertContains('   stock: 7', $linhas);
+        $this->assertTrue($linhas->contains(fn ($l) => str_contains($l, '(Teste)')));
+
+        // Depois de fechada nao se vende
+        $this->vender($this->postos[1], [[$this->imperial, 1]])->assertSessionHasErrors('ponto_bar');
+    }
+
+    public function test_anular_depois_de_2_minutos_precisa_do_pin_da_comissao(): void
+    {
+        Configuracao::updateOrCreate(['chave' => 'comissao_pin'], ['valor' => \Illuminate\Support\Facades\Hash::make('9999')]);
+        $this->abrirCaixa($this->postos[1]);
+        $this->vender($this->postos[1], [[$this->imperial, 1]]);
+        $pedido = Pedido::latest('id')->first();
+        $sessao = $this->sessao($this->postos[1]);
+
+        // Engano logo a seguir, no mesmo posto: nao pede PIN
+        $this->travel(1)->minutes();
+        $this->withSession($sessao)->get(route('pos.senhas'))->assertJsonPath('senhas.0.precisa_pin', false);
+
+        $this->travel(5)->minutes();
+        $this->withSession($sessao)->post(route('pos.pedido.anular', $pedido), ['motivo' => 'Cliente desistiu'])
+            ->assertSessionHasErrors('pin_comissao');
+        $this->withSession($sessao)->post(route('pos.pedido.anular', $pedido), ['motivo' => 'Cliente desistiu', 'pin_comissao' => '1111'])
+            ->assertSessionHasErrors('pin_comissao');
+        $this->assertNotSame('cancelado', $pedido->fresh()->estado);
+
+        $this->withSession($sessao)->post(route('pos.pedido.anular', $pedido), ['motivo' => 'Cliente desistiu', 'pin_comissao' => '9999'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('cancelado', $pedido->fresh()->estado);
+        $this->assertStringContainsString('autorizado pela comissao', $pedido->fresh()->motivo_anulacao);
+    }
+
+    public function test_relatorio_mostra_vendas_por_operador_e_stock(): void
+    {
+        $this->abrirCaixa($this->postos[1]);
+        $this->imperial->update(['gerir_stock' => true, 'stock_atual' => 20]);
+        $this->vender($this->postos[1], [[$this->imperial, 2]]);
+        $this->vender($this->postos[1], [[$this->imperial, 3]], metodo: 'mbway');
+        $hoje = now()->subHours(12)->toDateString();
+
+        $this->actingAs($this->admin)->get(route('relatorios.periodo', ['data_inicio' => $hoje, 'data_fim' => $hoje]))
+            ->assertInertia(fn ($page) => $page
+                ->where('vendas_por_operador.0.operador', 'Teste')
+                ->where('vendas_por_operador.0.pedidos', 2)
+                ->where('vendas_por_operador.0.dinheiro', 3)
+                ->where('vendas_por_operador.0.mbway', 4.5)
+                ->where('stock', fn ($stock) => collect($stock)->contains(fn ($l) => $l['nome'] === 'Imperial' && $l['inicial'] == 20 && $l['vendido'] == 5 && $l['final'] == 15)));
+
+        $res = $this->actingAs($this->admin)->get(route('relatorios.pdf', ['data_inicio' => $hoje, 'data_fim' => $hoje, 'formato' => 'csv', 'tabela' => 'stock']));
+        $this->assertStringContainsString('Imperial;Bebidas;20;0;5;15;15', $res->streamedContent());
+    }
+
+    public function test_pos_do_restaurante_fecha_a_caixa_do_restaurante(): void
+    {
+        $impressora = Impressora::create(['nome' => 'Sala', 'secao' => 'contas', 'tipo' => Impressora::TIPO_REDE, 'host' => '10.0.0.9', 'porta' => 9100, 'ativa' => true]);
+        $rest = PosSession::create(['nome' => 'Sala', 'pin' => '4321', 'localizacao' => 'Sala', 'tipo' => 'restaurante', 'impressora_id' => $impressora->id, 'ativo' => true]);
+        $this->actingAs($this->admin)->post(route('caixa.store'), ['ponto' => 'Restaurante', 'fundo_maneio' => 30]);
+        auth()->logout();
+        $sessao = ['pos_id' => $rest->id, 'pos_nome' => 'Sala', 'pos_tipo' => 'restaurante', 'pos_localizacao' => 'Sala', 'pos_operador' => 'Rui'];
+
+        $this->withSession($sessao)->get(route('pos.rest.mesas'))->assertInertia(fn ($page) => $page->where('caixa.ponto', 'Restaurante'));
+        $this->withSession($sessao)->post(route('pos.rest.caixa.fechar'), ['valor_contado' => 30, 'pin' => '4321'])
+            ->assertSessionHasNoErrors()->assertSessionHas('success', 'Caixa fechada. Bate certo.');
+
+        $this->assertSame('fechada', CaixaDiaria::where('ponto', 'Restaurante')->value('estado'));
+        $this->assertSame($impressora->id, PrintJob::where('tipo', 'talao_caixa')->sole()->impressora_id);
     }
 
     private function abrirCaixa(PosSession $posto, float $fundo = 50): void

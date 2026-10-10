@@ -68,6 +68,8 @@ class HandleInertiaRequests extends Middleware
                 'avisoFuncionario' => fn () => $request->session()->get('avisoFuncionario'),
                 // POS com WebUSB/navegador: o que imprimir no proprio ecra de venda
                 'imprimir' => fn () => $request->session()->get('imprimir'),
+                // Fecho/leitura de caixa sem impressora do agente: abrir o talao no browser
+                'talaoCaixa' => fn () => $request->session()->get('talao_caixa'),
             ],
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),

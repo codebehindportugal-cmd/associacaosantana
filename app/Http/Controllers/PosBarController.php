@@ -10,11 +10,13 @@ use App\Models\PosSession;
 use App\Models\PrintJob;
 use App\Models\Produto;
 use App\Models\TalaoConfig;
+use App\Services\CaixaService;
 use App\Services\PrintJobService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,6 +33,14 @@ class PosBarController extends Controller
             'caixaAberta' => $this->caixaAberta($ponto),
             // Pre-pagamento: o operador pode juntar as senhas de uma seccao se o cliente pedir
             'juntarFolhas' => TalaoConfig::atual()->taloesPorSeccao(),
+            // O que este posto junta por omissao (configurado no proprio POS)
+            'juntarPadrao' => $this->juntarPadraoDoPosto(),
+            // Resumo da caixa deste ponto, para o fecho no proprio POS
+            'caixa' => fn () => PosCaixaController::resumoDoPosto(),
+            // Posto que trabalha sem internet (vende localmente e envia depois)
+            'offline' => (bool) PosSession::find(session('pos_id'))?->offline,
+            'posId' => (int) session('pos_id'),
+            'operador' => session('pos_operador') ?: session('pos_nome'),
             'produtos' => Produto::with('categoria')
                 ->disponiveisBar()
                 ->orderBy('nome')
@@ -88,13 +98,15 @@ class PosBarController extends Controller
             $produtosCaucao = Produto::whereIn('id', $devolvidos->pluck('produto_id'))->get()->keyBy('id');
             $caucaoDescontada = round($devolvidos->sum(fn ($d) => (float) $produtosCaucao[$d['produto_id']]->caucao * (int) $d['quantidade']), 2);
 
-            if ($caucaoDescontada > $total + $caucaoCobrada) {
-                return back()->withErrors(['devolvidos' => 'O saldo das caucoes devolvidas e maior do que a senha. Junta mais bebidas ou devolve o resto em dinheiro.']);
-            }
-
             $aPagar = round($total + $caucaoCobrada - $caucaoDescontada, 2);
+
+            // Saldo das caucoes maior do que a senha: o resto devolve-se em
+            // dinheiro da gaveta (fica como troco; o cliente pode doa-lo).
+            if ($aPagar < 0) {
+                $metodo = 'dinheiro';
+            }
             // MB WAY e contactless: paga-se o valor certo, sem troco nem gaveta
-            $valorRecebido = $metodo === 'dinheiro' ? round((float) $data['valor_recebido'], 2) : $aPagar;
+            $valorRecebido = $metodo === 'dinheiro' ? round((float) $data['valor_recebido'], 2) : max(0, $aPagar);
             $troco = $metodo === 'dinheiro' ? round((float) ($data['troco'] ?? 0), 2) : 0.0;
             $excedente = round($valorRecebido - $aPagar, 2);
 
@@ -154,7 +166,7 @@ class PosBarController extends Controller
                 $pedido,
                 $printJobs,
                 abrirGaveta: $metodo === 'dinheiro',
-                sucesso: 'Senha #'.$pedido->numero_senha.' enviada para a impressora.',
+                sucesso: 'Senha #'.$pedido->codigo_senha.' enviada para a impressora.',
             );
         });
     }
@@ -196,7 +208,7 @@ class PosBarController extends Controller
             $pedido->fresh(),
             $printJobs,
             abrirGaveta: false,
-            sucesso: 'Senha #'.$pedido->numero_senha.' reimpressa ('.($data['o'] === 'conta' ? 'so a conta' : 'senhas e conta').').',
+            sucesso: 'Senha #'.$pedido->codigo_senha.' reimpressa ('.($data['o'] === 'conta' ? 'so a conta' : 'senhas e conta').').',
             segundaVia: $data['o'],
         );
     }
@@ -211,7 +223,10 @@ class PosBarController extends Controller
     {
         $this->autorizarSenha($pedido);
 
-        $data = $request->validate(['motivo' => ['required', 'string', 'min:3', 'max:255']], [
+        $data = $request->validate([
+            'motivo' => ['required', 'string', 'min:3', 'max:255'],
+            'pin_comissao' => ['nullable', 'string'],
+        ], [
             'motivo.required' => 'Escreve o motivo da anulacao.',
             'motivo.min' => 'Escreve o motivo da anulacao.',
         ]);
@@ -219,6 +234,17 @@ class PosBarController extends Controller
         if ($pedido->estado === 'cancelado') {
             return back()->withErrors(['motivo' => 'Esta senha ja estava anulada.']);
         }
+
+        // Fora do engano imediato no proprio posto, so a comissao anula
+        $autorizada = false;
+        if ($this->anulacaoPrecisaPin($pedido)) {
+            $hash = Configuracao::where('chave', 'comissao_pin')->value('valor');
+            if (empty($data['pin_comissao']) || ! Hash::check($data['pin_comissao'], $hash)) {
+                return back()->withErrors(['pin_comissao' => ! empty($data['pin_comissao']) ? 'PIN da comissao errado.' : 'Esta anulacao precisa do PIN da comissao.']);
+            }
+            $autorizada = true;
+        }
+        $data['motivo'] .= $autorizada ? ' (autorizado pela comissao)' : (session('pos_comissao') ? ' (comissao: '.session('pos_comissao_nome').')' : '');
 
         if ($pedido->created_at->lt(now()->subHours(self::HORAS_SENHAS_ANTERIORES))) {
             return back()->withErrors(['motivo' => 'So se anulam senhas do proprio dia. Fala com a comissao.']);
@@ -253,7 +279,7 @@ class PosBarController extends Controller
                 ->update(['estado' => 'falhado', 'tentativas' => 10, 'ultimo_erro' => 'Senha anulada', 'reservado_ate' => null]);
 
             $dinheiroDaGaveta = (($pedido->metodo_pagamento ?: 'dinheiro') === 'dinheiro' ? $pago : 0) + $metros;
-            $mensagem = 'Senha #'.$pedido->numero_senha.' anulada. Devolver '.number_format($pago + $metros, 2, ',', ' ').' €'
+            $mensagem = 'Senha #'.$pedido->codigo_senha.' anulada. Devolver '.number_format($pago + $metros, 2, ',', ' ').' €'
                 .(($pedido->metodo_pagamento ?: 'dinheiro') !== 'dinheiro' ? ' ('.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento] ?? $pedido->metodo_pagamento).($metros > 0 ? ' + '.number_format($metros, 2, ',', ' ').' € de caucao em dinheiro' : '').')' : '')
                 .'.';
 
@@ -299,7 +325,7 @@ class PosBarController extends Controller
 
         return [
             'id' => $p->id,
-            'numero' => $p->numero_senha,
+            'numero' => $p->codigo_senha,
             'hora' => $p->created_at?->format('H:i'),
             'operador' => $p->operador_nome,
             'total' => (float) $p->total,
@@ -311,6 +337,7 @@ class PosBarController extends Controller
             'metodo_nome' => Pedido::METODOS_PREPAGO[$p->metodo_pagamento ?: 'dinheiro'] ?? $p->metodo_pagamento,
             'reimpressoes' => (int) $p->reimpressoes,
             'anulada' => $p->estado === 'cancelado',
+            'precisa_pin' => $p->estado !== 'cancelado' && $this->anulacaoPrecisaPin($p),
             'anulado_em' => $p->anulado_em?->format('H:i'),
             'anulado_por' => $p->anulado_por,
             'motivo_anulacao' => $p->motivo_anulacao,
@@ -611,6 +638,51 @@ class PosBarController extends Controller
         }
 
         return [$taloesCliente, $taloesEscpos];
+    }
+
+    /** Minutos em que o proprio posto pode anular sem a comissao (engano ao vender). */
+    private const MINUTOS_ANULAR_SEM_PIN = 2;
+
+    /**
+     * Pede o PIN da comissao, exceto: posto em modo comissao, ou senha tirada
+     * neste posto ha menos de 2 minutos. Se nao houver PIN definido, nao pede.
+     */
+    private function anulacaoPrecisaPin(Pedido $pedido): bool
+    {
+        if (session('pos_comissao') || ! Configuracao::where('chave', 'comissao_pin')->exists()) {
+            return false;
+        }
+
+        $engano = (int) $pedido->pos_id === (int) session('pos_id')
+            && $pedido->created_at->gt(now()->subMinutes(self::MINUTOS_ANULAR_SEM_PIN));
+
+        return ! $engano;
+    }
+
+    /** Guarda, para este posto, que grupos de senhas saem juntos por omissao. */
+    public function guardarJuntarPadrao(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'juntar' => ['present', 'array'],
+            'juntar.*' => ['boolean'],
+        ]);
+
+        $posto = PosSession::findOrFail(session('pos_id'));
+        $posto->update([
+            'juntar_padrao' => array_map('boolval', array_intersect_key($data['juntar'], PrintJobService::GRUPOS_JUNTOS)),
+        ]);
+
+        return back()->with('success', 'Configuração das senhas guardada para este posto.');
+    }
+
+    private function juntarPadraoDoPosto(): array
+    {
+        $guardado = (array) (PosSession::find(session('pos_id'))?->juntar_padrao ?? []);
+
+        return array_map('boolval', array_merge(
+            PrintJobService::JUNTAR_POR_OMISSAO,
+            array_intersect_key($guardado, PrintJobService::GRUPOS_JUNTOS)
+        ));
     }
 
     private function caixaAberta(string $ponto): bool

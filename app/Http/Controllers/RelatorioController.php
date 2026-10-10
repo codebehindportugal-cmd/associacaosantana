@@ -6,6 +6,7 @@ use App\Models\CaixaDiaria;
 use App\Models\FaturaCompra;
 use App\Models\FestaMovimento;
 use App\Models\Pedido;
+use App\Models\Produto;
 use Illuminate\Support\Collection;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -86,37 +87,139 @@ class RelatorioController extends Controller
             'vendas_bar_por_ponto' => $this->barPorPonto($pedidos),
             'caixas_por_ponto' => $this->caixasPorPonto($inicio, $fim, $pedidos),
             'top_produtos' => $this->topProdutos($inicio, $fim, 10, $tipo),
-            'todos_produtos' => $this->topProdutos($inicio, $fim, 500, $tipo),
+            'todos_produtos' => $this->topProdutos($inicio, $fim, null, $tipo),
             'top_categorias' => $this->topCategorias($inicio, $fim),
             'vendas_por_hora' => $this->vendasPorHora($inicio, $fim, $tipo),
             'vendas_por_secao' => $this->vendasPorSecao($inicio, $fim),
             'metodos_pagamento' => $this->vendasPorMetodoPagamento($inicio, $fim),
             'festa_receitas' => $this->festaReceitas($inicio, $fim, $pedidos),
             'festa_custos' => $this->festaCustos($inicio, $fim),
+            'vendas_por_operador' => $this->vendasPorOperador($inicio, $fim, $tipo),
+            'stock' => $this->stockPeriodo($inicio, $fim),
         ]);
     }
 
+    /** Colunas da tabela de produtos que se podem exportar (o nome sai sempre). */
+    public const COLUNAS_PRODUTOS = [
+        'categoria' => 'Categoria',
+        'quantidade' => 'Qtd',
+        'total' => 'Total',
+        'custo' => 'Custo',
+        'margem' => 'Margem',
+        'margem_pct' => 'Margem %',
+    ];
+
+    public const SECCOES_EXPORT = ['resumo', 'dias', 'tipos', 'bar', 'caixa', 'operadores', 'produtos', 'stock'];
+
     public function exportarPDF(Request $request)
     {
+        $opcoes = $request->validate([
+            'tipo' => ['nullable', 'in:todos,restaurante,bar,bar_prepago'],
+            'formato' => ['nullable', 'in:pdf,csv'],
+            'tabela' => ['nullable', 'in:produtos,stock,operadores'],
+            'produtos' => ['nullable', 'in:todos,top10'],
+            'colunas' => ['nullable', 'array'],
+            'colunas.*' => ['in:'.implode(',', array_keys(self::COLUNAS_PRODUTOS))],
+            'seccoes' => ['nullable', 'array'],
+            'seccoes.*' => ['in:'.implode(',', self::SECCOES_EXPORT)],
+        ]);
+
         $inicio = $request->date('data_inicio') ?? today();
         $fim = $request->date('data_fim') ?? today();
-        $pedidos = Pedido::whereBetween(DB::raw('DATE(DATE_SUB(created_at, INTERVAL 12 HOUR))'), [$inicio->toDateString(), $fim->toDateString()])->where(fn ($q) => $q->where('estado', 'entregue')->orWhere('pago_antecipado', true))->get();
+        $tipo = $opcoes['tipo'] ?? 'todos';
+        // Sem escolha explicita: todas as colunas, todas as seccoes, todos os produtos
+        $colunas = array_values(array_intersect(array_keys(self::COLUNAS_PRODUTOS), $opcoes['colunas'] ?? array_keys(self::COLUNAS_PRODUTOS)));
+        $seccoes = $opcoes['seccoes'] ?? self::SECCOES_EXPORT;
+        $produtos = $this->topProdutos($inicio, $fim, ($opcoes['produtos'] ?? 'todos') === 'top10' ? 10 : null, $tipo);
+        $nomeFicheiro = 'relatorio-vendas-'.$inicio->format('Y-m-d').($fim->ne($inicio) ? '_'.$fim->format('Y-m-d') : '');
+
+        if (($opcoes['formato'] ?? 'pdf') === 'csv') {
+            return match ($opcoes['tabela'] ?? 'produtos') {
+                'stock' => $this->tabelaCsv(['Produto', 'Categoria', 'Inicial', 'Entradas', 'Vendido', 'Final', 'Atual'],
+                    array_map(fn ($l) => [$l['nome'], $l['categoria'], ...array_map(fn ($k) => $this->numeroCsv($l[$k], 3), ['inicial', 'entradas', 'vendido', 'final', 'atual'])], $this->stockPeriodo($inicio, $fim)),
+                    'stock-'.$nomeFicheiro.'.csv'),
+                'operadores' => $this->tabelaCsv(['Operador', 'Vendas', 'Total', 'Dinheiro', 'MB WAY', 'Outros', 'Anuladas', 'Devolvido'],
+                    array_map(fn ($l) => [$l['operador'], $l['pedidos'], ...array_map(fn ($k) => $this->numeroCsv($l[$k]), ['total', 'dinheiro', 'mbway', 'outros']), $l['anuladas'], $this->numeroCsv($l['devolvido'])], $this->vendasPorOperador($inicio, $fim, $tipo)),
+                    'operadores-'.$nomeFicheiro.'.csv'),
+                default => $this->produtosCsv($produtos, $colunas, $nomeFicheiro.'.csv'),
+            };
+        }
+
+        $query = Pedido::whereBetween(DB::raw('DATE(DATE_SUB(created_at, INTERVAL 12 HOUR))'), [$inicio->toDateString(), $fim->toDateString()])->where(fn ($q) => $q->where('estado', 'entregue')->orWhere('pago_antecipado', true));
+        if ($tipo !== 'todos') {
+            $query->where('tipo', $tipo === 'bar' ? 'bar_conta' : $tipo);
+        }
+        $pedidos = $query->get();
+
         $dados = [
             'inicio' => $inicio,
             'fim' => $fim,
+            'tipo' => ['todos' => 'Todos', 'restaurante' => 'Restaurante', 'bar' => 'Bar Conta', 'bar_prepago' => 'Bar Pré-pago'][$tipo],
+            'seccoes' => $seccoes,
+            'colunas' => $colunas,
+            'nomesColunas' => self::COLUNAS_PRODUTOS,
+            'soTop10' => ($opcoes['produtos'] ?? 'todos') === 'top10',
             'total' => (float) $pedidos->sum('total'),
             'total_pedidos' => $pedidos->count(),
-            'vendas_por_dia' => $pedidos->groupBy(fn ($p) => $p->created_at->subHours(12)->toDateString())->map(fn ($g, $d) => ['data' => $d, 'total' => (float) $g->sum('total')])->values(),
+            'vendas_por_dia' => $pedidos->groupBy(fn ($p) => $p->created_at->subHours(12)->toDateString())->map(fn ($g, $d) => ['data' => $d, 'total' => (float) $g->sum('total')])->sortKeys()->values(),
             'vendas_por_tipo' => $pedidos->groupBy('tipo')->map(fn ($g, $t) => ['tipo' => $t, 'total' => (float) $g->sum('total')])->values(),
             'vendas_bar_por_ponto' => $this->barPorPonto($pedidos),
             'caixas_por_ponto' => $this->caixasPorPonto($inicio, $fim, $pedidos),
-            'top_produtos' => $this->topProdutos($inicio, $fim, 10),
+            'produtos' => $produtos,
+            'operadores' => in_array('operadores', $seccoes) ? $this->vendasPorOperador($inicio, $fim, $tipo) : [],
+            'stock' => in_array('stock', $seccoes) ? $this->stockPeriodo($inicio, $fim) : [],
         ];
 
-        return Pdf::loadView('pdf.relatorio-periodo', $dados)->download('relatorio-vendas.pdf');
+        return Pdf::loadView('pdf.relatorio-periodo', $dados)
+            ->setPaper('a4', count($colunas) > 4 ? 'landscape' : 'portrait')
+            ->download($nomeFicheiro.'.pdf');
     }
 
-    private function topProdutos($inicio, $fim, int $limite, string $tipo = 'todos')
+    private function numeroCsv($valor, int $casas = 2): string
+    {
+        return $casas === 3
+            ? rtrim(rtrim(number_format((float) $valor, 3, ',', ''), '0'), ',')
+            : number_format((float) $valor, $casas, ',', '');
+    }
+
+    private function tabelaCsv(array $cabecalho, array $linhas, string $nome)
+    {
+        return response()->streamDownload(function () use ($cabecalho, $linhas) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, $cabecalho, ';');
+            foreach ($linhas as $linha) {
+                fputcsv($out, $linha, ';');
+            }
+            fclose($out);
+        }, $nome, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** Tabela de produtos em CSV para o Excel (separador ; e virgula decimal). */
+    private function produtosCsv($produtos, array $colunas, string $nome)
+    {
+        $numero = fn ($v, $casas = 2) => number_format((float) $v, $casas, ',', '');
+        $valor = fn ($p, string $coluna) => match ($coluna) {
+            'categoria' => (string) $p->categoria,
+            'quantidade' => $numero($p->quantidade, 0),
+            'total' => $numero($p->total),
+            'custo' => $numero($p->custo_estimado),
+            'margem' => $numero($p->margem_estimada),
+            'margem_pct' => $numero($p->margem_percentagem, 1),
+        };
+
+        return response()->streamDownload(function () use ($produtos, $colunas, $valor) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['Produto', ...array_map(fn ($c) => self::COLUNAS_PRODUTOS[$c], $colunas)], ';');
+            foreach ($produtos as $p) {
+                fputcsv($out, [$p->nome, ...array_map(fn ($c) => $valor($p, $c), $colunas)], ';');
+            }
+            fclose($out);
+        }, $nome, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function topProdutos($inicio, $fim, ?int $limite, string $tipo = 'todos')
     {
         $custosReceita = $this->custosReceitaSubquery();
 
@@ -144,7 +247,8 @@ class RelatorioController extends Controller
                 DB::raw('CASE WHEN SUM(pedido_items.quantidade * pedido_items.preco_unitario) > 0 THEN ((SUM(pedido_items.quantidade * pedido_items.preco_unitario) - SUM(pedido_items.quantidade * (CASE WHEN custos_receita.custo_componentes IS NULL THEN produtos.custo_compra_unitario ELSE custos_receita.custo_componentes END + produtos.custo_preparacao_unitario))) / SUM(pedido_items.quantidade * pedido_items.preco_unitario)) * 100 ELSE 0 END as margem_percentagem')
             )
             ->orderByDesc('quantidade')
-            ->limit($limite)
+            ->orderBy('produtos.nome')
+            ->when($limite, fn ($q) => $q->limit($limite))
             ->get();
     }
 
@@ -315,6 +419,99 @@ class RelatorioController extends Controller
             array_merge($automaticas, $manuais),
             fn ($r) => $r['valor'] > 0
         ));
+    }
+
+    /**
+     * Vendas por operador (nome de quem estava no POS): senhas/contas, total,
+     * por forma de pagamento e anulacoes.
+     */
+    private function vendasPorOperador($inicio, $fim, string $tipo = 'todos'): array
+    {
+        $dia = DB::raw('DATE(DATE_SUB(created_at, INTERVAL 12 HOUR))');
+        $base = fn () => Pedido::query()
+            ->whereBetween($dia, [$inicio->toDateString(), $fim->toDateString()])
+            ->when($tipo !== 'todos', fn ($q) => $q->where('tipo', $tipo === 'bar' ? 'bar_conta' : $tipo));
+        $metodo = "COALESCE(metodo_pagamento, 'dinheiro')";
+        $pago = 'total + COALESCE(caucao_cobrada, 0) - COALESCE(caucao_descontada, 0) + COALESCE(doacao, 0)';
+        // Agrupa pela coluna e junta os nomes em PHP (sem espacos, vazio = "Sem operador")
+        $nome = fn ($op) => trim((string) $op) !== '' ? trim((string) $op) : 'Sem operador';
+        $juntar = fn ($linhas, array $campos) => $linhas->groupBy(fn ($l) => $nome($l->operador_nome))
+            ->map(fn ($g) => (object) collect($campos)->mapWithKeys(fn ($c) => [$c => $g->sum($c)])->all());
+
+        $vendas = $juntar($base()
+            ->where(fn ($q) => $q->where('estado', 'entregue')->orWhere('pago_antecipado', true))
+            ->groupBy('operador_nome')
+            ->selectRaw("operador_nome, COUNT(*) as pedidos, SUM(total) as total,
+                SUM(CASE WHEN $metodo = 'dinheiro' THEN $pago ELSE 0 END) as dinheiro,
+                SUM(CASE WHEN $metodo = 'mbway' THEN $pago ELSE 0 END) as mbway,
+                SUM(CASE WHEN $metodo NOT IN ('dinheiro', 'mbway') THEN $pago ELSE 0 END) as outros")
+            ->get(), ['pedidos', 'total', 'dinheiro', 'mbway', 'outros']);
+
+        $anuladas = $juntar($base()->where('estado', 'cancelado')
+            ->groupBy('operador_nome')
+            ->selectRaw('operador_nome, COUNT(*) as n, SUM(COALESCE(valor_devolvido, 0)) as devolvido')
+            ->get(), ['n', 'devolvido']);
+
+        return $vendas->keys()->merge($anuladas->keys())->unique()
+            ->map(fn ($op) => [
+                'operador' => $op,
+                'pedidos' => (int) ($vendas[$op]->pedidos ?? 0),
+                'total' => round((float) ($vendas[$op]->total ?? 0), 2),
+                'dinheiro' => round((float) ($vendas[$op]->dinheiro ?? 0), 2),
+                'mbway' => round((float) ($vendas[$op]->mbway ?? 0), 2),
+                'outros' => round((float) ($vendas[$op]->outros ?? 0), 2),
+                'anuladas' => (int) ($anuladas[$op]->n ?? 0),
+                'devolvido' => round((float) ($anuladas[$op]->devolvido ?? 0), 2),
+            ])
+            ->sortByDesc('total')->values()->all();
+    }
+
+    /**
+     * Stock dos produtos com "gerir stock" no periodo: com que stock comecou,
+     * o que entrou (faturas de compra), o que se vendeu e com quanto acabou.
+     * Parte do stock atual e anda para tras; acertos a mao no stock baralham.
+     */
+    private function stockPeriodo($inicio, $fim): array
+    {
+        $dia = 'DATE(DATE_SUB(pedidos.created_at, INTERVAL 12 HOUR))';
+        $vendido = fn ($ate) => DB::table('pedido_items')
+            ->join('pedidos', 'pedido_items.pedido_id', '=', 'pedidos.id')
+            ->where(fn ($q) => $q->where('pedidos.estado', 'entregue')->orWhere('pedidos.pago_antecipado', true))
+            ->whereRaw("$dia >= ?", [$inicio->toDateString()])
+            ->when($ate, fn ($q) => $q->whereRaw("$dia <= ?", [$fim->toDateString()]))
+            ->groupBy('pedido_items.produto_id')
+            ->selectRaw('pedido_items.produto_id as id, SUM(pedido_items.quantidade) as qtd')
+            ->pluck('qtd', 'id');
+        $comprado = fn ($ate) => DB::table('fatura_compra_items')
+            ->join('fatura_compras', 'fatura_compra_items.fatura_compra_id', '=', 'fatura_compras.id')
+            ->where('fatura_compras.data', '>=', $inicio->toDateString())
+            ->when($ate, fn ($q) => $q->where('fatura_compras.data', '<=', $fim->toDateString()))
+            ->groupBy('fatura_compra_items.produto_id')
+            ->selectRaw('fatura_compra_items.produto_id as id, SUM(fatura_compra_items.quantidade - COALESCE(fatura_compra_items.quantidade_devolvida, 0)) as qtd')
+            ->pluck('qtd', 'id');
+
+        $vendidoPeriodo = $vendido(true);
+        $vendidoDesde = $vendido(false);
+        $compradoPeriodo = $comprado(true);
+        $compradoDesde = $comprado(false);
+
+        return Produto::with('categoria')->where('gerir_stock', true)->orderBy('nome')->get()
+            ->map(function (Produto $p) use ($vendidoPeriodo, $vendidoDesde, $compradoPeriodo, $compradoDesde) {
+                $atual = (float) $p->stock_atual;
+                $inicial = $atual + (float) ($vendidoDesde[$p->id] ?? 0) - (float) ($compradoDesde[$p->id] ?? 0);
+                $entradas = (float) ($compradoPeriodo[$p->id] ?? 0);
+                $vendidos = (float) ($vendidoPeriodo[$p->id] ?? 0);
+
+                return [
+                    'nome' => $p->nome,
+                    'categoria' => $p->categoria?->nome,
+                    'inicial' => round($inicial, 3),
+                    'entradas' => round($entradas, 3),
+                    'vendido' => round($vendidos, 3),
+                    'final' => round($inicial + $entradas - $vendidos, 3),
+                    'atual' => round($atual, 3),
+                ];
+            })->all();
     }
 
     private function festaCustos($inicio, $fim): array

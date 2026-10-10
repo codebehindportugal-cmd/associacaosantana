@@ -16,6 +16,9 @@ class PosSession extends Model
         'localizacao',
         'impressora_id',
         'impressao_navegador',
+        'juntar_padrao',
+        'offline',
+        'prefixo_senha',
         'tipo',
         'ativo',
     ];
@@ -27,6 +30,8 @@ class PosSession extends Model
     protected $casts = [
         'ativo' => 'boolean',
         'impressao_navegador' => 'boolean',
+        'juntar_padrao' => 'array',
+        'offline' => 'boolean',
         'ultimo_login_em' => 'datetime',
     ];
 

@@ -1,5 +1,6 @@
 <script setup>
 import AvisoErros from '@/Components/AvisoErros.vue';
+import PosCaixaPainel from '@/Components/PosCaixaPainel.vue';
 import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ChamarComissaoModal from '@/Components/ChamarComissaoModal.vue';
@@ -7,6 +8,8 @@ import ChamadaFuncionarioAlert from '@/Components/ChamadaFuncionarioAlert.vue';
 import ComissaoChamadasAlert from '@/Components/ComissaoChamadasAlert.vue';
 import { ImpressoraUsb } from '@/escpos';
 import axios from 'axios';
+import { criarPostoOffline, GuardarFalhou, temPendentes } from '@/pos/offline';
+import { marcarSegundaVia, payloadAnulacao, payloadCaucao, payloadConta, taloesDaVenda } from '@/pos/taloes';
 
 const props = defineProps({
     posNome: String,
@@ -14,8 +17,71 @@ const props = defineProps({
     caixaAberta: Boolean,
     // Modelo do talao junta tudo numa folha: o cliente pode pedir sobremesas/bebidas a parte
     juntarFolhas: Boolean,
+    juntarPadrao: { type: Object, default: () => ({}) },
+    caixa: { type: Object, default: null },
     produtos: Array,
     senhasHoje: Array,
+    // Posto que trabalha sem internet: vende e imprime aqui, envia depois
+    offline: Boolean,
+    posId: Number,
+    operador: String,
+});
+
+// ---------------------------------------------------------------------------
+// Posto sem internet: tudo fica guardado neste computador e vai para o
+// servidor sempre que houver rede (ver resources/js/pos/offline.js)
+// ---------------------------------------------------------------------------
+// Tambem arranca se o posto deixou de ser offline mas ficou algo por enviar neste computador
+const vendeLocal = !!props.offline;
+const posto = props.posId && (vendeLocal || temPendentes(props.posId))
+    ? criarPostoOffline({ posId: props.posId, urlDados: route('pos.offline.dados'), urlEnviar: route('pos.offline.enviar') })
+    : null;
+const off = posto?.estado;
+const MINUTOS_ANULAR_OFFLINE = 5;
+const horaDe = (data) => new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const round2 = (v) => Math.round(Number(v || 0) * 100) / 100;
+const configTalao = computed(() => (off?.dados ? { ...off.dados.talao, metodos: off.dados.metodos } : null));
+// Produtos: no posto offline vem do que ficou guardado, com o stock local
+const listaProdutos = computed(() => {
+    if (!vendeLocal || !off?.dados) return props.produtos ?? [];
+    return off.dados.produtos
+        .filter((p) => !p.gerir_stock || Number(off.stock[p.id] ?? 0) > 0)
+        .map((p) => (p.gerir_stock ? { ...p, stock_atual: off.stock[p.id] ?? 0 } : p));
+});
+const caixaAbertaEf = computed(() => (vendeLocal && off?.dados ? !!off.dados.caixa && !off.bloqueado : props.caixaAberta));
+const ultimasSenhas = computed(() => (vendeLocal
+    ? off.vendas.slice(0, 12).map((v) => ({
+        id: v.uuid,
+        codigo_senha: v.codigo,
+        created_at: v.criado_em,
+        estado: v.anulada ? 'cancelado' : 'pronto',
+        items: v.items.map((i) => ({ quantidade: i.quantidade, produto: { nome: i.nome } })),
+    }))
+    : props.senhasHoje));
+const pendentes = computed(() => off?.fila.length ?? 0);
+
+// Guarda o ecra e os ficheiros do POS para abrir mesmo sem internet
+const registarModoOffline = async () => {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+        const registo = await navigator.serviceWorker.register('/sw-pos.js', { scope: '/' });
+        const ativo = registo.active ?? registo.installing ?? registo.waiting;
+        const urls = [
+            '/pos',
+            ...performance.getEntriesByType('resource').map((r) => r.name).filter((u) => u.includes('/build/') || u.includes('/storage/')),
+            ...[...document.querySelectorAll('script[src], link[rel="stylesheet"], link[rel="modulepreload"]')].map((el) => el.src || el.href).filter(Boolean),
+        ];
+        const enviarLista = (sw) => sw?.postMessage({ tipo: 'guardar', urls: [...new Set(urls)] });
+        if (registo.active) enviarLista(registo.active);
+        else ativo?.addEventListener('statechange', () => { if (registo.active) enviarLista(registo.active); });
+    } catch { /* sem service worker: continua a vender, mas nao abre sem rede */ }
+};
+const bloqueioFecho = computed(() => {
+    if (!posto) return '';
+    if (off.recusados.length) return `Há ${off.recusados.length} registo(s) recusado(s) pelo servidor. Chama a comissão antes de fechar.`;
+    if (!off.online) return 'Sem internet: a caixa só fecha depois de enviar tudo.';
+    if (pendentes.value) return `Faltam enviar ${pendentes.value} registo(s). Carrega em "Enviar agora" e espera que fique tudo enviado.`;
+    return '';
 });
 
 const agora = ref(new Date());
@@ -33,14 +99,32 @@ const METODOS = [
 const metodo = ref('dinheiro');
 const emDinheiro = computed(() => metodo.value === 'dinheiro');
 
-// Senhas: por omissao uma por unidade. Se o cliente pedir, junta-se um grupo numa folha.
+// Senhas: cada posto escolhe (botao "Senhas") que grupos saem juntos por
+// omissao; o operador ainda pode mudar venda a venda.
 const GRUPOS = [
-    { chave: 'cozinha', label: 'Comida', secoes: null, junto: false },
-    { chave: 'sobremesas', label: 'Sobremesas', secoes: ['sobremesas'], junto: false },
-    { chave: 'bebidas', label: 'Bebidas', secoes: ['bebidas', 'bar', 'cafe'], junto: false },
+    { chave: 'cozinha', label: 'Comida', descricao: 'Cozinha, frango e acompanhamentos', secoes: null },
+    { chave: 'sobremesas', label: 'Sobremesas', descricao: 'Sobremesas', secoes: ['sobremesas'] },
+    { chave: 'bebidas', label: 'Bebidas', descricao: 'Bar e café', secoes: ['bebidas', 'bar', 'cafe'] },
 ];
 const grupoDe = (secao) => GRUPOS.find((g) => g.secoes?.includes(secao))?.chave ?? 'cozinha';
-const juntarPadrao = () => Object.fromEntries(GRUPOS.map((g) => [g.chave, g.junto]));
+const juntarPadrao = () => Object.fromEntries(GRUPOS.map((g) => [g.chave, !!props.juntarPadrao?.[g.chave]]));
+
+// Caixa deste ponto: leitura e fecho no proprio POS (componente)
+const painelCaixa = ref(false);
+
+// Configuracao do posto
+const painelConfigSenhas = ref(false);
+const configSenhas = ref({});
+const aGuardarConfig = ref(false);
+const abrirConfigSenhas = () => { configSenhas.value = juntarPadrao(); painelConfigSenhas.value = true; };
+const guardarConfigSenhas = () => {
+    router.post(route('pos.juntar-padrao'), { juntar: Object.fromEntries(Object.entries(configSenhas.value).map(([k, v]) => [k, v ? 1 : 0])) }, {
+        preserveScroll: true,
+        onStart: () => (aGuardarConfig.value = true),
+        onFinish: () => (aGuardarConfig.value = false),
+        onSuccess: () => { painelConfigSenhas.value = false; juntar.value = juntarPadrao(); },
+    });
+};
 const juntar = ref(juntarPadrao());
 // So aparece o botao de um grupo quando a senha tem pelo menos 2 unidades dele
 const gruposNaSenha = computed(() => {
@@ -56,7 +140,7 @@ let refresh = null;
 // Agrupar produtos por categoria (igual ao restaurante)
 const secoes = computed(() => {
     const map = new Map();
-    (props.produtos ?? []).forEach((p) => {
+    (listaProdutos.value).forEach((p) => {
         const nome = p.categoria?.nome ?? 'Outros';
         if (!map.has(nome)) map.set(nome, { nome, produtos: [] });
         map.get(nome).produtos.push(p);
@@ -67,7 +151,7 @@ const secoes = computed(() => {
 const secaoAtiva = ref(null);
 const secaoAtivaKey = computed(() => secaoAtiva.value ?? secoes.value[0]?.nome ?? null);
 const produtosVisiveis = computed(() => {
-    if (!secaoAtivaKey.value) return props.produtos ?? [];
+    if (!secaoAtivaKey.value) return listaProdutos.value;
     return secoes.value.find((s) => s.nome === secaoAtivaKey.value)?.produtos ?? [];
 });
 const tituloAtivo = computed(() => secaoAtivaKey.value ?? 'Produtos');
@@ -103,13 +187,15 @@ const cartQty = computed(() => Object.fromEntries(carrinho.value.map((i) => [i.p
 
 // Caucao (metro): cobrada a parte na venda; metros devolvidos podem ser
 // trocados por bebidas (descontam aqui) ou devolvidos em dinheiro.
-const produtosCaucao = computed(() => (props.produtos ?? []).filter((p) => Number(p.caucao) > 0));
+const produtosCaucao = computed(() => (listaProdutos.value).filter((p) => Number(p.caucao) > 0));
 const devolvidos = ref([]);
 const comCaucao = (item) => Math.max(0, item.quantidade - Math.min(item.jaTem || 0, item.quantidade));
 const caucaoCobrada = computed(() => carrinho.value.reduce((soma, item) => soma + Number(item.caucao || 0) * comCaucao(item), 0));
 const caucaoDescontada = computed(() => devolvidos.value.reduce((soma, d) => soma + Number(d.caucao) * d.quantidade, 0));
 const aPagar = computed(() => Math.round((total.value + caucaoCobrada.value - caucaoDescontada.value) * 100) / 100);
+// Saldo das caucoes maior do que a senha: o resto sai da gaveta para o cliente
 const saldoExcedido = computed(() => caucaoDescontada.value > 0 && aPagar.value < 0);
+watch(saldoExcedido, (excedido) => { if (excedido) metodo.value = 'dinheiro'; });
 const painelMetro = ref(false);
 const qtdMetro = ref({});
 const qtdDe = (produto) => qtdMetro.value[produto.id] ?? 1;
@@ -130,6 +216,18 @@ const devolvendo = ref(false);
 const devolverDinheiro = (produto) => {
     const quantidade = qtdDe(produto);
     if (!confirm(`Devolver ${eur(Number(produto.caucao) * quantidade)} em dinheiro (${quantidade}x ${produto.nome})?`)) return;
+    if (vendeLocal) {
+        try {
+            const evento = posto.registarCaucao({ produto, quantidade, operador: props.operador });
+            imprimirLocal([payloadCaucao(configTalao.value, { ponto: off.dados.posto.ponto, operador: props.operador, hora: horaDe(evento.criado_em), quantidade, nome: produto.nome, valorTotal: round2(Number(produto.caucao) * quantidade) })], evento.uuid);
+            mostrarAviso(`Caução devolvida: ${eur(Number(produto.caucao) * quantidade)}.`);
+            painelMetro.value = false;
+            qtdMetro.value[produto.id] = 1;
+        } catch (e) {
+            mostrarAviso(e?.message || String(e));
+        }
+        return;
+    }
     router.post(route('pos.caucao.devolver'), { produto_id: produto.id, quantidade }, {
         preserveScroll: true,
         onStart: () => (devolvendo.value = true),
@@ -138,7 +236,7 @@ const devolverDinheiro = (produto) => {
     });
 };
 
-const troco = computed(() => Math.max(0, Number(recebido.value || 0) - aPagar.value));
+const troco = computed(() => Math.round(Math.max(0, (saldoExcedido.value ? 0 : Number(recebido.value || 0)) - aPagar.value) * 100) / 100);
 const trocoRegistado = computed(() => trocoEntregue.value === '' ? troco.value : Number(trocoEntregue.value || 0));
 const doacao = computed(() => Math.max(0, troco.value - trocoRegistado.value));
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
@@ -153,10 +251,34 @@ const aCarregarSenhas = ref(false);
 const senhaAberta = ref(null);
 const aAnular = ref(false);
 const motivoAnulacao = ref('');
-const acaoSenha = useForm({ o: 'tudo', motivo: '' });
+const pinComissao = ref('');
+const acaoSenha = useForm({ o: 'tudo', motivo: '', pin_comissao: '' });
 const MOTIVOS_RAPIDOS = ['Engano no pedido', 'Cliente desistiu', 'Pagamento não passou'];
 
+// Posto offline: as senhas vem do que ficou guardado neste computador
+const resumoLocal = (v) => {
+    const pago = round2(Number(v.total) + Number(v.caucao_cobrada) - Number(v.caucao_descontada));
+    const minutos = (Date.now() - new Date(v.criado_em).getTime()) / 60000;
+    return {
+        id: v.uuid, local: true, venda: v,
+        numero: v.codigo, hora: horaDe(v.criado_em), operador: v.operador,
+        itens: v.items.map((i) => ({ quantidade: i.quantidade, nome: i.nome, valor: round2(Number(i.preco) * i.quantidade) })),
+        caucao_cobrada: Number(v.caucao_cobrada), caucao_descontada: Number(v.caucao_descontada),
+        pago, doacao: Number(v.doacao), metodo: v.metodo, metodo_nome: off.dados?.metodos?.[v.metodo] ?? v.metodo,
+        reimpressoes: v.reimpressoes ?? 0,
+        anulada: !!v.anulada, anulado_em: v.anulada_em ? horaDe(v.anulada_em) : null, anulado_por: v.anulada_por, motivo_anulacao: v.motivo, valor_devolvido: v.valor_devolvido,
+        // Passados 5 minutos ja nao se anula aqui: vai ao servidor (com o PIN da comissao)
+        precisa_pin: minutos > MINUTOS_ANULAR_OFFLINE,
+    };
+};
+
 const carregarSenhas = async () => {
+    if (vendeLocal) {
+        const termo = String(procurarNumero.value || '').trim().toUpperCase();
+        listaSenhas.value = off.vendas.filter((v) => !termo || v.codigo.toUpperCase().includes(termo)).slice(0, 80).map(resumoLocal);
+        if (senhaAberta.value) senhaAberta.value = listaSenhas.value.find((s) => s.id === senhaAberta.value.id) ?? senhaAberta.value;
+        return;
+    }
     aCarregarSenhas.value = true;
     try {
         const { data } = await axios.get(route('pos.senhas'), { params: { numero: procurarNumero.value || undefined } });
@@ -186,9 +308,20 @@ const escolherSenha = (senha) => {
     senhaAberta.value = senha;
     aAnular.value = false;
     motivoAnulacao.value = '';
+    pinComissao.value = '';
     acaoSenha.clearErrors();
 };
 const reimprimir = (o) => {
+    if (senhaAberta.value?.local) {
+        const v = senhaAberta.value.venda;
+        const hora = horaDe(new Date());
+        const escpos = o === 'conta' ? [payloadConta(v, configTalao.value, hora)] : taloesDaVenda(v, configTalao.value, hora);
+        imprimirLocal(escpos.map(marcarSegundaVia), `via-${v.uuid}-${Date.now()}`);
+        v.reimpressoes = (v.reimpressoes ?? 0) + 1;
+        mostrarAviso(`Senha #${v.codigo} reimpressa.`);
+        fecharSenhas();
+        return;
+    }
     acaoSenha.o = o;
     acaoSenha.post(route('pos.pedido.reimprimir', senhaAberta.value.id), { preserveScroll: true, onSuccess: () => fecharSenhas() });
 };
@@ -197,15 +330,72 @@ const aDevolver = computed(() => {
     if (!s) return 0;
     return Number(s.pago) + Number(s.doacao) + Number(s.caucao_descontada);
 });
+const anularLocal = () => {
+    const s = senhaAberta.value;
+    const v = s.venda;
+    const motivo = motivoAnulacao.value.trim();
+    const pago = round2(Number(v.total) + Number(v.caucao_cobrada) - Number(v.caucao_descontada) + Number(v.doacao));
+    const metros = round2(v.caucao_descontada);
+    const devolver = round2(pago + metros);
+    const naGaveta = (v.metodo === 'dinheiro' ? pago : 0) + metros;
+
+    if (!s.precisa_pin) {
+        try {
+            const evento = posto.registarAnulacao(v, { motivo, operador: props.operador });
+            Object.assign(v, { valor_devolvido: devolver });
+            const payload = payloadAnulacao(v, configTalao.value, devolver, { vendidaAs: horaDe(v.criado_em), anuladaAs: horaDe(evento.criado_em), por: props.operador, motivo });
+            if (naGaveta > 0) payload.abrir_caixa = true;
+            imprimirLocal([payload], `anulada-${v.uuid}`);
+            mostrarAviso(`Senha #${v.codigo} anulada. Devolver ${eur(devolver)}${v.metodo !== 'dinheiro' ? ` (${s.metodo_nome})` : ''}.`);
+            fecharSenhas();
+        } catch (e) {
+            acaoSenha.setError('motivo', e?.message || String(e));
+        }
+        return;
+    }
+
+    // Mais de 5 minutos: so no servidor, com a venda ja enviada
+    if (!off.online || !v.servidor_id) {
+        acaoSenha.setError('motivo', !off.online
+            ? `Passaram mais de ${MINUTOS_ANULAR_OFFLINE} minutos: esta anulação precisa de internet e do PIN da comissão.`
+            : 'Esta venda ainda não foi enviada. Carrega em "Enviar agora" e tenta de novo.');
+        return;
+    }
+    acaoSenha.motivo = motivo;
+    acaoSenha.pin_comissao = pinComissao.value;
+    acaoSenha.post(route('pos.pedido.anular', v.servidor_id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            posto.marcarAnulada(v.uuid, { anulada_em: new Date().toISOString(), motivo, anulada_por: props.operador, valor_devolvido: devolver });
+            posto.atualizarDados().catch(() => {});
+            fecharSenhas();
+        },
+    });
+};
+
 const confirmarAnulacao = () => {
+    if (senhaAberta.value?.local) return anularLocal();
     acaoSenha.motivo = motivoAnulacao.value;
+    acaoSenha.pin_comissao = pinComissao.value;
     acaoSenha.post(route('pos.pedido.anular', senhaAberta.value.id), { preserveScroll: true, onSuccess: () => fecharSenhas() });
 };
 const chamandoComissao = ref(false);
 
 // jaTem: o cliente traz o metro/jarro para voltar a encher - nao se cobra caucao
+const restam = (produto) => {
+    const n = Math.floor(Number(produto.stock_atual)) - (cartQty.value[produto.id] || 0);
+    return n <= 0 ? 'Sem mais stock' : (n === 1 ? 'Resta 1' : `Restam ${n}`);
+};
+
+// Produtos com "gerir stock": nao deixa por no carrinho mais do que ha
+const stockMax = (produtoId) => {
+    const produto = listaProdutos.value.find((p) => p.id === produtoId);
+    return produto?.gerir_stock ? Math.floor(Number(produto.stock_atual)) : Infinity;
+};
+
 const adicionar = (produto, { jaTem = false } = {}) => {
     let item = carrinho.value.find((linha) => linha.produto_id === produto.id);
+    if ((item?.quantidade ?? 0) >= stockMax(produto.id)) return;
     if (item) {
         item.quantidade++;
     } else {
@@ -216,27 +406,85 @@ const adicionar = (produto, { jaTem = false } = {}) => {
 };
 
 const alterar = (item, delta) => {
+    if (delta > 0 && item.quantidade + delta > stockMax(item.produto_id)) return;
     item.quantidade += delta;
     carrinho.value = carrinho.value.filter((linha) => linha.quantidade > 0);
 };
 
+const limparCarrinho = () => {
+    metodo.value = 'dinheiro';
+    juntar.value = juntarPadrao();
+    carrinho.value = [];
+    devolvidos.value = [];
+    recebido.value = '';
+    trocoEntregue.value = '';
+};
+
+const imprimirLocal = (escpos, id) => imprimirTrabalho({ pedido_id: id, modo: 'webusb', escpos });
+
+// Venda no posto sem internet: as mesmas contas que o servidor faz no POS online
+const cobrarOffline = () => {
+    form.clearErrors();
+    if (!configTalao.value) {
+        form.setError('ponto_bar', 'Este posto ainda não tem os dados guardados. Liga-o à internet uma vez para os descarregar.');
+        return;
+    }
+    const metodoFinal = saldoExcedido.value ? 'dinheiro' : metodo.value;
+    const dinheiro = metodoFinal === 'dinheiro';
+    const aPagarV = round2(aPagar.value);
+    const valorRecebido = saldoExcedido.value ? 0 : (dinheiro ? round2(recebido.value || Math.max(0, aPagarV)) : Math.max(0, aPagarV));
+    const trocoV = dinheiro ? round2(trocoRegistado.value) : 0;
+    const excedente = round2(valorRecebido - aPagarV);
+    if (valorRecebido < aPagarV) {
+        form.setError('valor_recebido', 'O valor recebido não pode ser inferior ao total.');
+        return;
+    }
+    if (trocoV > excedente) {
+        form.setError('troco', 'O troco não pode ser superior ao valor a devolver.');
+        return;
+    }
+
+    let venda;
+    try {
+        venda = posto.registarVenda({
+            operador: props.operador,
+            items: carrinho.value.map((i) => {
+                const produto = listaProdutos.value.find((p) => p.id === i.produto_id) ?? {};
+                return { produto_id: i.produto_id, quantidade: i.quantidade, ja_tem: Math.min(i.jaTem || 0, i.quantidade), preco: Number(i.preco), nome: i.nome, secao: i.secao, talao_individual: !!produto.talao_individual };
+            }),
+            devolvidos: devolvidos.value.map((d) => ({ produto_id: d.produto_id, quantidade: d.quantidade, caucao: Number(d.caucao) })),
+            total: round2(total.value),
+            caucao_cobrada: round2(caucaoCobrada.value),
+            caucao_descontada: round2(caucaoDescontada.value),
+            valor_recebido: valorRecebido,
+            troco: trocoV,
+            doacao: Math.max(0, round2(excedente - trocoV)),
+            metodo: metodoFinal,
+            juntar: { ...juntar.value },
+        });
+    } catch (e) {
+        form.setError('ponto_bar', e instanceof GuardarFalhou ? `${e.message} A venda NÃO ficou registada.` : (e?.message || String(e)));
+        return;
+    }
+
+    const escpos = taloesDaVenda(venda, configTalao.value, horaDe(venda.criado_em));
+    if (dinheiro && escpos.length) escpos[0] = { ...escpos[0], abrir_caixa: true };
+    imprimirLocal(escpos, venda.uuid);
+    mostrarAviso(`Senha #${venda.codigo} registada${off.online ? '' : ' — sem internet, vai ser enviada depois'}.`);
+    limparCarrinho();
+};
+
 const cobrar = () => {
+    if (vendeLocal) return cobrarOffline();
     form.items = carrinho.value.map(({ produto_id, quantidade, jaTem }) => ({ produto_id, quantidade, ja_tem: Math.min(jaTem || 0, quantidade) }));
     form.devolvidos = devolvidos.value.map(({ produto_id, quantidade }) => ({ produto_id, quantidade }));
     form.metodo_pagamento = metodo.value;
-    form.valor_recebido = emDinheiro.value ? (recebido.value || Math.max(0, aPagar.value)) : Math.max(0, aPagar.value);
+    form.valor_recebido = saldoExcedido.value ? 0 : (emDinheiro.value ? (recebido.value || Math.max(0, aPagar.value)) : Math.max(0, aPagar.value));
     form.troco = emDinheiro.value ? trocoRegistado.value : 0;
     form.juntar = Object.fromEntries(Object.entries(juntar.value).map(([k, v]) => [k, v ? 1 : 0]));
     form.post(route('pos.prepago.store'), {
         preserveScroll: true,
-        onSuccess: () => {
-            metodo.value = 'dinheiro';
-            juntar.value = juntarPadrao();
-            carrinho.value = [];
-            devolvidos.value = [];
-            recebido.value = '';
-            trocoEntregue.value = '';
-        },
+        onSuccess: limparCarrinho,
     });
 };
 
@@ -244,12 +492,12 @@ const cobrar = () => {
 const page = usePage();
 const aviso = ref('');
 let avisoTimer = null;
-watch(() => page.props.flash?.success, (msg) => {
-    if (!msg) return;
+const mostrarAviso = (msg) => {
     aviso.value = msg;
     clearTimeout(avisoTimer);
     avisoTimer = setTimeout(() => (aviso.value = ''), 4000);
-}, { immediate: true });
+};
+watch(() => page.props.flash?.success, (msg) => { if (msg) mostrarAviso(msg); }, { immediate: true });
 
 // Impressao sem sair do POS (postos WebUSB/navegador).
 // WebUSB: manda os bytes ESC/POS daqui — o primeiro talao abre a gaveta.
@@ -310,10 +558,13 @@ watch(() => page.props.flash?.imprimir, (trabalho) => {
 
 onMounted(() => {
     relogio = setInterval(() => (agora.value = new Date()), 1000);
-    refresh = setInterval(() => router.reload({ only: ['caixaAberta', 'senhasHoje'], preserveScroll: true }), 20000);
+    refresh = setInterval(() => { if (navigator.onLine && !posto) router.reload({ only: ['caixaAberta', 'senhasHoje'], preserveScroll: true }); }, 20000);
+    posto?.iniciar({ soEnviar: !vendeLocal });
+    if (vendeLocal) registarModoOffline();
 });
 
 onBeforeUnmount(() => {
+    posto?.parar();
     clearInterval(relogio);
     clearInterval(refresh);
     clearTimeout(avisoTimer);
@@ -363,6 +614,14 @@ const limparSenha = () => {
                 <span class="truncate text-sm text-escuro-inativo">{{ posNome }} · {{ agora.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) }}</span>
             </div>
             <div class="flex gap-2.5">
+                <button v-if="caixaAbertaEf" type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="painelCaixa = true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 11h18M8 4h8" /></svg>
+                    Caixa
+                </button>
+                <button v-if="juntarFolhas" type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="abrirConfigSenhas">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" /></svg>
+                    Senhas
+                </button>
                 <button type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="abrirSenhas()">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>
                     Senhas anteriores
@@ -388,7 +647,26 @@ const limparSenha = () => {
                 {{ aImprimir ? 'A imprimir...' : 'Imprimir senha' }}
             </button>
         </div>
-        <div v-if="!caixaAberta" role="alert" class="shrink-0 bg-perigo-claro px-6 py-3 text-center text-[17px] font-bold text-perigo-texto">
+        <!-- Posto sem internet: estado do envio -->
+        <div v-if="posto && (vendeLocal || pendentes || off.recusados.length)" role="status" class="flex shrink-0 flex-wrap items-center justify-between gap-2 px-6 py-2 text-[15px] font-bold"
+            :class="off.bloqueado || off.recusados.length || off.sessaoExpirada ? 'bg-perigo-claro text-perigo-texto' : !off.online ? 'bg-laranja-claro text-laranja-texto' : pendentes ? 'bg-fundo text-tinta' : 'bg-verde-claro text-verde-escuro'">
+            <span>
+                <template v-if="off.bloqueado">Este posto já está aberto noutro separador do browser. Fecha este separador e usa o outro.</template>
+                <template v-else-if="off.sessaoExpirada">{{ off.ultimoErro }}</template>
+                <template v-else-if="!off.online">Sem internet · {{ pendentes ? `${pendentes} registo(s) guardados para enviar` : 'tudo o que foi vendido já está enviado' }}</template>
+                <template v-else-if="off.aEnviar">A enviar {{ pendentes }} registo(s)…</template>
+                <template v-else-if="pendentes">{{ pendentes }} registo(s) por enviar<span v-if="off.ultimoErro" class="font-normal"> — {{ off.ultimoErro }}</span></template>
+                <template v-else>Ligado · tudo enviado<span v-if="off.ultimoEnvio" class="font-normal"> às {{ horaDe(off.ultimoEnvio) }}</span></template>
+                <span v-if="off.recusados.length" class="block text-sm">{{ off.recusados.length }} registo(s) recusado(s) pelo servidor ({{ off.recusados[0].erro }}) — chama a comissão.</span>
+                <span v-if="!vendeLocal" class="block text-sm">Este posto já não trabalha sem internet, mas ficaram registos guardados neste computador.</span>
+                <span v-if="vendeLocal && off.dados && off.dados.posto.impressora !== 'webusb'" class="block text-sm">A impressora deste posto não é USB pelo browser: sem internet não vai imprimir.</span>
+            </span>
+            <span class="flex gap-2">
+                <button v-if="off.recusados.length && off.online && !off.bloqueado" type="button" class="h-10 rounded-[10px] border border-perigo bg-white px-4 text-sm font-bold text-perigo-texto disabled:opacity-45" :disabled="off.aEnviar" @click="posto.repetirRecusados()">Tentar outra vez</button>
+                <button v-if="pendentes && off.online && !off.bloqueado" type="button" class="h-10 rounded-[10px] bg-escuro px-4 text-sm font-bold text-white disabled:opacity-45" :disabled="off.aEnviar" @click="posto.enviar()">Enviar agora</button>
+            </span>
+        </div>
+        <div v-if="!caixaAbertaEf" role="alert" class="shrink-0 bg-perigo-claro px-6 py-3 text-center text-[17px] font-bold text-perigo-texto">
             Caixa fechada para {{ pontoBar }}. Abre a caixa no backoffice antes de vender.
         </div>
 
@@ -415,19 +693,20 @@ const limparSenha = () => {
                     <div
                         v-if="Number(produto.caucao) > 0"
                         class="relative flex min-h-[124px] min-w-0 flex-col overflow-hidden rounded-[14px] bg-white p-3"
-                        :class="[cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha', !caixaAberta ? 'opacity-45' : '']"
+                        :class="[cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha', !caixaAbertaEf ? 'opacity-45' : '']"
                     >
                         <span class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" :class="secaoDe(produto).text">
                             <span class="h-2 w-2 rounded-full" :class="secaoDe(produto).dot"></span>{{ secaoDe(produto).label }}
                         </span>
                         <span class="mt-1 block break-words pr-9 text-lg font-bold leading-tight">{{ produto.nome }} <span class="text-base font-medium text-suave">{{ eur(produto.preco) }}</span></span>
+                        <span v-if="produto.gerir_stock && Number(produto.stock_atual) <= 10" class="mt-1 text-xs font-bold text-laranja-texto">{{ restam(produto) }}</span>
                         <span v-if="cartQty[produto.id]" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ cartQty[produto.id] }}</span>
                         <div class="mt-auto grid grid-cols-2 gap-2 pt-2">
-                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-laranja bg-laranja-claro px-1 leading-tight text-laranja-texto disabled:cursor-not-allowed" :disabled="!caixaAberta" @click="adicionar(produto)">
+                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-laranja bg-laranja-claro px-1 leading-tight text-laranja-texto disabled:cursor-not-allowed" :disabled="!caixaAbertaEf" @click="adicionar(produto)">
                                 <span class="text-[15px] font-bold">Novo</span>
                                 <span class="text-xs font-semibold">+{{ eur(produto.caucao) }}</span>
                             </button>
-                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-verde bg-verde-claro px-1 leading-tight text-verde-escuro disabled:cursor-not-allowed" :disabled="!caixaAberta" @click="adicionar(produto, { jaTem: true })">
+                            <button type="button" class="flex h-12 flex-col items-center justify-center rounded-[10px] border border-verde bg-verde-claro px-1 leading-tight text-verde-escuro disabled:cursor-not-allowed" :disabled="!caixaAbertaEf" @click="adicionar(produto, { jaTem: true })">
                                 <span class="text-[15px] font-bold">Encher</span>
                                 <span class="text-xs font-semibold">sem caução</span>
                             </button>
@@ -438,7 +717,7 @@ const limparSenha = () => {
                         type="button"
                         class="relative flex min-h-[124px] min-w-0 flex-col items-start overflow-hidden rounded-[14px] bg-white p-4 text-left disabled:cursor-not-allowed disabled:opacity-45"
                         :class="cartQty[produto.id] ? 'border-2 border-verde' : 'border border-linha'"
-                        :disabled="!caixaAberta"
+                        :disabled="!caixaAbertaEf"
                         @click="adicionar(produto)"
                     >
                         <img v-if="produto.imagem" :src="`/storage/${produto.imagem}`" alt="" class="pointer-events-none absolute bottom-2 right-2 h-14 w-14 rounded-lg object-contain opacity-90">
@@ -446,6 +725,7 @@ const limparSenha = () => {
                             <span class="h-2 w-2 rounded-full" :class="secaoDe(produto).dot"></span>{{ secaoDe(produto).label }}
                         </span>
                         <span class="mt-2 block break-words pr-8 text-lg font-bold leading-tight" :class="produto.imagem ? 'pr-16' : ''">{{ produto.nome }}</span>
+                        <span v-if="produto.gerir_stock && Number(produto.stock_atual) <= 10" class="mt-1 text-xs font-bold text-laranja-texto">{{ restam(produto) }}</span>
                         <span class="mt-auto pt-3 text-base font-medium text-suave">{{ eur(produto.preco) }}</span>
                         <span v-if="cartQty[produto.id]" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-verde text-base font-bold text-white">{{ cartQty[produto.id] }}</span>
                     </button>
@@ -457,12 +737,12 @@ const limparSenha = () => {
                         <h2 class="text-sm font-extrabold uppercase tracking-wider text-suave">Últimas senhas <span class="font-semibold normal-case tracking-normal">— toca para reimprimir ou anular</span></h2>
                         <button type="button" class="h-9 shrink-0 rounded-[8px] border border-linha-forte px-3 text-sm font-bold" @click="abrirSenhas()">Ver todas</button>
                     </div>
-                    <p v-if="!senhasHoje?.length" class="text-sm text-suave">Ainda não há senhas neste posto.</p>
+                    <p v-if="!ultimasSenhas?.length" class="text-sm text-suave">Ainda não há senhas neste posto.</p>
                     <!-- Ecras baixos: uma fila so, com scroll para o lado -->
                     <div class="grid max-h-32 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4 curto:flex curto:max-h-none curto:overflow-x-auto curto:overflow-y-hidden curto:pb-1 [&>button]:curto:w-44 [&>button]:curto:shrink-0">
-                        <button v-for="pedido in senhasHoje" :key="pedido.id" type="button" class="min-w-0 rounded-[10px] bg-fundo px-2.5 py-2 text-left hover:bg-linha-fraca" :class="pedido.estado === 'cancelado' ? 'opacity-60' : ''" @click="abrirSenhas(pedido.id)">
+                        <button v-for="pedido in ultimasSenhas" :key="pedido.id" type="button" class="min-w-0 rounded-[10px] bg-fundo px-2.5 py-2 text-left hover:bg-linha-fraca" :class="pedido.estado === 'cancelado' ? 'opacity-60' : ''" @click="abrirSenhas(pedido.id)">
                             <div class="flex items-baseline justify-between gap-2">
-                                <span class="text-lg font-extrabold" :class="pedido.estado === 'cancelado' ? 'line-through' : ''">#{{ pedido.numero_senha }}</span>
+                                <span class="text-lg font-extrabold" :class="pedido.estado === 'cancelado' ? 'line-through' : ''">#{{ pedido.codigo_senha ?? pedido.numero_senha }}</span>
                                 <span class="text-xs text-suave">{{ hora(pedido.created_at) }}</span>
                             </div>
                             <span class="block truncate text-xs text-suave">{{ pedido.estado === 'cancelado' ? 'ANULADA · ' : '' }}{{ pedido.items.map((item) => `${item.quantidade}x ${item.produto?.nome}`).join(', ') }}</span>
@@ -475,7 +755,7 @@ const limparSenha = () => {
                 <div class="flex shrink-0 items-center justify-between border-b border-linha px-5 py-3.5 curto:py-2">
                     <h2 class="text-xl font-extrabold">Senha</h2>
                     <div class="flex gap-2">
-                        <button v-if="produtosCaucao.length" type="button" class="h-11 rounded-[10px] border border-laranja bg-laranja-claro px-4 text-[15px] font-bold text-laranja-texto disabled:opacity-45" :disabled="!caixaAberta" :aria-expanded="painelMetro" @click="painelMetro = !painelMetro">Devolução de caução</button>
+                        <button v-if="produtosCaucao.length" type="button" class="h-11 rounded-[10px] border border-laranja bg-laranja-claro px-4 text-[15px] font-bold text-laranja-texto disabled:opacity-45" :disabled="!caixaAbertaEf" :aria-expanded="painelMetro" @click="painelMetro = !painelMetro">Devolução de caução</button>
                         <button type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white px-4 text-[15px] font-bold text-perigo disabled:opacity-45" :disabled="!carrinho.length && !devolvidos.length" @click="limparSenha">Limpar</button>
                     </div>
                 </div>
@@ -549,25 +829,26 @@ const limparSenha = () => {
                         <div v-if="caucaoDescontada" class="flex justify-between text-verde-escuro"><span>Caução devolvida (saldo)</span><span class="font-bold">-{{ eur(caucaoDescontada) }}</span></div>
                     </div>
                     <div class="flex items-end justify-between gap-2">
-                        <span class="text-[15px] text-suave">A pagar · {{ artigos }} artigos</span>
-                        <span class="text-4xl font-extrabold curto:text-3xl">{{ eur(Math.max(0, aPagar)) }}</span>
+                        <span class="text-[15px] text-suave">{{ saldoExcedido ? 'A devolver' : 'A pagar' }} · {{ artigos }} artigos</span>
+                        <span class="text-4xl font-extrabold curto:text-3xl" :class="saldoExcedido ? 'text-laranja-texto' : ''">{{ eur(Math.abs(aPagar)) }}</span>
                     </div>
-                    <p v-if="saldoExcedido" role="alert" class="rounded-[10px] bg-perigo-claro p-2 text-sm font-bold text-perigo-texto">O saldo das cauções devolvidas ({{ eur(caucaoDescontada) }}) é maior que a senha. Junta mais bebidas ou devolve o resto em dinheiro.</p>
+                    <p v-if="saldoExcedido" role="status" class="rounded-[10px] bg-laranja-claro p-2 text-sm font-bold text-laranja-texto">O saldo das cauções ({{ eur(caucaoDescontada) }}) é maior que a senha: dá {{ eur(-aPagar) }} da gaveta ao cliente.</p>
                     <div role="group" aria-label="Forma de pagamento" class="grid grid-cols-3 gap-2">
                         <button
                             v-for="m in METODOS"
                             :key="m.id"
                             type="button"
-                            class="h-12 rounded-[10px] text-base font-bold curto:h-10"
+                            class="h-12 rounded-[10px] text-base font-bold disabled:opacity-40 curto:h-10"
                             :class="metodo === m.id ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white text-tinta'"
                             :aria-pressed="metodo === m.id"
+                            :disabled="saldoExcedido && m.id !== 'dinheiro'"
                             @click="metodo = m.id"
                         >{{ m.label }}</button>
                     </div>
                     <p v-if="!emDinheiro" class="rounded-[10px] bg-fundo px-3 py-2 text-[15px] font-semibold text-suave">
                         Confirma o pagamento de <strong class="text-tinta">{{ eur(Math.max(0, aPagar)) }}</strong> por {{ METODOS.find((m) => m.id === metodo)?.label }} antes de cobrar. Não abre a gaveta.
                     </p>
-                    <div v-if="emDinheiro">
+                    <div v-if="emDinheiro && !saldoExcedido">
                         <span class="text-sm font-semibold text-suave">Recebido</span>
                         <div role="group" aria-label="Valor recebido" class="mt-1 grid grid-cols-4 gap-2">
                             <button type="button" class="h-14 rounded-[10px] text-base font-bold curto:h-11" :class="recebido === '' ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'" :aria-pressed="recebido === ''" @click="escolherRecebido('')">Certo</button>
@@ -630,11 +911,52 @@ const limparSenha = () => {
                         </div>
                     </div>
                     <AvisoErros :errors="form.errors" class="!p-2" />
-                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold curto:h-14 text-white disabled:opacity-45" :disabled="!caixaAberta || !carrinho.length || saldoExcedido || form.processing" @click="cobrar">
-                        {{ emDinheiro ? 'Cobrar e tirar senha' : `Cobrar ${METODOS.find((m) => m.id === metodo)?.label} e tirar senha` }}
+                    <button type="button" class="h-[68px] w-full rounded-[14px] bg-laranja text-xl font-bold curto:h-14 text-white disabled:opacity-45" :disabled="!caixaAbertaEf || !carrinho.length || form.processing" @click="cobrar">
+                        {{ saldoExcedido ? `Devolver ${eur(-aPagar)} e tirar senha` : (emDinheiro ? 'Cobrar e tirar senha' : `Cobrar ${METODOS.find((m) => m.id === metodo)?.label} e tirar senha`) }}
                     </button>
                 </div>
             </aside>
+        </div>
+
+        <!-- Caixa deste ponto: leitura e fecho -->
+        <PosCaixaPainel v-if="painelCaixa" :caixa="caixa" :titulo="pontoBar" :bloqueio="bloqueioFecho" rota-leitura="pos.caixa.leitura" rota-fechar="pos.caixa.fechar" @fechar="painelCaixa = false" />
+
+        <!-- Configuracao: senhas juntas ou separadas por omissao neste posto -->
+        <div v-if="painelConfigSenhas" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="titulo-config-senhas" @click.self="painelConfigSenhas = false">
+            <div class="w-full max-w-lg rounded-t-[16px] bg-white p-5 sm:rounded-[16px]">
+                <h2 id="titulo-config-senhas" class="text-xl font-extrabold">Senhas neste posto</h2>
+                <p class="mt-1 text-[15px] text-suave">Escolhe como cada grupo sai por omissão. Ainda dá para mudar em cada venda.</p>
+                <div class="mt-4 space-y-2.5">
+                    <div v-for="g in GRUPOS" :key="g.chave" class="flex items-center gap-3 rounded-[12px] border border-linha p-3">
+                        <div class="min-w-0 flex-1">
+                            <span class="block text-lg font-bold">{{ g.label }}</span>
+                            <span class="block text-sm text-suave">{{ g.descricao }}</span>
+                        </div>
+                        <div role="radiogroup" :aria-label="`Senhas de ${g.label}`" class="grid shrink-0 grid-cols-2 gap-1.5">
+                            <button
+                                type="button"
+                                role="radio"
+                                class="h-12 rounded-[10px] px-3 text-[15px] font-bold"
+                                :class="!configSenhas[g.chave] ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                :aria-checked="!configSenhas[g.chave]"
+                                @click="configSenhas[g.chave] = false"
+                            >Separadas</button>
+                            <button
+                                type="button"
+                                role="radio"
+                                class="h-12 rounded-[10px] px-3 text-[15px] font-bold"
+                                :class="configSenhas[g.chave] ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                :aria-checked="!!configSenhas[g.chave]"
+                                @click="configSenhas[g.chave] = true"
+                            >Juntas</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-5 grid grid-cols-2 gap-2">
+                    <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white text-base font-bold" @click="painelConfigSenhas = false">Cancelar</button>
+                    <button type="button" class="h-14 rounded-[10px] bg-verde text-base font-bold text-white disabled:opacity-45" :disabled="aGuardarConfig" @click="guardarConfigSenhas">{{ aGuardarConfig ? 'A guardar…' : 'Guardar' }}</button>
+                </div>
+            </div>
         </div>
 
         <!-- Senhas anteriores -->
@@ -726,9 +1048,13 @@ const limparSenha = () => {
                                     <button v-for="m in MOTIVOS_RAPIDOS" :key="m" type="button" class="h-10 rounded-full border px-3 text-sm font-bold" :class="motivoAnulacao === m ? 'border-perigo bg-perigo-claro text-perigo-texto' : 'border-linha-forte'" @click="motivoAnulacao = m">{{ m }}</button>
                                 </div>
                                 <input v-model="motivoAnulacao" class="h-12 w-full rounded-[10px] border-linha-forte" placeholder="Motivo (obrigatório)" aria-label="Motivo da anulação">
+                                <label v-if="senhaAberta.precisa_pin" class="block text-sm font-bold text-perigo-texto">PIN da comissão
+                                    <span class="block font-normal text-suave">Passaram mais de 2 minutos ou a senha é de outro posto: chama alguém da comissão.</span>
+                                    <input v-model="pinComissao" type="password" inputmode="numeric" autocomplete="off" class="mt-1 h-12 w-full rounded-[10px] border-linha-forte text-center text-2xl tracking-[0.4em]" aria-label="PIN da comissão">
+                                </label>
                                 <div class="grid grid-cols-2 gap-2">
                                     <button type="button" class="h-14 rounded-[10px] border border-linha-forte bg-white text-base font-bold" @click="aAnular = false">Voltar</button>
-                                    <button type="button" class="h-14 rounded-[10px] bg-perigo text-base font-bold text-white disabled:opacity-45" :disabled="motivoAnulacao.trim().length < 3 || acaoSenha.processing" @click="confirmarAnulacao">Confirmar anulação</button>
+                                    <button type="button" class="h-14 rounded-[10px] bg-perigo text-base font-bold text-white disabled:opacity-45" :disabled="motivoAnulacao.trim().length < 3 || (senhaAberta.precisa_pin && !pinComissao) || acaoSenha.processing" @click="confirmarAnulacao">Confirmar anulação</button>
                                 </div>
                             </div>
                         </template>

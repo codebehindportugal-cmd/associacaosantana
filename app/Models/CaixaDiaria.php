@@ -18,10 +18,12 @@ class CaixaDiaria extends Model
         'fundo_maneio',
         'estado',
         'valor_contado',
+        'contagem',
         'diferenca',
         'observacoes_fecho',
         'user_id',
         'fechado_user_id',
+        'fechado_por_nome',
         'fechado_at',
     ];
 
@@ -29,6 +31,7 @@ class CaixaDiaria extends Model
         'data' => 'date',
         'fundo_maneio' => 'decimal:2',
         'valor_contado' => 'decimal:2',
+        'contagem' => 'array',
         'diferenca' => 'decimal:2',
         'fechado_at' => 'datetime',
     ];

@@ -121,7 +121,7 @@ onBeforeUnmount(() => clearInterval(intervalo));
                     <div v-if="!prepagos.length" class="p-6 text-center text-[15px] text-suave-2">Sem pré-pagos emitidos.</div>
                     <div v-for="pedido in prepagos" :key="pedido.id" class="flex flex-wrap items-center gap-x-3.5 gap-y-2 border-b border-linha-fraca px-5 py-3 last:border-b-0">
                         <div class="flex min-w-0 flex-grow basis-48 flex-col gap-0.5">
-                            <span class="text-[17px] font-extrabold">Senha #{{ pedido.numero_senha }}</span>
+                            <span class="text-[17px] font-extrabold">Senha #{{ pedido.codigo_senha ?? pedido.numero_senha }}</span>
                             <span class="text-sm text-suave-2">{{ hora(pedido.created_at) }} · {{ pedido.ponto_bar || 'Sem ponto' }} · {{ pedido.estado }}</span>
                         </div>
                         <div class="ml-auto flex items-center gap-3.5">

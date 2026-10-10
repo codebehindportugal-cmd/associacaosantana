@@ -26,7 +26,9 @@ class Pedido extends Model
         'nome_reserva',
         'estado',
         'tipo',
+        'uuid',
         'numero_senha',
+        'prefixo_senha',
         'pago_antecipado',
         'ponto_bar',
         'total',
@@ -47,7 +49,7 @@ class Pedido extends Model
         'valor_devolvido',
     ];
 
-    protected $appends = ['total_calculado'];
+    protected $appends = ['total_calculado', 'codigo_senha'];
 
     protected $hidden = [
         'cliente_token',
@@ -121,5 +123,15 @@ class Pedido extends Model
     public function scopeBarPrepago($query)
     {
         return $query->where('tipo', 'bar_prepago');
+    }
+
+    /** Numero da senha como sai no talao: "12" ou, num posto offline, "B-12". */
+    public function getCodigoSenhaAttribute(): ?string
+    {
+        if (! $this->numero_senha) {
+            return null;
+        }
+
+        return ($this->prefixo_senha ? $this->prefixo_senha.'-' : '').$this->numero_senha;
     }
 }

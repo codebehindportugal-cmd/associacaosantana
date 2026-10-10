@@ -43,7 +43,7 @@ class ImpressoraController extends Controller
         return Inertia::render('Impressoras/Index', [
             'impressoras' => $impressoras,
             'secoes' => self::SECOES,
-            'terminais' => PosSession::orderBy('nome')->get(['id', 'nome', 'tipo', 'localizacao', 'impressora_id', 'impressao_navegador', 'ativo']),
+            'terminais' => PosSession::orderBy('nome')->get(['id', 'nome', 'tipo', 'localizacao', 'impressora_id', 'impressao_navegador', 'offline', 'prefixo_senha', 'ativo']),
             'tiposTerminal' => ['restaurante', 'reservas', 'bar', 'cafe', 'cotas'],
             'tiposImpressora' => Impressora::TIPOS,
             'agente' => $this->estadoAgente(),

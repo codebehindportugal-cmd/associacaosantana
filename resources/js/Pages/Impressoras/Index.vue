@@ -163,6 +163,8 @@ const postoForm = useForm({
     pin: '',
     impressora_id: '',
     impressao_navegador: false,
+    offline: false,
+    prefixo_senha: '',
     ativo: true,
 })
 
@@ -183,6 +185,8 @@ function editarPosto(terminal) {
     postoForm.pin = ''
     postoForm.impressora_id = terminal.impressora_id || ''
     postoForm.impressao_navegador = Boolean(terminal.impressao_navegador)
+    postoForm.offline = Boolean(terminal.offline)
+    postoForm.prefixo_senha = terminal.prefixo_senha || ''
     postoForm.ativo = terminal.ativo
 }
 
@@ -468,6 +472,7 @@ function retentarFalhados() {
                                     {{ terminal.nome }}
                                     <span v-if="terminal.ativo && !terminal.impressora_id" class="ml-1 text-xs font-bold text-perigo">Sem impressora</span>
                                     <span v-if="!terminal.ativo" class="ml-1 text-xs font-bold text-laranja-texto">inativo</span>
+                                    <span v-if="terminal.offline" class="ml-1 rounded-full bg-azul/10 px-2 py-0.5 text-xs font-bold text-azul">sem internet · {{ terminal.prefixo_senha }}</span>
                                 </div>
                                 <div class="text-[13px] text-suave">{{ terminal.tipo }}<span v-if="terminal.localizacao"> · {{ terminal.localizacao }}</span></div>
                             </div>
@@ -531,6 +536,21 @@ function retentarFalhados() {
                         </select>
                         <InputError :message="postoForm.errors.impressora_id" />
                     </label>
+                </div>
+
+                <div v-if="['bar', 'cafe'].includes(postoForm.tipo)" class="flex flex-col gap-2 rounded-[10px] border border-linha-forte p-3">
+                    <label class="flex cursor-pointer items-start gap-3 text-[15px] font-bold">
+                        <input v-model="postoForm.offline" type="checkbox" class="mt-0.5 h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde" />
+                        <span>Trabalha sem internet
+                            <span class="block text-sm font-normal text-suave">Guarda as vendas no computador e envia-as sozinho quando houver rede. A impressora tem de ser USB pelo browser (WebUSB).</span>
+                        </span>
+                    </label>
+                    <label v-if="postoForm.offline" class="rotulo" for="posto_prefixo">Letra das senhas
+                        <input id="posto_prefixo" v-model="postoForm.prefixo_senha" type="text" maxlength="3" class="campo uppercase" placeholder="ex: B" @input="postoForm.prefixo_senha = postoForm.prefixo_senha.toUpperCase().replace(/[^A-Z]/g, '')">
+                        <span class="text-sm font-normal text-suave">As senhas deste posto saem como {{ postoForm.prefixo_senha || 'B' }}-1, {{ postoForm.prefixo_senha || 'B' }}-2… para nunca repetirem as dos outros postos.</span>
+                        <InputError :message="postoForm.errors.prefixo_senha" />
+                    </label>
+                    <InputError :message="postoForm.errors.offline" />
                 </div>
 
                 <div class="flex flex-wrap items-center justify-between gap-3">

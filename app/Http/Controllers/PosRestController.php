@@ -121,6 +121,7 @@ class PosRestController extends Controller
             'mesas' => $mesas,
             'pedidosFechadosHoje' => $pedidosFechadosHoje,
             'reservasSemMesa' => $reservasSemMesa,
+            'caixa' => fn () => PosCaixaController::resumoDoPosto(),
         ]);
     }
 

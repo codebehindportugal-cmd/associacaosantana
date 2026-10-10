@@ -159,7 +159,7 @@ class PrintJobService
                 'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
                 'Hora: '.now()->format('H:i'),
                 ...($pedido->numero_senha ? [[
-                    'texto' => 'SENHA #'.$pedido->numero_senha,
+                    'texto' => 'SENHA #'.$pedido->codigo_senha,
                     'alinhamento' => 'centro',
                     'tamanho' => 'grande',
                 ]] : []),
@@ -318,7 +318,7 @@ class PrintJobService
             'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
             'Hora: '.now()->format('H:i'),
             ...($pedido->numero_senha ? [[
-                'texto' => 'SENHA #'.$pedido->numero_senha,
+                'texto' => 'SENHA #'.$pedido->codigo_senha,
                 'alinhamento' => 'centro',
                 'tamanho' => 'grande',
             ]] : []),
@@ -425,7 +425,7 @@ class PrintJobService
             'titulo' => $talao->tituloImpresso(),
             'subtitulo' => 'ANULADA',
             'linhas' => [
-                ['texto' => 'SENHA #'.$pedido->numero_senha, 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+                ['texto' => 'SENHA #'.$pedido->codigo_senha, 'alinhamento' => 'centro', 'tamanho' => 'grande'],
                 ['texto' => 'ANULADA', 'alinhamento' => 'centro', 'tamanho' => 'grande'],
                 '------------------------------',
                 'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
@@ -488,7 +488,7 @@ class PrintJobService
             'titulo' => TalaoConfig::atual()->tituloImpresso(),
             'linhas' => [
                 ...($pedido->numero_senha ? [[
-                    'texto' => 'SENHA #'.$pedido->numero_senha,
+                    'texto' => 'SENHA #'.$pedido->codigo_senha,
                     'alinhamento' => 'centro',
                     'tamanho' => 'grande',
                 ]] : []),
@@ -618,7 +618,7 @@ class PrintJobService
     {
         if ($pedido->numero_senha) {
             return [[
-                'texto' => 'SENHA #'.$pedido->numero_senha,
+                'texto' => 'SENHA #'.$pedido->codigo_senha,
                 'alinhamento' => 'centro',
                 'tamanho' => 'grande',
             ]];
@@ -739,6 +739,27 @@ class PrintJobService
         ]);
     }
 
+    /**
+     * Talao de caixa (fecho ou leitura) na fila do agente. So para impressoras
+     * do agente (rede/USB no Raspberry); nas outras imprime-se no browser.
+     */
+    public function criarTalaoCaixa(\App\Models\CaixaDiaria $caixa, array $payload, string $secao = 'bar'): ?PrintJob
+    {
+        $impressora = $this->impressoraParaSecao($secao);
+
+        if (! $impressora || ! $impressora->usaAgente()) {
+            return null;
+        }
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $caixa::class,
+            'printable_id' => $caixa->id,
+            'tipo' => 'talao_caixa',
+            'payload' => $payload,
+        ]);
+    }
+
     private function linhasCaucao(Pedido $pedido, float $total): array
     {
         $cobrada = (float) ($pedido->caucao_cobrada ?? 0);
@@ -752,7 +773,9 @@ class PrintJobService
             'Produtos: '.$this->euros($total),
             ...($cobrada > 0 ? ['Caucao: '.$this->euros($cobrada)] : []),
             ...($descontada > 0 ? ['Caucao devolvida: -'.$this->euros($descontada)] : []),
-            'Total: '.$this->euros($total + $cobrada - $descontada),
+            $total + $cobrada - $descontada < 0
+                ? 'A devolver: '.$this->euros(abs($total + $cobrada - $descontada))
+                : 'Total: '.$this->euros($total + $cobrada - $descontada),
         ];
     }
 
@@ -760,7 +783,9 @@ class PrintJobService
     {
         $operador = $pedido->operador_nome ?: ($pedido->user?->name ?: $pedido->pos?->nome);
         $total = (float) ($pedido->total ?: $pedido->total_calculado);
-        $valorRecebido = (float) ($pedido->valor_recebido ?: $total + (float) $pedido->caucao_cobrada - (float) $pedido->caucao_descontada);
+        $valorRecebido = $pedido->valor_recebido !== null
+            ? (float) $pedido->valor_recebido
+            : max(0, $total + (float) $pedido->caucao_cobrada - (float) $pedido->caucao_descontada);
         $troco = (float) ($pedido->troco ?: 0);
         $doacao = (float) ($pedido->doacao ?: 0);
 
@@ -770,7 +795,7 @@ class PrintJobService
             'Operador: '.($operador ?: 'Sem operador'),
             'Hora: '.now()->format('H:i'),
             ...($pedido->numero_senha ? [[
-                'texto' => 'SENHA #'.$pedido->numero_senha,
+                'texto' => 'SENHA #'.$pedido->codigo_senha,
                 'alinhamento' => 'centro',
                 'tamanho' => 'grande',
             ]] : []),

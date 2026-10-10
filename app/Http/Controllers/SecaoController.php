@@ -69,7 +69,7 @@ class SecaoController extends Controller
             ->get()
             ->map(fn ($pedido) => [
                 'pedido_id' => $pedido->id,
-                'mesa' => 'Senha #'.$pedido->numero_senha,
+                'mesa' => 'Senha #'.$pedido->codigo_senha,
                 'operador' => $this->operadorPedido($pedido),
                 'urgente' => false,
                 // Início da espera (ISO 8601) — o ecrã calcula os minutos
@@ -110,7 +110,7 @@ class SecaoController extends Controller
             ->oldest()
             ->get()
             ->groupBy(fn ($item) => $item->pedido->tipo === 'bar_prepago'
-                ? 'Senha #'.$item->pedido->numero_senha
+                ? 'Senha #'.$item->pedido->codigo_senha
                 : ($item->pedido->mesa?->designacao ?? 'Para levar #'.$item->pedido_id))
             ->map(fn ($grupo, $mesa) => [
                 'mesa' => $mesa,
@@ -168,12 +168,14 @@ class SecaoController extends Controller
 
         if ($quantidadePronta < $pedidoItem->quantidade) {
             DB::transaction(function () use ($pedidoItem, $quantidadePronta) {
+                // Primeiro reduz e so depois cria a parte pronta: para o stock
+                // o total fica igual, mesmo que o produto ja esteja a zero.
                 $itemPronto = $pedidoItem->replicate();
+                $pedidoItem->decrement('quantidade', $quantidadePronta);
+
                 $itemPronto->quantidade = $quantidadePronta;
                 $itemPronto->estado = 'pronto';
                 $itemPronto->save();
-
-                $pedidoItem->decrement('quantidade', $quantidadePronta);
             });
         } else {
             $pedidoItem->update(['estado' => 'pronto']);

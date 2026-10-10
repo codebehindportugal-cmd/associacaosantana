@@ -1,7 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { Link, useForm } from '@inertiajs/vue3';
-import { computed, nextTick, ref } from 'vue';
+import { Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps({
     data: String,
@@ -15,9 +15,35 @@ const form = useForm({
 });
 
 const fecharForm = useForm({
-    valor_contado: 0,
+    valor_contado: '',
     observacoes_fecho: '',
+    contagem: {},
 });
+
+// Contagem da gaveta por notas e moedas (opcional): o total passa para o valor contado
+const DENOMINACOES = [
+    { valor: '500', label: '500 €' }, { valor: '200', label: '200 €' }, { valor: '100', label: '100 €' },
+    { valor: '50', label: '50 €' }, { valor: '20', label: '20 €' }, { valor: '10', label: '10 €' }, { valor: '5', label: '5 €' },
+    { valor: '2', label: '2 €' }, { valor: '1', label: '1 €' }, { valor: '0.5', label: '50 c' }, { valor: '0.2', label: '20 c' },
+    { valor: '0.1', label: '10 c' }, { valor: '0.05', label: '5 c' }, { valor: '0.02', label: '2 c' }, { valor: '0.01', label: '1 c' },
+];
+const contarNotas = ref(false);
+const totalContagem = computed(() => Math.round(DENOMINACOES.reduce((s, d) => s + Number(fecharForm.contagem[d.valor] || 0) * Number(d.valor), 0) * 100) / 100);
+watch(totalContagem, (total) => { if (contarNotas.value) fecharForm.valor_contado = total.toFixed(2); });
+const diferencaFecho = (caixa) => fecharForm.valor_contado === '' ? null : Math.round((Number(fecharForm.valor_contado) - Number(caixa.esperado_caixa || 0)) * 100) / 100;
+
+// Talao de fecho/leitura: pelo agente sai sozinho; senao abre-se para imprimir no browser
+const page = usePage();
+// replace: o "voltar" do browser nao reabre o talao
+watch(() => page.props.flash?.talaoCaixa, (url) => { if (url) router.visit(url, { replace: true }); }, { immediate: true });
+const aImprimir = ref(null);
+const imprimirTalao = (caixa) => {
+    router.post(route('caixa.imprimir', caixa.id), {}, {
+        preserveScroll: true,
+        onStart: () => (aImprimir.value = caixa.id),
+        onFinish: () => (aImprimir.value = null),
+    });
+};
 
 const caixaAFechar = ref(null);
 const caixasPorPonto = computed(() => Object.fromEntries((props.caixas ?? []).map((caixa) => [caixa.ponto, caixa])));
@@ -29,6 +55,7 @@ const totalEsperado = computed(() => (props.caixas ?? []).reduce((total, caixa) 
 const totalContado = computed(() => (props.caixas ?? []).reduce((total, caixa) => total + Number(caixa.valor_contado || 0), 0));
 const euros = (valor) => Number(valor ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const hora = (data) => data ? new Date(data).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '';
+const por_metodo_fora = (caixa) => ['mbway', 'contactless', 'multibanco'].some((m) => Number(caixa?.por_metodo?.[m]) > 0);
 const temCaucao = (caixa) => !!caixa?.caucao && (Number(caixa.caucao.recebidas) > 0 || Number(caixa.caucao.dinheiro) > 0 || Number(caixa.caucao.bebidas) > 0);
 const diferencaClass = (valor) => Number(valor || 0) === 0 ? 'text-tinta' : Number(valor) > 0 ? 'text-verde' : 'text-perigo';
 const estadoLabel = (caixa) => !caixa ? 'FALTA ABRIR' : caixa.estado === 'fechada' ? 'FECHADA' : 'ABERTA';
@@ -58,8 +85,11 @@ const abrirCaixa = () => {
 
 const prepararFecho = (caixa) => {
     caixaAFechar.value = caixa.id;
-    fecharForm.valor_contado = Number(caixa.esperado_caixa || 0).toFixed(2);
+    // Em branco de proposito: conta-se a gaveta, nao se copia o esperado
+    fecharForm.valor_contado = '';
     fecharForm.observacoes_fecho = '';
+    fecharForm.contagem = {};
+    contarNotas.value = false;
 };
 
 const cancelarFecho = () => {
@@ -68,7 +98,10 @@ const cancelarFecho = () => {
 };
 
 const fecharCaixa = (caixa) => {
-    fecharForm.patch(route('caixa.fechar', caixa.id), {
+    fecharForm.transform((dados) => ({
+        ...dados,
+        contagem: contarNotas.value ? Object.fromEntries(Object.entries(dados.contagem).filter(([, q]) => Number(q) > 0)) : {},
+    })).patch(route('caixa.fechar', caixa.id), {
         preserveScroll: true,
         onSuccess: cancelarFecho,
     });
@@ -134,6 +167,9 @@ const fecharCaixa = (caixa) => {
                             <div class="flex justify-between"><span>Contado</span><strong>{{ euros(restaurante.valor_contado) }}</strong></div>
                             <div class="flex justify-between"><span>Diferença</span><strong :class="diferencaClass(restaurante.diferenca)">{{ euros(restaurante.diferenca) }}</strong></div>
                         </div>
+                        <div v-if="restaurante" class="px-5 pb-3">
+                            <button type="button" class="h-11 w-full rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold disabled:opacity-45" :disabled="aImprimir === restaurante.id" @click="imprimirTalao(restaurante)">{{ restaurante.estado === 'fechada' ? 'Imprimir talão do fecho' : 'Imprimir leitura (sem fechar)' }}</button>
+                        </div>
 
                         <div class="flex flex-wrap gap-2.5 px-5 pb-5">
                             <Link :href="route('mesas.index')" class="inline-flex h-[52px] flex-[1_1_160px] items-center justify-center gap-2 rounded-[10px] bg-verde text-base font-bold text-white hover:bg-verde-escuro">
@@ -160,7 +196,7 @@ const fecharCaixa = (caixa) => {
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Valor contado
                                     <span class="flex h-14 items-center rounded-[10px] border border-linha-forte bg-white px-3.5 focus-within:border-verde">
-                                        <input v-model.number="fecharForm.valor_contado" type="number" min="0" step="0.01" inputmode="decimal" class="w-full min-w-0 border-0 bg-transparent p-0 text-2xl font-extrabold text-tinta focus:ring-0">
+                                        <input v-model="fecharForm.valor_contado" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="Contar a gaveta" class="w-full min-w-0 border-0 bg-transparent p-0 text-2xl font-extrabold text-tinta focus:ring-0">
                                         <span class="font-bold text-suave-2">€</span>
                                     </span>
                                 </label>
@@ -168,7 +204,24 @@ const fecharCaixa = (caixa) => {
                                     <input v-model="fecharForm.observacoes_fecho" class="h-14 w-full rounded-[10px] border border-linha-forte bg-white px-3.5 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Opcional">
                                 </label>
                             </div>
-                            <p class="text-sm text-perigo-texto">Esperado: <strong>{{ euros(restaurante.esperado_caixa) }}</strong>. A diferença é calculada ao confirmar.</p>
+                            <div class="flex flex-col gap-2">
+                                    <button type="button" class="self-start text-sm font-bold text-verde underline" :aria-expanded="contarNotas" @click="contarNotas = !contarNotas">{{ contarNotas ? 'Esconder contagem de notas e moedas' : 'Contar notas e moedas' }}</button>
+                                    <div v-if="contarNotas" class="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+                                        <label v-for="d in DENOMINACOES" :key="d.valor" class="flex flex-col rounded-[8px] border border-linha-forte bg-white px-2 py-1 text-xs font-bold text-suave">
+                                            {{ d.label }}
+                                            <input v-model.number="fecharForm.contagem[d.valor]" type="number" min="0" step="1" inputmode="numeric" class="h-9 w-full border-0 p-0 text-lg font-extrabold text-tinta focus:ring-0" placeholder="0" :aria-label="`Quantidade de ${d.label}`">
+                                        </label>
+                                    </div>
+                                </div>
+                                <div v-if="por_metodo_fora(restaurante)" class="flex flex-col gap-1 rounded-[10px] bg-white p-2.5 text-sm">
+                                    <div class="font-bold text-suave">Confere também (fora da gaveta)</div>
+                                    <div v-if="Number(restaurante.por_metodo.mbway) > 0" class="flex justify-between"><span>MB WAY</span><strong>{{ euros(restaurante.por_metodo.mbway) }}</strong></div>
+                                    <div v-if="Number(restaurante.por_metodo.contactless) > 0" class="flex justify-between"><span>Contactless</span><strong>{{ euros(restaurante.por_metodo.contactless) }}</strong></div>
+                                    <div v-if="Number(restaurante.por_metodo.multibanco) > 0" class="flex justify-between"><span>Multibanco</span><strong>{{ euros(restaurante.por_metodo.multibanco) }}</strong></div>
+                                </div>
+                                <p v-if="diferencaFecho(restaurante) !== null" class="text-sm font-bold" :class="diferencaClass(diferencaFecho(restaurante))">
+                                    {{ diferencaFecho(restaurante) === 0 ? 'Bate certo com o esperado.' : diferencaFecho(restaurante) > 0 ? `Sobram ${euros(diferencaFecho(restaurante))}` : `Faltam ${euros(-diferencaFecho(restaurante))}` }}
+                                </p>
                             <div v-if="Object.keys(fecharForm.errors).length" role="alert" class="rounded-[10px] bg-white p-3 text-sm font-semibold text-perigo-texto">
                                 <div v-for="erro in fecharForm.errors" :key="erro">{{ erro }}</div>
                             </div>
@@ -233,6 +286,8 @@ const fecharCaixa = (caixa) => {
                                     <div class="flex justify-between"><span>Contado</span><strong>{{ euros(caixasPorPonto[ponto].valor_contado) }}</strong></div>
                                     <div class="flex justify-between"><span>Diferença</span><strong :class="diferencaClass(caixasPorPonto[ponto].diferenca)">{{ euros(caixasPorPonto[ponto].diferenca) }}</strong></div>
                                 </div>
+                                <p v-if="caixasPorPonto[ponto]?.anuladas?.quantidade" class="text-sm text-suave">{{ caixasPorPonto[ponto].anuladas.quantidade }} senha(s) anulada(s) · devolvido {{ euros(caixasPorPonto[ponto].anuladas.devolvido) }}</p>
+                                <button v-if="caixasPorPonto[ponto] && caixaAFechar !== caixasPorPonto[ponto].id" type="button" class="h-11 rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold disabled:opacity-45" :disabled="aImprimir === caixasPorPonto[ponto].id" @click="imprimirTalao(caixasPorPonto[ponto])">{{ caixasPorPonto[ponto].estado === 'fechada' ? 'Imprimir talão do fecho' : 'Imprimir leitura (sem fechar)' }}</button>
 
                                 <div v-if="caixaAFechar !== caixasPorPonto[ponto]?.id || !caixasPorPonto[ponto]" class="grid grid-cols-2 gap-2">
                                     <Link v-if="caixasPorPonto[ponto]?.estado === 'aberta'" :href="route('bar.index', { ponto })" class="col-span-2 inline-flex h-12 items-center justify-center rounded-[10px] bg-verde text-[15px] font-bold text-white hover:bg-verde-escuro">Vender senhas</Link>
@@ -251,14 +306,31 @@ const fecharCaixa = (caixa) => {
                                 <form v-if="caixasPorPonto[ponto] && caixaAFechar === caixasPorPonto[ponto].id" class="flex flex-col gap-3 rounded-[10px] bg-perigo-claro p-3.5" @submit.prevent="fecharCaixa(caixasPorPonto[ponto])">
                                     <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Valor contado
                                         <span class="flex h-14 items-center rounded-[10px] border border-linha-forte bg-white px-3.5 focus-within:border-verde">
-                                            <input v-model.number="fecharForm.valor_contado" type="number" min="0" step="0.01" inputmode="decimal" class="w-full min-w-0 border-0 bg-transparent p-0 text-2xl font-extrabold text-tinta focus:ring-0">
+                                            <input v-model="fecharForm.valor_contado" type="number" min="0" step="0.01" inputmode="decimal" required placeholder="Contar a gaveta" class="w-full min-w-0 border-0 bg-transparent p-0 text-2xl font-extrabold text-tinta focus:ring-0">
                                             <span class="font-bold text-suave-2">€</span>
                                         </span>
                                     </label>
                                     <label class="flex flex-col gap-1.5 text-sm font-semibold text-suave">Observações
                                         <textarea v-model="fecharForm.observacoes_fecho" rows="2" class="w-full rounded-[10px] border border-linha-forte bg-white p-3 text-base text-tinta focus:border-verde focus:ring-verde" placeholder="Opcional"></textarea>
                                     </label>
-                                    <p class="text-sm text-perigo-texto">Esperado: <strong>{{ euros(caixasPorPonto[ponto].esperado_caixa) }}</strong></p>
+<div class="flex flex-col gap-2">
+                                    <button type="button" class="self-start text-sm font-bold text-verde underline" :aria-expanded="contarNotas" @click="contarNotas = !contarNotas">{{ contarNotas ? 'Esconder contagem de notas e moedas' : 'Contar notas e moedas' }}</button>
+                                    <div v-if="contarNotas" class="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+                                        <label v-for="d in DENOMINACOES" :key="d.valor" class="flex flex-col rounded-[8px] border border-linha-forte bg-white px-2 py-1 text-xs font-bold text-suave">
+                                            {{ d.label }}
+                                            <input v-model.number="fecharForm.contagem[d.valor]" type="number" min="0" step="1" inputmode="numeric" class="h-9 w-full border-0 p-0 text-lg font-extrabold text-tinta focus:ring-0" placeholder="0" :aria-label="`Quantidade de ${d.label}`">
+                                        </label>
+                                    </div>
+                                </div>
+                                <div v-if="por_metodo_fora(caixasPorPonto[ponto])" class="flex flex-col gap-1 rounded-[10px] bg-white p-2.5 text-sm">
+                                    <div class="font-bold text-suave">Confere também (fora da gaveta)</div>
+                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.mbway) > 0" class="flex justify-between"><span>MB WAY</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.mbway) }}</strong></div>
+                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.contactless) > 0" class="flex justify-between"><span>Contactless</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.contactless) }}</strong></div>
+                                    <div v-if="Number(caixasPorPonto[ponto].por_metodo.multibanco) > 0" class="flex justify-between"><span>Multibanco</span><strong>{{ euros(caixasPorPonto[ponto].por_metodo.multibanco) }}</strong></div>
+                                </div>
+                                <p v-if="diferencaFecho(caixasPorPonto[ponto]) !== null" class="text-sm font-bold" :class="diferencaClass(diferencaFecho(caixasPorPonto[ponto]))">
+                                    {{ diferencaFecho(caixasPorPonto[ponto]) === 0 ? 'Bate certo com o esperado.' : diferencaFecho(caixasPorPonto[ponto]) > 0 ? `Sobram ${euros(diferencaFecho(caixasPorPonto[ponto]))}` : `Faltam ${euros(-diferencaFecho(caixasPorPonto[ponto]))}` }}
+                                </p>
                                     <div v-if="Object.keys(fecharForm.errors).length" role="alert" class="rounded-[10px] bg-white p-3 text-sm font-semibold text-perigo-texto">
                                         <div v-for="erro in fecharForm.errors" :key="erro">{{ erro }}</div>
                                     </div>

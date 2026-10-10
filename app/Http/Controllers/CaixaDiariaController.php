@@ -7,6 +7,8 @@ use App\Models\CaucaoDevolucao;
 use App\Models\Configuracao;
 use App\Models\Pedido;
 use App\Models\PosSession;
+use App\Models\TalaoConfig;
+use App\Services\CaixaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,9 +17,9 @@ use Inertia\Response;
 
 class CaixaDiariaController extends Controller
 {
-    public function __construct()
+    public function __construct(private CaixaService $caixas)
     {
-        $this->middleware('permission:caixa.ver')->only('index');
+        $this->middleware('permission:caixa.ver')->only(['index', 'talao', 'imprimir']);
         $this->middleware('permission:caixa.gerir')->only(['store', 'fechar']);
     }
 
@@ -36,37 +38,21 @@ class CaixaDiariaController extends Controller
         return Inertia::render('Caixa/Index', [
             'data' => today()->toDateString(),
             'pontos_padrao' => $request->user()->can('bar.ver') ? $this->pontosPadrao() : ['Restaurante'],
-            'caixas' => $caixas->map(function (CaixaDiaria $caixa) {
-                $venda = $this->vendasDoPonto($caixa);
-                $caucao = $this->caucoesDoPonto($caixa);
-                $esperado = $this->esperadoNaGaveta($caixa, $venda, $caucao);
-
-                return [
-                    'id' => $caixa->id,
-                    'data' => $caixa->data->toDateString(),
-                    'ponto' => $caixa->ponto,
-                    'fundo_maneio' => (float) $caixa->fundo_maneio,
-                    'estado' => $caixa->estado,
-                    'vendas' => (float) ($venda->total ?? 0),
-                    'doacoes' => (float) ($venda->doacoes ?? 0),
-                    // Pagamentos que nao vao para a gaveta (conferir com o terminal / telemovel)
-                    'por_metodo' => [
-                        'mbway' => round((float) ($venda->mbway ?? 0), 2),
-                        'contactless' => round((float) ($venda->contactless ?? 0), 2),
-                        'multibanco' => round((float) ($venda->multibanco ?? 0), 2),
-                    ],
-                    'pedidos' => (int) ($venda->pedidos ?? 0),
-                    'esperado_caixa' => round($esperado, 2),
-                    'caucao' => $caucao,
-                    'valor_contado' => $caixa->valor_contado !== null ? (float) $caixa->valor_contado : null,
-                    'diferenca' => (float) $caixa->diferenca,
-                    'observacoes_fecho' => $caixa->observacoes_fecho,
-                    'aberto_por' => $caixa->user?->name,
-                    'aberto_as' => $caixa->created_at,
-                    'fechado_por' => $caixa->fechadoPor?->name,
-                    'fechado_as' => $caixa->fechado_at,
-                ];
-            })->values(),
+            'caixas' => $caixas->map(fn (CaixaDiaria $caixa) => [
+                'id' => $caixa->id,
+                'data' => $caixa->data->toDateString(),
+                'ponto' => $caixa->ponto,
+                'fundo_maneio' => (float) $caixa->fundo_maneio,
+                'estado' => $caixa->estado,
+                ...$this->caixas->resumo($caixa),
+                'valor_contado' => $caixa->valor_contado !== null ? (float) $caixa->valor_contado : null,
+                'diferenca' => (float) $caixa->diferenca,
+                'observacoes_fecho' => $caixa->observacoes_fecho,
+                'aberto_por' => $caixa->user?->name,
+                'aberto_as' => $caixa->created_at,
+                'fechado_por' => $caixa->fechadoPor?->name ?? $caixa->fechado_por_nome,
+                'fechado_as' => $caixa->fechado_at,
+            ])->values(),
         ]);
     }
 
@@ -118,21 +104,39 @@ class CaixaDiariaController extends Controller
         $data = $request->validate([
             'valor_contado' => ['required', 'numeric', 'min:0'],
             'observacoes_fecho' => ['nullable', 'string', 'max:1000'],
+            // Opcional: quantas notas/moedas de cada valor
+            'contagem' => ['nullable', 'array'],
+            'contagem.*' => ['nullable', 'integer', 'min:0', 'max:100000'],
         ]);
 
-        $esperado = $this->esperadoNaGaveta($caixa, $this->vendasDoPonto($caixa), $this->caucoesDoPonto($caixa));
-        $valorContado = round((float) $data['valor_contado'], 2);
+        $caixa = $this->caixas->fechar($caixa, (float) $data['valor_contado'], $data['contagem'] ?? [], $data['observacoes_fecho'] ?? null, $request->user()->id);
 
-        $caixa->update([
-            'estado' => 'fechada',
-            'valor_contado' => $valorContado,
-            'diferenca' => round($valorContado - $esperado, 2),
-            'observacoes_fecho' => $data['observacoes_fecho'] ?? null,
-            'fechado_user_id' => $request->user()->id,
-            'fechado_at' => now(),
+        return $this->enviarTalao($caixa, 'Caixa fechada para '.$caixa->ponto.'.');
+    }
+
+    /** Talao da caixa para imprimir no browser (80 mm). Caixa aberta = leitura sem fechar. */
+    public function talao(Request $request, CaixaDiaria $caixa): Response
+    {
+        $this->autorizarPonto($request, $caixa);
+
+        return Inertia::render('Caixa/Talao', [
+            'payload' => $this->caixas->payloadTalao($caixa),
+            'modo' => $this->caixas->impressoraDoPonto($caixa)?->tipo ?? 'navegador',
+            'voltar' => route('caixa.index'),
         ]);
+    }
 
-        return back()->with('success', 'Caixa fechada para '.$caixa->ponto.'.');
+    /** Reimprime o fecho (ou tira uma leitura de uma caixa aberta). */
+    public function imprimir(Request $request, CaixaDiaria $caixa): RedirectResponse
+    {
+        $this->autorizarPonto($request, $caixa);
+
+        return $this->enviarTalao($caixa, $caixa->estado === 'fechada' ? 'Talão do fecho enviado.' : 'Leitura da caixa enviada.');
+    }
+
+    private function autorizarPonto(Request $request, CaixaDiaria $caixa): void
+    {
+        abort_if($caixa->ponto !== 'Restaurante' && ! $request->user()->can('bar.ver'), 403);
     }
 
     /** Horas sem senhas a partir das quais a contagem pode recomecar no 1. */
@@ -173,91 +177,16 @@ class CaixaDiariaController extends Controller
         );
     }
 
-    /**
-     * Dinheiro que tem de estar na gaveta: fundo + o que entrou a dinheiro
-     * (vendas, caucoes cobradas menos as descontadas, troco deixado) menos as
-     * caucoes devolvidas em dinheiro. MB WAY, contactless e multibanco nao
-     * entram na gaveta.
-     */
-    private function esperadoNaGaveta(CaixaDiaria $caixa, ?object $venda, array $caucao): float
+    /** Pelo agente sai sozinho; senao abre-se a pagina do talao para imprimir no browser. */
+    private function enviarTalao(CaixaDiaria $caixa, string $mensagem): RedirectResponse
     {
-        return round((float) $caixa->fundo_maneio + (float) ($venda?->entrada_gaveta ?? 0) - (float) $caucao['dinheiro'], 2);
-    }
+        $job = $this->caixas->imprimirTalao($caixa);
 
-    private function somasVenda(): array
-    {
-        $metodo = "COALESCE(metodo_pagamento, 'dinheiro')";
-        $pago = 'total + COALESCE(caucao_cobrada, 0) - COALESCE(caucao_descontada, 0) + COALESCE(doacao, 0)';
-
-        return [
-            DB::raw('SUM(total) as total'),
-            DB::raw('SUM(doacao) as doacoes'),
-            DB::raw('COUNT(*) as pedidos'),
-            DB::raw("SUM(CASE WHEN $metodo = 'dinheiro' THEN $pago ELSE 0 END) as entrada_gaveta"),
-            DB::raw("SUM(CASE WHEN $metodo = 'mbway' THEN $pago ELSE 0 END) as mbway"),
-            DB::raw("SUM(CASE WHEN $metodo = 'contactless' THEN $pago ELSE 0 END) as contactless"),
-            DB::raw("SUM(CASE WHEN $metodo = 'multibanco' THEN $pago ELSE 0 END) as multibanco"),
-        ];
-    }
-
-    private function vendasDoPonto(CaixaDiaria $caixa): object
-    {
-        if ($caixa->ponto === 'Restaurante') {
-            return Pedido::where('tipo', 'restaurante')
-                ->where('created_at', '>=', $caixa->created_at)
-                ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
-                ->where('estado', 'entregue')
-                ->select($this->somasVenda())
-                ->first();
+        if ($job) {
+            return back()->with('success', $mensagem.' O talão saiu na impressora '.$job->impressora?->nome.'.');
         }
 
-        return Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
-            ->where('created_at', '>=', $caixa->created_at)
-            ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
-            ->where('ponto_bar', $caixa->ponto)
-            ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
-            ->select($this->somasVenda())
-            ->first();
-    }
-
-    /**
-     * Caucoes dos metros neste ponto. Nao sao vendas: entram e saem da gaveta.
-     * recebidas  = caucao cobrada nas senhas
-     * bebidas    = metros devolvidos descontados numa senha (dinheiro que nao entrou)
-     * dinheiro   = metros devolvidos com o dinheiro devolvido (saiu da gaveta)
-     * saldo      = efeito na gaveta (um metro pode ser comprado num ponto e devolvido noutro)
-     */
-    private function caucoesDoPonto(CaixaDiaria $caixa): array
-    {
-        $vazio = ['recebidas' => 0.0, 'bebidas' => 0.0, 'dinheiro' => 0.0, 'saldo' => 0.0];
-
-        if ($caixa->ponto === 'Restaurante') {
-            return $vazio;
-        }
-
-        $recebidas = (float) Pedido::whereIn('tipo', ['bar_conta', 'bar_prepago'])
-            ->where('created_at', '>=', $caixa->created_at)
-            ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
-            ->where('ponto_bar', $caixa->ponto)
-            ->where(fn ($query) => $query->where('estado', 'entregue')->orWhere('pago_antecipado', true))
-            ->sum('caucao_cobrada');
-
-        $devolucoes = CaucaoDevolucao::where('ponto', $caixa->ponto)
-            ->where('created_at', '>=', $caixa->created_at)
-            ->when($caixa->fechado_at, fn ($query) => $query->where('created_at', '<=', $caixa->fechado_at))
-            ->selectRaw('modo, SUM(valor_total) as total')
-            ->groupBy('modo')
-            ->pluck('total', 'modo');
-
-        $bebidas = (float) ($devolucoes['bebidas'] ?? 0);
-        $dinheiro = (float) ($devolucoes['dinheiro'] ?? 0);
-
-        return [
-            'recebidas' => round($recebidas, 2),
-            'bebidas' => round($bebidas, 2),
-            'dinheiro' => round($dinheiro, 2),
-            'saldo' => round($recebidas - $bebidas - $dinheiro, 2),
-        ];
+        return back()->with('success', $mensagem)->with('talao_caixa', route('caixa.talao', $caixa));
     }
 
     private function pontosPadrao(): array

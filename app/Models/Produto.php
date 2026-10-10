@@ -19,6 +19,7 @@ class Produto extends Model
         'unidade_compra',
         'custo_preparacao_unitario',
         'stock_atual',
+        'gerir_stock',
         'disponivel',
         'disponivel_restaurante',
         'disponivel_bar',
@@ -26,6 +27,7 @@ class Produto extends Model
     ];
 
     protected $casts = [
+        'gerir_stock' => 'boolean',
         'disponivel' => 'boolean',
         'disponivel_restaurante' => 'boolean',
         'disponivel_bar' => 'boolean',
@@ -73,7 +75,13 @@ class Produto extends Model
 
     public function scopeDisponiveis($query)
     {
-        return $query->where('disponivel', true);
+        return $query->where('disponivel', true)->comStock();
+    }
+
+    /** Produtos que gerem stock so aparecem enquanto houver stock. */
+    public function scopeComStock($query)
+    {
+        return $query->where(fn ($q) => $q->where('gerir_stock', false)->orWhere('stock_atual', '>', 0));
     }
 
     public function scopeDisponiveisRestaurante($query)

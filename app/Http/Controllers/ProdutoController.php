@@ -96,6 +96,7 @@ class ProdutoController extends Controller
             'unidade_compra' => ['nullable', 'string', 'max:20'],
             'custo_preparacao_unitario' => ['nullable', 'numeric', 'min:0'],
             'stock_atual' => ['nullable', 'numeric', 'min:0'],
+            'gerir_stock' => ['sometimes', 'boolean'],
             'disponivel' => ['boolean'],
             'disponivel_restaurante' => ['boolean'],
             'disponivel_bar' => ['boolean'],

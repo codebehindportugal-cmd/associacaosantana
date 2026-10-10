@@ -140,12 +140,17 @@ const escpos = (job) => {
         ]);
     };
 
-    // ESC p 0 t1 t2 — abre gaveta de dinheiro (pin 2, 50ms on, 500ms off)
-    const abrirCaixa = payload.abrir_caixa ? bytes(0x1b, 0x70, 0x00, 0x19, 0xfa) : Buffer.alloc(0);
+    // ESC p m t1 t2 — abre a gaveta do dinheiro. Vai DEPOIS do ESC @: em varias
+    // impressoras de rede o ESC @ (reiniciar) cortava o impulso antes de a gaveta
+    // abrir. Impulso nos dois conectores (pino 2 e pino 5), 50 ms como antes, porque cada
+    // gaveta esta ligada a um deles; o que nao tem gaveta ignora.
+    const abrirCaixa = payload.abrir_caixa
+        ? bytes(0x1b, 0x70, 0x00, 0x19, 0xfa, 0x1b, 0x70, 0x01, 0x19, 0xfa)
+        : Buffer.alloc(0);
 
     return Buffer.concat([
-        abrirCaixa,
         bytes(0x1b, 0x40),
+        abrirCaixa,
         bytes(...(codepageCommands[PRINT_CODEPAGE] ?? codepageCommands.cp860)),
         bytes(0x1b, 0x61, 0x01),
         bytes(0x1b, 0x21, 0x18),

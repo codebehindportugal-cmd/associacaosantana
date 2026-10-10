@@ -17,19 +17,70 @@ const props = defineProps({
     metodos_pagamento: Array,
     festa_receitas: Array,
     festa_custos: Array,
+    vendas_por_operador: Array,
+    stock: Array,
 });
 const filtros = reactive({ ...props.filters });
 const max = computed(() => Math.max(1, ...(props.vendas_por_dia ?? []).map((d) => Number(d.total))));
 const maxHora = computed(() => Math.max(1, ...(props.vendas_por_hora ?? []).map((h) => Number(h.total))));
 const euros = (v) => Number(v ?? 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const filtrar = () => router.get(route('relatorios.periodo'), filtros, { preserveState: true });
-const pdf = () => { window.location = route('relatorios.pdf', filtros); };
+// Exportar: escolhe formato, produtos, colunas e seccoes (fica lembrado neste browser)
+const COLUNAS = [
+    { id: 'categoria', label: 'Categoria' },
+    { id: 'quantidade', label: 'Quantidade' },
+    { id: 'total', label: 'Total' },
+    { id: 'custo', label: 'Custo' },
+    { id: 'margem', label: 'Margem' },
+    { id: 'margem_pct', label: 'Margem %' },
+];
+const SECCOES = [
+    { id: 'resumo', label: 'Resumo' },
+    { id: 'dias', label: 'Vendas por dia' },
+    { id: 'tipos', label: 'Resumo por tipo' },
+    { id: 'bar', label: 'Dinheiro do bar por ponto' },
+    { id: 'caixa', label: 'Caixa e fundo de maneio' },
+    { id: 'operadores', label: 'Vendas por operador' },
+    { id: 'produtos', label: 'Produtos vendidos' },
+    { id: 'stock', label: 'Stock no período' },
+];
+const CHAVE_EXPORT = 'relatorios.exportar';
+const exportPadrao = () => ({ formato: 'pdf', tabela: 'produtos', produtos: 'todos', colunas: COLUNAS.map((c) => c.id), seccoes: SECCOES.map((c) => c.id) });
+const lerExport = () => {
+    try {
+        const guardado = { ...exportPadrao(), ...JSON.parse(localStorage.getItem(CHAVE_EXPORT) || '{}') };
+        // Seccoes novas aparecem marcadas mesmo para quem ja tinha escolhas guardadas
+        guardado.seccoes = [...new Set([...guardado.seccoes, ...SECCOES.map((c) => c.id).filter((id) => !(guardado.conhecidas ?? []).includes(id))])];
+        guardado.conhecidas = SECCOES.map((c) => c.id);
+        return guardado;
+    } catch { return exportPadrao(); }
+};
+const exportar = reactive(lerExport());
+const painelExportar = ref(false);
+const alternar = (lista, id) => {
+    const i = exportar[lista].indexOf(id);
+    i >= 0 ? exportar[lista].splice(i, 1) : exportar[lista].push(id);
+};
+const semNada = computed(() => exportar.formato === 'csv' ? false : !exportar.seccoes.length);
+const descarregar = () => {
+    try { localStorage.setItem(CHAVE_EXPORT, JSON.stringify(exportar)); } catch { /* sem armazenamento */ }
+    window.location = route('relatorios.pdf', {
+        ...filtros,
+        formato: exportar.formato,
+        tabela: exportar.tabela,
+        produtos: exportar.produtos,
+        colunas: COLUNAS.map((c) => c.id).filter((id) => exportar.colunas.includes(id)),
+        seccoes: exportar.formato === 'csv' ? ['produtos'] : exportar.seccoes,
+    });
+    painelExportar.value = false;
+};
 const mostrarTodosProdutos = ref(false);
 const produtosVisiveis = computed(() => mostrarTodosProdutos.value ? (props.todos_produtos ?? []) : (props.top_produtos ?? []));
 const totalFestaReceitas = computed(() => (props.festa_receitas ?? []).reduce((s, r) => s + Number(r.valor), 0));
 const totalFestaCustos = computed(() => (props.festa_custos ?? []).reduce((s, c) => s + Number(c.valor), 0));
 
 // --- Só para a apresentação ---
+const qtd = (v) => Number(v || 0).toLocaleString('pt-PT', { maximumFractionDigits: 3 });
 const percentagem = (v) => Number(v || 0).toLocaleString('pt-PT', { useGrouping: 'always', minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
 const eurosCurto = (v) => Math.round(Number(v || 0)).toLocaleString('pt-PT', { useGrouping: 'always' }) + ' €';
 const sinal = (v) => (Number(v) > 0 ? '+' : '') + euros(v);
@@ -69,10 +120,76 @@ const campo = 'h-12 w-full min-w-0 rounded-[10px] border border-linha-forte bg-w
                     </Link>
                     <h1 class="text-[30px] font-extrabold leading-tight">Relatório por período</h1>
                 </div>
-                <button type="button" class="inline-flex h-12 items-center gap-2 rounded-[10px] border border-linha-forte bg-white px-5 text-[15px] font-bold text-tinta hover:bg-fundo" @click="pdf">
+                <button type="button" class="inline-flex h-12 items-center gap-2 rounded-[10px] border border-linha-forte bg-white px-5 text-[15px] font-bold text-tinta hover:bg-fundo" @click="painelExportar = true">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
-                    Exportar PDF
+                    Exportar
                 </button>
+            </div>
+
+            <!-- Exportar -->
+            <div v-if="painelExportar" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="titulo-exportar" @click.self="painelExportar = false">
+                <div class="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[16px] bg-white p-5 sm:rounded-[16px]">
+                    <h2 id="titulo-exportar" class="text-xl font-extrabold">Exportar relatório</h2>
+                    <p class="mt-1 text-sm text-suave">Usa as datas e o tipo de venda escolhidos nos filtros.</p>
+
+                    <fieldset class="mt-4">
+                        <legend class="text-sm font-bold text-suave">Formato</legend>
+                        <div class="mt-1.5 grid grid-cols-2 gap-2">
+                            <label v-for="f in [{ id: 'pdf', label: 'PDF', sub: 'Para imprimir ou enviar' }, { id: 'csv', label: 'Excel (CSV)', sub: 'Uma tabela à escolha' }]" :key="f.id"
+                                class="flex cursor-pointer flex-col rounded-[10px] px-3 py-2.5"
+                                :class="exportar.formato === f.id ? 'border-[3px] border-verde bg-verde-claro' : 'border border-linha-forte'">
+                                <input v-model="exportar.formato" type="radio" :value="f.id" class="sr-only">
+                                <span class="text-[15px] font-bold">{{ f.label }}</span>
+                                <span class="text-xs text-suave">{{ f.sub }}</span>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset v-if="exportar.formato === 'csv'" class="mt-4">
+                        <legend class="text-sm font-bold text-suave">Tabela</legend>
+                        <div class="mt-1.5 grid grid-cols-3 gap-2">
+                            <label v-for="t in [{ id: 'produtos', label: 'Produtos' }, { id: 'operadores', label: 'Operadores' }, { id: 'stock', label: 'Stock' }]" :key="t.id"
+                                class="flex h-12 cursor-pointer items-center justify-center rounded-[10px] text-[15px] font-bold"
+                                :class="exportar.tabela === t.id ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte'">
+                                <input v-model="exportar.tabela" type="radio" :value="t.id" class="sr-only">{{ t.label }}
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset v-if="exportar.formato === 'pdf' || exportar.tabela === 'produtos'" class="mt-4">
+                        <legend class="text-sm font-bold text-suave">Produtos</legend>
+                        <div class="mt-1.5 grid grid-cols-2 gap-2">
+                            <label v-for="o in [{ id: 'todos', label: `Todos (${todos_produtos?.length ?? 0})` }, { id: 'top10', label: 'Só o top 10' }]" :key="o.id"
+                                class="flex h-12 cursor-pointer items-center justify-center rounded-[10px] text-[15px] font-bold"
+                                :class="exportar.produtos === o.id ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte'">
+                                <input v-model="exportar.produtos" type="radio" :value="o.id" class="sr-only">{{ o.label }}
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset v-if="exportar.formato === 'pdf' || exportar.tabela === 'produtos'" class="mt-4">
+                        <legend class="text-sm font-bold text-suave">Colunas dos produtos <span class="font-normal">(o nome sai sempre)</span></legend>
+                        <div class="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            <label v-for="c in COLUNAS" :key="c.id" class="flex h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-linha-forte px-3 text-[15px] font-semibold">
+                                <input type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde" :checked="exportar.colunas.includes(c.id)" @change="alternar('colunas', c.id)">{{ c.label }}
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset v-if="exportar.formato === 'pdf'" class="mt-4">
+                        <legend class="text-sm font-bold text-suave">Secções do PDF</legend>
+                        <div class="mt-1.5 grid gap-2 sm:grid-cols-2">
+                            <label v-for="c in SECCOES" :key="c.id" class="flex h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-linha-forte px-3 text-[15px] font-semibold">
+                                <input type="checkbox" class="h-[18px] w-[18px] rounded border-linha-forte text-verde focus:ring-verde" :checked="exportar.seccoes.includes(c.id)" @change="alternar('seccoes', c.id)">{{ c.label }}
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <div class="mt-5 grid grid-cols-2 gap-2">
+                        <button type="button" class="h-12 rounded-[10px] border border-linha-forte bg-white text-[15px] font-bold" @click="painelExportar = false">Cancelar</button>
+                        <button type="button" class="h-12 rounded-[10px] bg-verde text-[15px] font-bold text-white hover:bg-verde-escuro disabled:opacity-45" :disabled="semNada" @click="descarregar">Descarregar</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Filtros -->
@@ -263,6 +380,67 @@ const campo = 'h-12 w-full min-w-0 rounded-[10px] border border-linha-forte bg-w
                     </div>
                 </section>
             </div>
+
+            <!-- Vendas por operador -->
+            <section v-if="vendas_por_operador?.length" class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                <h2 class="px-5 py-4 text-[19px] font-extrabold">Vendas por operador</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[640px] border-collapse text-[15px]">
+                        <thead>
+                            <tr class="text-right text-[13px] text-suave-2">
+                                <th scope="col" class="border-y border-linha-fraca px-5 py-3 text-left font-semibold">Operador</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">Vendas</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">Total</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">Dinheiro</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">MB WAY</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">Outros</th>
+                                <th scope="col" class="border-y border-linha-fraca px-5 py-3 font-semibold">Anuladas</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="o in vendas_por_operador" :key="o.operador" class="border-b border-linha-fraca text-right last:border-0">
+                                <td class="px-5 py-[11px] text-left font-bold">{{ o.operador }}</td>
+                                <td class="px-3 py-[11px]">{{ o.pedidos }}</td>
+                                <td class="whitespace-nowrap px-3 py-[11px] font-bold">{{ euros(o.total) }}</td>
+                                <td class="whitespace-nowrap px-3 py-[11px]">{{ euros(o.dinheiro) }}</td>
+                                <td class="whitespace-nowrap px-3 py-[11px]">{{ euros(o.mbway) }}</td>
+                                <td class="whitespace-nowrap px-3 py-[11px]">{{ euros(o.outros) }}</td>
+                                <td class="whitespace-nowrap px-5 py-[11px]" :class="o.anuladas ? 'font-bold text-perigo' : 'text-suave-2'">{{ o.anuladas }}<template v-if="o.anuladas"> · {{ euros(o.devolvido) }}</template></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Stock no periodo -->
+            <section v-if="stock?.length" class="overflow-hidden rounded-[14px] border border-linha bg-white">
+                <div class="px-5 py-4">
+                    <h2 class="text-[19px] font-extrabold">Stock no período</h2>
+                    <p class="text-sm text-suave">Produtos com "Gerir stock". O inicial é calculado a partir do stock de hoje; acertos feitos à mão no stock não entram.</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[560px] border-collapse text-[15px]">
+                        <thead>
+                            <tr class="text-right text-[13px] text-suave-2">
+                                <th scope="col" class="border-y border-linha-fraca px-5 py-3 text-left font-semibold">Produto</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">Inicial</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">Entradas</th>
+                                <th scope="col" class="border-y border-linha-fraca p-3 font-semibold">Vendido</th>
+                                <th scope="col" class="border-y border-linha-fraca px-5 py-3 font-semibold">Final</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="l in stock" :key="l.nome" class="border-b border-linha-fraca text-right last:border-0">
+                                <td class="px-5 py-[11px] text-left font-bold">{{ l.nome }} <span class="font-normal text-suave-2">{{ l.categoria }}</span></td>
+                                <td class="px-3 py-[11px]">{{ qtd(l.inicial) }}</td>
+                                <td class="px-3 py-[11px]">{{ l.entradas ? '+' + qtd(l.entradas) : '—' }}</td>
+                                <td class="px-3 py-[11px]">{{ l.vendido ? '−' + qtd(l.vendido) : '—' }}</td>
+                                <td class="px-5 py-[11px] font-bold" :class="Number(l.final) <= 0 ? 'text-perigo' : ''">{{ qtd(l.final) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
             <!-- Produtos vendidos -->
             <section class="overflow-hidden rounded-[14px] border border-linha bg-white">

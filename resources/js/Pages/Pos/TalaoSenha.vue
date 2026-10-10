@@ -35,7 +35,7 @@ const aImprimir = ref(false);
 const data = () => new Date(props.pedido.created_at).toLocaleString('pt-PT');
 const operador = computed(() => props.pedido.operador_nome ?? props.pedido.user?.name ?? props.pedido.pos?.nome ?? 'Sem operador');
 const euros = (valor) => Number(valor ?? 0).toFixed(2) + '€';
-const senha = computed(() => props.pedido.numero_senha || props.pedido.id);
+const senha = computed(() => props.pedido.codigo_senha || props.pedido.numero_senha || props.pedido.id);
 const titulo = computed(() => props.talao?.titulo || 'Associação de Santana');
 const cabecalho = computed(() => props.talao?.cabecalho ?? []);
 const rodape = computed(() => props.talao?.rodape ?? []);

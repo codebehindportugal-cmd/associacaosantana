@@ -22,6 +22,8 @@ use App\Models\SponsorshipRequest;
 use App\Models\User;
 use App\Models\ZonaMapa;
 use App\Observers\AuditObserver;
+use App\Observers\PedidoItemStockObserver;
+use App\Observers\PedidoStockObserver;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
@@ -70,5 +72,9 @@ class AppServiceProvider extends ServiceProvider
             User::class,
             ZonaMapa::class,
         ])->each(fn (string $model) => $model::observe(AuditObserver::class));
+
+        // Vendas descontam stock dos produtos com "gerir stock" ligado
+        PedidoItem::observe(PedidoItemStockObserver::class);
+        Pedido::observe(PedidoStockObserver::class);
     }
 }

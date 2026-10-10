@@ -26,6 +26,7 @@ class PosTerminalController extends Controller
         PosSession::create($dados + [
             'ativo' => $request->boolean('ativo', true),
             'impressao_navegador' => $request->boolean('impressao_navegador'),
+            'offline' => $request->boolean('offline'),
         ]);
 
         return back()->with('success', 'Posto criado.');
@@ -43,6 +44,7 @@ class PosTerminalController extends Controller
         $terminal->update($dados + [
             'ativo' => $request->boolean('ativo', true),
             'impressao_navegador' => $request->boolean('impressao_navegador'),
+            'offline' => $request->boolean('offline'),
         ]);
 
         return back()->with('success', 'Posto atualizado.');
@@ -79,6 +81,22 @@ class PosTerminalController extends Controller
             'pin' => [$novo ? 'required' : 'nullable', 'string', 'min:4', 'max:12'],
             'impressora_id' => ['nullable', 'exists:impressoras,id'],
             'impressao_navegador' => ['nullable', 'boolean'],
+            // Trabalhar sem internet: so no bar/cafe, com uma letra unica nas senhas
+            'offline' => ['nullable', 'boolean', function ($atributo, $valor, $falhar) {
+                if (! filter_var($valor, FILTER_VALIDATE_BOOLEAN)) {
+                    return;
+                }
+                if (! in_array(request('tipo'), ['bar', 'cafe'], true)) {
+                    $falhar('So os postos do bar/cafe podem trabalhar sem internet.');
+                } elseif (\App\Models\Impressora::find(request('impressora_id'))?->tipo !== \App\Models\Impressora::TIPO_WEBUSB) {
+                    $falhar('Para trabalhar sem internet, o posto tem de ter uma impressora "USB pelo browser (WebUSB)".');
+                }
+            }],
+            'prefixo_senha' => [
+                Rule::requiredIf(fn () => request()->boolean('offline')),
+                'nullable', 'string', 'max:3', 'regex:/^[A-Z]{1,3}$/',
+                Rule::unique('pos_sessions', 'prefixo_senha')->ignore(request()->route('terminal')?->id),
+            ],
         ];
     }
 }
