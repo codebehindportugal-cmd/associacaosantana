@@ -18,6 +18,8 @@ const props = defineProps({
     // Modelo do talao junta tudo numa folha: o cliente pode pedir sobremesas/bebidas a parte
     juntarFolhas: Boolean,
     juntarPadrao: { type: Object, default: () => ({}) },
+    // Impressora da cozinha deste posto: { impressora, padrao, secoes } ou null
+    preparacao: { type: Object, default: null },
     caixa: { type: Object, default: null },
     produtos: Array,
     senhasHoje: Array,
@@ -88,7 +90,7 @@ const agora = ref(new Date());
 const carrinho = ref([]);
 const recebido = ref('');
 const trocoEntregue = ref('');
-const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0, juntar: {}, metodo_pagamento: 'dinheiro' });
+const form = useForm({ items: [], devolvidos: [], valor_recebido: 0, troco: 0, juntar: {}, metodo_pagamento: 'dinheiro', enviar_preparacao: 0 });
 
 // Forma de pagamento: so o dinheiro tem troco e abre a gaveta
 const METODOS = [
@@ -116,15 +118,25 @@ const painelCaixa = ref(false);
 const painelConfigSenhas = ref(false);
 const configSenhas = ref({});
 const aGuardarConfig = ref(false);
-const abrirConfigSenhas = () => { configSenhas.value = juntarPadrao(); painelConfigSenhas.value = true; };
+const configCozinha = ref(true);
+const abrirConfigSenhas = () => { configSenhas.value = juntarPadrao(); configCozinha.value = cozinhaPadrao(); painelConfigSenhas.value = true; };
 const guardarConfigSenhas = () => {
-    router.post(route('pos.juntar-padrao'), { juntar: Object.fromEntries(Object.entries(configSenhas.value).map(([k, v]) => [k, v ? 1 : 0])) }, {
+    router.post(route('pos.juntar-padrao'), {
+        juntar: Object.fromEntries(Object.entries(configSenhas.value).map(([k, v]) => [k, v ? 1 : 0])),
+        ...(props.preparacao ? { preparacao_padrao: configCozinha.value ? 1 : 0 } : {}),
+    }, {
         preserveScroll: true,
         onStart: () => (aGuardarConfig.value = true),
         onFinish: () => (aGuardarConfig.value = false),
-        onSuccess: () => { painelConfigSenhas.value = false; juntar.value = juntarPadrao(); },
+        onSuccess: () => { painelConfigSenhas.value = false; juntar.value = juntarPadrao(); enviarCozinha.value = cozinhaPadrao(); },
     });
 };
+
+// Cozinha: a comida da senha (frango, acompanhamentos, comida) tambem sai
+// na impressora da cozinha, para comecarem a preparar. Venda a venda.
+const cozinhaPadrao = () => !!props.preparacao?.padrao;
+const enviarCozinha = ref(cozinhaPadrao());
+const temComida = computed(() => !!props.preparacao && carrinho.value.some((i) => props.preparacao.secoes?.includes(i.secao)));
 const juntar = ref(juntarPadrao());
 // So aparece o botao de um grupo quando a senha tem pelo menos 2 unidades dele
 const gruposNaSenha = computed(() => {
@@ -414,6 +426,7 @@ const alterar = (item, delta) => {
 const limparCarrinho = () => {
     metodo.value = 'dinheiro';
     juntar.value = juntarPadrao();
+    enviarCozinha.value = cozinhaPadrao();
     carrinho.value = [];
     devolvidos.value = [];
     recebido.value = '';
@@ -482,6 +495,7 @@ const cobrar = () => {
     form.valor_recebido = saldoExcedido.value ? 0 : (emDinheiro.value ? (recebido.value || Math.max(0, aPagar.value)) : Math.max(0, aPagar.value));
     form.troco = emDinheiro.value ? trocoRegistado.value : 0;
     form.juntar = Object.fromEntries(Object.entries(juntar.value).map(([k, v]) => [k, v ? 1 : 0]));
+    form.enviar_preparacao = temComida.value && enviarCozinha.value ? 1 : 0;
     form.post(route('pos.prepago.store'), {
         preserveScroll: true,
         onSuccess: limparCarrinho,
@@ -596,6 +610,7 @@ const alternarDoacao = () => { trocoEntregue.value = doouTroco.value ? '' : 0; }
 const limparSenha = () => {
     metodo.value = 'dinheiro';
     juntar.value = juntarPadrao();
+    enviarCozinha.value = cozinhaPadrao();
     carrinho.value = [];
     devolvidos.value = [];
     recebido.value = '';
@@ -618,7 +633,7 @@ const limparSenha = () => {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M3 11h18M8 4h8" /></svg>
                     Caixa
                 </button>
-                <button v-if="juntarFolhas" type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="abrirConfigSenhas">
+                <button v-if="juntarFolhas || preparacao" type="button" class="flex h-11 items-center gap-2 rounded-[10px] bg-escuro-2 px-4 text-[15px] font-bold text-white" @click="abrirConfigSenhas">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" /></svg>
                     Senhas
                 </button>
@@ -892,6 +907,21 @@ const limparSenha = () => {
                         :disabled="troco <= 0"
                         @click="alternarDoacao"
                     >{{ doouTroco ? 'Cliente doou o troco — anular' : 'Cliente doa o troco' }}</button>
+                    <button
+                        v-if="temComida"
+                        type="button"
+                        role="switch"
+                        class="flex h-14 w-full items-center justify-between gap-3 rounded-[10px] px-4 text-left curto:h-11"
+                        :class="enviarCozinha ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white text-tinta'"
+                        :aria-checked="enviarCozinha"
+                        @click="enviarCozinha = !enviarCozinha"
+                    >
+                        <span class="min-w-0">
+                            <span class="block text-base font-bold">{{ enviarCozinha ? '✓ Enviar comida para a cozinha' : 'Não enviar para a cozinha' }}</span>
+                            <span class="block truncate text-xs font-semibold" :class="enviarCozinha ? '' : 'text-suave'">Frango, acompanhamentos e comida · {{ preparacao.impressora }}</span>
+                        </span>
+                        <span class="shrink-0 text-sm font-bold">{{ enviarCozinha ? 'Sim' : 'Não' }}</span>
+                    </button>
                     <div v-if="gruposNaSenha.length" role="group" aria-label="Juntar senhas por secção" class="flex flex-col gap-1.5 curto:gap-1">
                         <span class="text-sm font-semibold text-suave curto:text-xs">Juntar senhas numa folha — comida inclui frango e acomp.</span>
                         <div class="grid grid-cols-3 gap-2">
@@ -925,9 +955,33 @@ const limparSenha = () => {
         <div v-if="painelConfigSenhas" class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="titulo-config-senhas" @click.self="painelConfigSenhas = false">
             <div class="w-full max-w-lg rounded-t-[16px] bg-white p-5 sm:rounded-[16px]">
                 <h2 id="titulo-config-senhas" class="text-xl font-extrabold">Senhas neste posto</h2>
-                <p class="mt-1 text-[15px] text-suave">Escolhe como cada grupo sai por omissão. Ainda dá para mudar em cada venda.</p>
+                <p class="mt-1 text-[15px] text-suave">Escolhe o que acontece por omissão. Ainda dá para mudar em cada venda.</p>
                 <div class="mt-4 space-y-2.5">
-                    <div v-for="g in GRUPOS" :key="g.chave" class="flex items-center gap-3 rounded-[12px] border border-linha p-3">
+                    <div v-if="preparacao" class="flex items-center gap-3 rounded-[12px] border border-linha p-3">
+                        <div class="min-w-0 flex-1">
+                            <span class="block text-lg font-bold">Cozinha</span>
+                            <span class="block text-sm text-suave">Frango, acompanhamentos e comida também saem em {{ preparacao.impressora }}</span>
+                        </div>
+                        <div role="radiogroup" aria-label="Enviar para a cozinha" class="grid shrink-0 grid-cols-2 gap-1.5">
+                            <button
+                                type="button"
+                                role="radio"
+                                class="h-12 rounded-[10px] px-3 text-[15px] font-bold"
+                                :class="configCozinha ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                :aria-checked="configCozinha"
+                                @click="configCozinha = true"
+                            >Envia</button>
+                            <button
+                                type="button"
+                                role="radio"
+                                class="h-12 rounded-[10px] px-3 text-[15px] font-bold"
+                                :class="!configCozinha ? 'border-[3px] border-verde bg-verde-claro text-verde-escuro' : 'border border-linha-forte bg-white'"
+                                :aria-checked="!configCozinha"
+                                @click="configCozinha = false"
+                            >Não envia</button>
+                        </div>
+                    </div>
+                    <div v-for="g in (juntarFolhas ? GRUPOS : [])" :key="g.chave" class="flex items-center gap-3 rounded-[12px] border border-linha p-3">
                         <div class="min-w-0 flex-1">
                             <span class="block text-lg font-bold">{{ g.label }}</span>
                             <span class="block text-sm text-suave">{{ g.descricao }}</span>

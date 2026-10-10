@@ -416,6 +416,114 @@ class PrintJobService
         ];
     }
 
+    /** Seccoes do pre-pagamento que se mandam a cozinha para comecar a preparar. */
+    public const SECOES_PREPARACAO = ['frango', 'acompanhamentos', 'comida', 'cozinha'];
+
+    /** Unidades do pedido que vao para a cozinha, por seccao: [secao => [nome => quantidade]]. */
+    public function itensPreparacao(Pedido $pedido): array
+    {
+        $porSeccao = [];
+
+        foreach ($this->unidadesPorSeccao($pedido) as $secao => $unidades) {
+            if (in_array($secao, self::SECOES_PREPARACAO, true)) {
+                $porSeccao[$secao] = array_count_values($unidades);
+            }
+        }
+
+        // Pela ordem de SECOES_PREPARACAO: frango, acompanhamentos, comida
+        return array_replace(array_intersect_key(array_fill_keys(self::SECOES_PREPARACAO, null), $porSeccao), $porSeccao);
+    }
+
+    /**
+     * Talao "PREPARAR" para a cozinha: a senha em grande e o que ha para
+     * fazer, por seccao. Nao e para o cliente e nunca abre a gaveta.
+     */
+    public function payloadPreparacao(Pedido $pedido): ?array
+    {
+        $porSeccao = $this->itensPreparacao($pedido);
+
+        if (! $porSeccao) {
+            return null;
+        }
+
+        $linhas = [
+            ['texto' => 'SENHA #'.$pedido->codigo_senha, 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+            'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
+            'Operador: '.($pedido->operador_nome ?: '-'),
+            'Hora: '.($pedido->created_at ?? now())->format('H:i'),
+        ];
+
+        foreach ($porSeccao as $secao => $produtos) {
+            $linhas[] = '------------------------------';
+            $linhas[] = ['texto' => mb_strtoupper($this->nomeSecao($secao), 'UTF-8'), 'alinhamento' => 'centro'];
+
+            foreach ($produtos as $nome => $quantidade) {
+                $linhas[] = ['texto' => $quantidade.'x '.$nome, 'alinhamento' => 'centro', 'tamanho' => 'grande'];
+            }
+        }
+
+        $linhas[] = '------------------------------';
+
+        return [
+            'titulo' => 'PREPARAR',
+            'subtitulo' => 'SENHA #'.$pedido->codigo_senha,
+            'linhas' => $linhas,
+            'cortar' => true,
+            'abrir_caixa' => false,
+        ];
+    }
+
+    /** Manda a comida do pedido para a impressora da cozinha. Devolve o trabalho (null se nao havia comida). */
+    public function criarPreparacao(Pedido $pedido, Impressora $impressora): ?PrintJob
+    {
+        $payload = $this->payloadPreparacao($pedido);
+
+        if (! $payload) {
+            return null;
+        }
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $pedido::class,
+            'printable_id' => $pedido->id,
+            'tipo' => 'preparacao',
+            'payload' => $payload,
+        ]);
+    }
+
+    /** Aviso a cozinha de que uma senha que ja la estava foi anulada: nao preparar. */
+    public function criarPreparacaoAnulada(Pedido $pedido, Impressora $impressora): PrintJob
+    {
+        $linhas = [
+            ['texto' => 'SENHA #'.$pedido->codigo_senha, 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+            ['texto' => 'ANULADA', 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+            ['texto' => 'NAO PREPARAR', 'alinhamento' => 'centro', 'tamanho' => 'grande'],
+            '------------------------------',
+            'Ponto: '.($pedido->ponto_bar ?: 'Bar'),
+            'Anulada as: '.now()->format('H:i'),
+        ];
+
+        foreach ($this->itensPreparacao($pedido) as $produtos) {
+            foreach ($produtos as $nome => $quantidade) {
+                $linhas[] = $quantidade.'x '.$nome;
+            }
+        }
+
+        return PrintJob::create([
+            'impressora_id' => $impressora->id,
+            'printable_type' => $pedido::class,
+            'printable_id' => $pedido->id,
+            'tipo' => 'preparacao_anulada',
+            'payload' => [
+                'titulo' => 'ANULADA',
+                'subtitulo' => 'SENHA #'.$pedido->codigo_senha,
+                'linhas' => $linhas,
+                'cortar' => true,
+                'abrir_caixa' => false,
+            ],
+        ]);
+    }
+
     /** Talao de senha anulada: para ficar registo na caixa e dar ao cliente. */
     public function payloadAnulacao(Pedido $pedido, float $devolver): array
     {

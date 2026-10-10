@@ -156,12 +156,17 @@ const tiposImpressora = computed(() => props.tiposImpressora ?? {})
 
 const postoEmEdicao = ref(null)
 
+// Impressora da cozinha: so as que o agente (Raspberry) imprime sozinho
+const impressorasCozinha = computed(() => (props.impressoras ?? []).filter((i) => ['rede', 'usb'].includes(i.tipo)))
+const nomeImpressora = (id) => (props.impressoras ?? []).find((i) => i.id === id)?.nome ?? '—'
+
 const postoForm = useForm({
     nome: '',
     tipo: 'bar',
     localizacao: '',
     pin: '',
     impressora_id: '',
+    impressora_preparacao_id: '',
     impressao_navegador: false,
     offline: false,
     prefixo_senha: '',
@@ -184,6 +189,7 @@ function editarPosto(terminal) {
     postoForm.localizacao = terminal.localizacao || ''
     postoForm.pin = ''
     postoForm.impressora_id = terminal.impressora_id || ''
+    postoForm.impressora_preparacao_id = terminal.impressora_preparacao_id || ''
     postoForm.impressao_navegador = Boolean(terminal.impressao_navegador)
     postoForm.offline = Boolean(terminal.offline)
     postoForm.prefixo_senha = terminal.prefixo_senha || ''
@@ -473,6 +479,7 @@ function retentarFalhados() {
                                     <span v-if="terminal.ativo && !terminal.impressora_id" class="ml-1 text-xs font-bold text-perigo">Sem impressora</span>
                                     <span v-if="!terminal.ativo" class="ml-1 text-xs font-bold text-laranja-texto">inativo</span>
                                     <span v-if="terminal.offline" class="ml-1 rounded-full bg-azul/10 px-2 py-0.5 text-xs font-bold text-azul">sem internet · {{ terminal.prefixo_senha }}</span>
+                                    <span v-if="terminal.impressora_preparacao_id && !terminal.offline" class="ml-1 rounded-full bg-laranja-claro px-2 py-0.5 text-xs font-bold text-laranja-texto">cozinha · {{ nomeImpressora(terminal.impressora_preparacao_id) }}</span>
                                 </div>
                                 <div class="text-[13px] text-suave">{{ terminal.tipo }}<span v-if="terminal.localizacao"> · {{ terminal.localizacao }}</span></div>
                             </div>
@@ -540,7 +547,7 @@ function retentarFalhados() {
 
                 <div v-if="['bar', 'cafe'].includes(postoForm.tipo)" class="flex flex-col gap-2 rounded-[10px] border border-linha-forte p-3">
                     <label class="flex cursor-pointer items-start gap-3 text-[15px] font-bold">
-                        <input v-model="postoForm.offline" type="checkbox" class="mt-0.5 h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde" />
+                        <input v-model="postoForm.offline" type="checkbox" class="mt-0.5 h-5 w-5 rounded border-linha-forte text-verde focus:ring-verde" @change="postoForm.offline && (postoForm.impressora_preparacao_id = '')" />
                         <span>Trabalha sem internet
                             <span class="block text-sm font-normal text-suave">Guarda as vendas no computador e envia-as sozinho quando houver rede. A impressora tem de ser USB pelo browser (WebUSB).</span>
                         </span>
@@ -551,6 +558,21 @@ function retentarFalhados() {
                         <InputError :message="postoForm.errors.prefixo_senha" />
                     </label>
                     <InputError :message="postoForm.errors.offline" />
+                </div>
+
+                <div v-if="['bar', 'cafe'].includes(postoForm.tipo)" class="flex flex-col gap-2 rounded-[10px] border border-linha-forte p-3">
+                    <label class="rotulo" for="posto_cozinha">Impressora da cozinha (preparar a comida)
+                        <select id="posto_cozinha" v-model="postoForm.impressora_preparacao_id" class="campo" :disabled="postoForm.offline">
+                            <option value="">Não envia para a cozinha</option>
+                            <option v-for="impressora in impressorasCozinha" :key="impressora.id" :value="impressora.id">{{ impressora.nome }}</option>
+                        </select>
+                        <span class="text-sm font-normal text-suave">
+                            As senhas continuam a sair neste posto como agora. Além disso, o frango, os acompanhamentos e a comida
+                            de cada senha saem nesta impressora, para começarem a preparar. No POS há um botão para enviar ou não, venda a venda.
+                            {{ postoForm.offline ? 'Não disponível nos postos que trabalham sem internet.' : 'Só aparecem impressoras de rede ou USB no Raspberry.' }}
+                        </span>
+                        <InputError :message="postoForm.errors.impressora_preparacao_id" />
+                    </label>
                 </div>
 
                 <div class="flex flex-wrap items-center justify-between gap-3">

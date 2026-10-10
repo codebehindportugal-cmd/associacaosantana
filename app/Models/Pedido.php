@@ -29,6 +29,7 @@ class Pedido extends Model
         'uuid',
         'numero_senha',
         'prefixo_senha',
+        'enviado_preparacao_id',
         'pago_antecipado',
         'ponto_bar',
         'total',

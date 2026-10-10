@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CaixaDiaria;
 use App\Models\CaucaoDevolucao;
 use App\Models\Configuracao;
+use App\Models\Impressora;
 use App\Models\Pedido;
 use App\Models\PosSession;
 use App\Models\PrintJob;
@@ -35,6 +36,8 @@ class PosBarController extends Controller
             'juntarFolhas' => TalaoConfig::atual()->taloesPorSeccao(),
             // O que este posto junta por omissao (configurado no proprio POS)
             'juntarPadrao' => $this->juntarPadraoDoPosto(),
+            // Impressora da cozinha: a comida pode ir para la para comecarem a preparar
+            'preparacao' => $this->preparacaoDoPosto(),
             // Resumo da caixa deste ponto, para o fecho no proprio POS
             'caixa' => fn () => PosCaixaController::resumoDoPosto(),
             // Posto que trabalha sem internet (vende localmente e envia depois)
@@ -73,6 +76,8 @@ class PosBarController extends Controller
             'juntar' => ['nullable', 'array'],
             'juntar.*' => ['boolean'],
             'metodo_pagamento' => ['nullable', Rule::in(array_keys(Pedido::METODOS_PREPAGO))],
+            // Mandar a comida (frango, acompanhamentos, comida) para a impressora da cozinha
+            'enviar_preparacao' => ['nullable', 'boolean'],
         ]);
 
         $metodo = $data['metodo_pagamento'] ?? 'dinheiro';
@@ -162,11 +167,14 @@ class PosBarController extends Controller
 
             $pedido->update(['juntar' => $juntar ?: null]);
 
+            $cozinha = ! empty($data['enviar_preparacao']) ? $this->enviarPreparacao($pedido, $printJobs) : null;
+
             return $this->imprimirPedido(
                 $pedido,
                 $printJobs,
                 abrirGaveta: $metodo === 'dinheiro',
-                sucesso: 'Senha #'.$pedido->codigo_senha.' enviada para a impressora.',
+                sucesso: 'Senha #'.$pedido->codigo_senha.' enviada para a impressora.'
+                    .($cozinha ? ' Comida enviada para '.$cozinha.'.' : ''),
             );
         });
     }
@@ -272,6 +280,13 @@ class PosBarController extends Controller
                 'valor_devolvido' => $pago + $metros,
             ]);
 
+            // A comida ja saiu (ou esta a sair) na cozinha? Se ainda estava na fila, basta cancela-la
+            $cozinhaJaTem = $pedido->enviado_preparacao_id && PrintJob::where('printable_type', Pedido::class)
+                ->where('printable_id', $pedido->id)
+                ->where('tipo', 'preparacao')
+                ->where('estado', '!=', 'pendente')
+                ->exists();
+
             // Taloes desta senha que ainda nao sairam ja nao saem
             PrintJob::where('printable_type', Pedido::class)
                 ->where('printable_id', $pedido->id)
@@ -282,6 +297,12 @@ class PosBarController extends Controller
             $mensagem = 'Senha #'.$pedido->codigo_senha.' anulada. Devolver '.number_format($pago + $metros, 2, ',', ' ').' €'
                 .(($pedido->metodo_pagamento ?: 'dinheiro') !== 'dinheiro' ? ' ('.(Pedido::METODOS_PREPAGO[$pedido->metodo_pagamento] ?? $pedido->metodo_pagamento).($metros > 0 ? ' + '.number_format($metros, 2, ',', ' ').' € de caucao em dinheiro' : '').')' : '')
                 .'.';
+
+            // A cozinha ja tinha o pedido: avisa-se para nao preparar
+            if ($cozinhaJaTem && $cozinha = Impressora::where('ativa', true)->find($pedido->enviado_preparacao_id)) {
+                $printJobs->criarPreparacaoAnulada($pedido, $cozinha);
+                $mensagem .= ' A cozinha foi avisada.';
+            }
 
             $terminal = PosSession::find(session('pos_id'));
             $impressora = $terminal?->impressora;
@@ -659,17 +680,60 @@ class PosBarController extends Controller
         return ! $engano;
     }
 
-    /** Guarda, para este posto, que grupos de senhas saem juntos por omissao. */
+    /**
+     * Manda a comida do pedido para a impressora da cozinha deste posto.
+     * Devolve o nome da impressora, ou null se nao foi nada (sem impressora
+     * definida, inativa, posto sem internet ou senha sem comida).
+     */
+    private function enviarPreparacao(Pedido $pedido, PrintJobService $printJobs): ?string
+    {
+        $posto = PosSession::with('impressoraPreparacao')->find(session('pos_id'));
+        $cozinha = $posto?->impressoraPreparacao;
+
+        if (! $cozinha || ! $cozinha->ativa || $posto->offline) {
+            return null;
+        }
+
+        if (! $printJobs->criarPreparacao($pedido->fresh('items.produto.categoria'), $cozinha)) {
+            return null;
+        }
+
+        $pedido->update(['enviado_preparacao_id' => $cozinha->id]);
+
+        return $cozinha->nome;
+    }
+
+    /** Impressora da cozinha deste posto, para o POS mostrar o botao (null se nao houver). */
+    private function preparacaoDoPosto(): ?array
+    {
+        $posto = PosSession::with('impressoraPreparacao')->find(session('pos_id'));
+        $cozinha = $posto?->impressoraPreparacao;
+
+        if (! $cozinha || ! $cozinha->ativa || $posto->offline) {
+            return null;
+        }
+
+        return [
+            'impressora' => $cozinha->nome,
+            'padrao' => (bool) $posto->preparacao_padrao,
+            'secoes' => PrintJobService::SECOES_PREPARACAO,
+        ];
+    }
+
+    /** Guarda, para este posto, que grupos de senhas saem juntos por omissao (e se a comida vai para a cozinha). */
     public function guardarJuntarPadrao(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'juntar' => ['present', 'array'],
             'juntar.*' => ['boolean'],
+            'preparacao_padrao' => ['nullable', 'boolean'],
         ]);
 
         $posto = PosSession::findOrFail(session('pos_id'));
         $posto->update([
             'juntar_padrao' => array_map('boolval', array_intersect_key($data['juntar'], PrintJobService::GRUPOS_JUNTOS)),
+            ...(array_key_exists('preparacao_padrao', $data) && $data['preparacao_padrao'] !== null
+                ? ['preparacao_padrao' => (bool) $data['preparacao_padrao']] : []),
         ]);
 
         return back()->with('success', 'Configuração das senhas guardada para este posto.');

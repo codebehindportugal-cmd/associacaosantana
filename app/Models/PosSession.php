@@ -15,6 +15,8 @@ class PosSession extends Model
         'pin',
         'localizacao',
         'impressora_id',
+        'impressora_preparacao_id',
+        'preparacao_padrao',
         'impressao_navegador',
         'juntar_padrao',
         'offline',
@@ -32,6 +34,7 @@ class PosSession extends Model
         'impressao_navegador' => 'boolean',
         'juntar_padrao' => 'array',
         'offline' => 'boolean',
+        'preparacao_padrao' => 'boolean',
         'ultimo_login_em' => 'datetime',
     ];
 
@@ -42,6 +45,12 @@ class PosSession extends Model
     public function impressora()
     {
         return $this->belongsTo(Impressora::class);
+    }
+
+    /** Impressora da cozinha: para onde vai a comida do pre-pagamento, para comecarem a preparar. */
+    public function impressoraPreparacao()
+    {
+        return $this->belongsTo(Impressora::class, 'impressora_preparacao_id');
     }
 
     /**

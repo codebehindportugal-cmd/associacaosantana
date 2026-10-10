@@ -81,6 +81,21 @@ class PosTerminalController extends Controller
             'pin' => [$novo ? 'required' : 'nullable', 'string', 'min:4', 'max:12'],
             'impressora_id' => ['nullable', 'exists:impressoras,id'],
             'impressao_navegador' => ['nullable', 'boolean'],
+            // Impressora da cozinha: so no bar/cafe com internet, e tem de ser de rede/USB (pelo agente)
+            'impressora_preparacao_id' => ['nullable', 'exists:impressoras,id', function ($atributo, $valor, $falhar) {
+                if (blank($valor)) {
+                    return;
+                }
+                if (! in_array(request('tipo'), ['bar', 'cafe'], true)) {
+                    $falhar('So os postos do bar/cafe mandam pedidos para a cozinha.');
+                } elseif (request()->boolean('offline')) {
+                    $falhar('Um posto que trabalha sem internet nao consegue mandar pedidos para a cozinha.');
+                } elseif (! \App\Models\Impressora::find($valor)?->usaAgente()) {
+                    $falhar('A impressora da cozinha tem de ser de rede ou USB no agente (Raspberry), nao WebUSB nem navegador.');
+                } elseif ((int) $valor === (int) request('impressora_id')) {
+                    $falhar('A impressora da cozinha tem de ser diferente da impressora das senhas.');
+                }
+            }],
             // Trabalhar sem internet: so no bar/cafe, com uma letra unica nas senhas
             'offline' => ['nullable', 'boolean', function ($atributo, $valor, $falhar) {
                 if (! filter_var($valor, FILTER_VALIDATE_BOOLEAN)) {

@@ -832,6 +832,153 @@ class PrePagamentoEventoTest extends TestCase
         $this->assertSame($impressora->id, PrintJob::where('tipo', 'talao_caixa')->sole()->impressora_id);
     }
 
+    // ------------------------------------------------------------------
+    //  Cozinha: a comida tambem sai noutra impressora para preparar
+    // ------------------------------------------------------------------
+
+    private function impressoraCozinha(PosSession $posto, bool $padrao = true): Impressora
+    {
+        $cozinha = Impressora::create([
+            'nome' => 'Cozinha', 'secao' => 'comida', 'tipo' => Impressora::TIPO_REDE,
+            'host' => '10.0.0.250', 'porta' => 9100, 'ativa' => true,
+        ]);
+        $posto->update(['impressora_preparacao_id' => $cozinha->id, 'preparacao_padrao' => $padrao]);
+
+        return $cozinha;
+    }
+
+    public function test_comida_vai_para_a_cozinha_e_as_senhas_continuam_no_posto(): void
+    {
+        $this->abrirCaixas();
+        $cozinha = $this->impressoraCozinha($this->postos[1]);
+
+        $this->vender($this->postos[1], [
+            [$this->frango, 2], [$this->batata, 1], [$this->bifana, 1], [$this->baba, 1], [$this->imperial, 2],
+        ], extra: ['enviar_preparacao' => 1])->assertSessionHasNoErrors()->assertSessionHas('success', fn ($m) => str_contains($m, 'Comida enviada para Cozinha'));
+
+        $pedido = Pedido::latest('id')->first();
+        $this->assertSame($cozinha->id, (int) $pedido->enviado_preparacao_id);
+
+        $naCozinha = PrintJob::where('impressora_id', $cozinha->id)->get();
+        $this->assertCount(1, $naCozinha, 'Um so talao PREPARAR por senha');
+        $texto = $this->texto($naCozinha[0]);
+        $this->assertSame('PREPARAR', $naCozinha[0]->payload['titulo']);
+        $this->assertFalse((bool) $naCozinha[0]->payload['abrir_caixa']);
+        foreach (['SENHA #'.$pedido->codigo_senha, 'FRANGO', '2x Frango', 'ACOMPANHAMENTOS', '1x Batata Frita', 'COMIDA', '1x Bifana'] as $esperado) {
+            $this->assertStringContainsString($esperado, $texto);
+        }
+        $this->assertStringNotContainsString('Imperial', $texto, 'Bebidas nao vao para a cozinha');
+        $this->assertStringNotContainsString('Baba', $texto, 'Sobremesas nao vao para a cozinha');
+        $this->assertLessThan(strpos($texto, 'ACOMPANHAMENTOS'), strpos($texto, 'FRANGO'));
+
+        // As senhas do cliente continuam todas na impressora do posto, como antes
+        $noPosto = PrintJob::where('impressora_id', $this->postos[1]->impressora_id)->get();
+        $this->assertCount(7 + 1, $noPosto, '7 senhas (uma por unidade) + conta');
+    }
+
+    public function test_sem_carregar_no_botao_nao_vai_nada_para_a_cozinha(): void
+    {
+        $this->abrirCaixas();
+        $cozinha = $this->impressoraCozinha($this->postos[1]);
+
+        $this->vender($this->postos[1], [[$this->frango, 1]], extra: ['enviar_preparacao' => 0])->assertSessionHasNoErrors();
+        $this->vender($this->postos[1], [[$this->frango, 1]])->assertSessionHasNoErrors();
+
+        $this->assertSame(0, PrintJob::where('impressora_id', $cozinha->id)->count());
+        $this->assertNull(Pedido::latest('id')->first()->enviado_preparacao_id);
+    }
+
+    public function test_so_bebidas_ou_posto_sem_impressora_da_cozinha_nao_envia(): void
+    {
+        $this->abrirCaixas();
+        $cozinha = $this->impressoraCozinha($this->postos[1]);
+
+        $this->vender($this->postos[1], [[$this->imperial, 2], [$this->baba, 1]], extra: ['enviar_preparacao' => 1])
+            ->assertSessionHasNoErrors()->assertSessionHas('success', fn ($m) => ! str_contains($m, 'cozinha'));
+        $this->vender($this->postos[2], [[$this->frango, 1]], extra: ['enviar_preparacao' => 1])->assertSessionHasNoErrors();
+
+        $this->assertSame(0, PrintJob::where('impressora_id', $cozinha->id)->count());
+
+        // Impressora da cozinha desligada: a venda faz-se na mesma
+        $cozinha->update(['ativa' => false]);
+        $this->vender($this->postos[1], [[$this->frango, 1]], extra: ['enviar_preparacao' => 1])->assertSessionHasNoErrors();
+        $this->assertSame(0, PrintJob::where('impressora_id', $cozinha->id)->count());
+    }
+
+    public function test_pos_recebe_a_impressora_da_cozinha_e_guarda_o_padrao(): void
+    {
+        $this->impressoraCozinha($this->postos[1], padrao: true);
+
+        $props = $this->withSession($this->sessao($this->postos[1]))->get(route('pos.index'))->viewData('page')['props'];
+        $this->assertSame('Cozinha', $props['preparacao']['impressora']);
+        $this->assertTrue($props['preparacao']['padrao']);
+        $this->assertContains('frango', $props['preparacao']['secoes']);
+
+        $this->withSession($this->sessao($this->postos[1]))
+            ->post(route('pos.juntar-padrao'), ['juntar' => ['cozinha' => 0], 'preparacao_padrao' => 0])
+            ->assertSessionHasNoErrors();
+        $this->assertFalse($this->postos[1]->fresh()->preparacao_padrao);
+
+        // Guardar so as senhas juntas nao mexe na cozinha
+        $this->withSession($this->sessao($this->postos[1]))
+            ->post(route('pos.juntar-padrao'), ['juntar' => ['cozinha' => 1]])->assertSessionHasNoErrors();
+        $this->assertFalse($this->postos[1]->fresh()->preparacao_padrao);
+
+        $props = $this->withSession($this->sessao($this->postos[2]))->get(route('pos.index'))->viewData('page')['props'];
+        $this->assertNull($props['preparacao'], 'Posto sem impressora da cozinha nao mostra o botao');
+    }
+
+    public function test_anular_depois_de_sair_na_cozinha_avisa_a_cozinha(): void
+    {
+        $this->abrirCaixas();
+        $cozinha = $this->impressoraCozinha($this->postos[1]);
+
+        // Ainda na fila: anular so a cancela, nao vale a pena outro talao
+        $this->vender($this->postos[1], [[$this->frango, 1]], extra: ['enviar_preparacao' => 1]);
+        $naFila = Pedido::latest('id')->first();
+        $this->withSession($this->sessao($this->postos[1]))
+            ->post(route('pos.pedido.anular', $naFila), ['motivo' => 'Engano'])->assertSessionHasNoErrors();
+        $this->assertSame(1, PrintJob::where('impressora_id', $cozinha->id)->count());
+        $this->assertSame('falhado', PrintJob::where('impressora_id', $cozinha->id)->first()->estado, 'O PREPARAR por imprimir ja nao sai');
+
+        // Ja impressa na cozinha: sai um aviso ANULADA / NAO PREPARAR
+        $this->vender($this->postos[1], [[$this->frango, 2], [$this->batata, 1]], extra: ['enviar_preparacao' => 1]);
+        $impressa = Pedido::latest('id')->first();
+        PrintJob::where('impressora_id', $cozinha->id)->where('printable_id', $impressa->id)->update(['estado' => 'impresso']);
+
+        $this->withSession($this->sessao($this->postos[1]))
+            ->post(route('pos.pedido.anular', $impressa), ['motivo' => 'Cliente desistiu'])
+            ->assertSessionHasNoErrors()->assertSessionHas('success', fn ($m) => str_contains($m, 'A cozinha foi avisada'));
+
+        $aviso = PrintJob::where('impressora_id', $cozinha->id)->latest('id')->first();
+        $this->assertSame('preparacao_anulada', $aviso->tipo);
+        $this->assertSame('pendente', $aviso->estado);
+        $this->assertFalse((bool) $aviso->payload['abrir_caixa']);
+        foreach (['SENHA #'.$impressa->codigo_senha, 'NAO PREPARAR', '2x Frango', '1x Batata Frita'] as $esperado) {
+            $this->assertStringContainsString($esperado, $this->texto($aviso));
+        }
+    }
+
+    public function test_backoffice_impressora_da_cozinha_tem_de_ser_do_agente_e_posto_com_internet(): void
+    {
+        $webusb = Impressora::create(['nome' => 'USB balcao', 'secao' => 'bar', 'tipo' => Impressora::TIPO_WEBUSB, 'ativa' => true]);
+        $cozinha = Impressora::create(['nome' => 'Cozinha', 'secao' => 'comida', 'tipo' => Impressora::TIPO_REDE, 'host' => '10.0.0.250', 'porta' => 9100, 'ativa' => true]);
+        $posto = $this->postos[1];
+        $base = ['nome' => $posto->nome, 'tipo' => 'cafe', 'localizacao' => $posto->localizacao, 'impressora_id' => $webusb->id, 'ativo' => 1];
+
+        $this->actingAs($this->admin)->patch(route('terminais.update', $posto), $base + ['impressora_preparacao_id' => $webusb->id])
+            ->assertSessionHasErrors('impressora_preparacao_id');
+        $this->actingAs($this->admin)->patch(route('terminais.update', $posto), $base + ['impressora_preparacao_id' => $cozinha->id, 'offline' => 1, 'prefixo_senha' => 'B'])
+            ->assertSessionHasErrors('impressora_preparacao_id');
+        $this->actingAs($this->admin)->patch(route('terminais.update', $posto), $base + ['impressora_preparacao_id' => $cozinha->id])
+            ->assertSessionHasNoErrors();
+        $this->assertSame($cozinha->id, (int) $posto->fresh()->impressora_preparacao_id);
+
+        $this->actingAs($this->admin)->patch(route('terminais.update', $posto), $base + ['impressora_preparacao_id' => ''])
+            ->assertSessionHasNoErrors();
+        $this->assertNull($posto->fresh()->impressora_preparacao_id);
+    }
+
     private function abrirCaixa(PosSession $posto, float $fundo = 50): void
     {
         $this->actingAs($this->admin)
@@ -860,7 +1007,7 @@ class PrePagamentoEventoTest extends TestCase
     /**
      * @param  array<int, array{0: Produto, 1: int, 2?: int}>  $itens  [produto, quantidade, ja_tem]
      */
-    private function vender(PosSession $posto, array $itens, ?float $recebido = null, ?float $troco = null, array $juntar = [], array $devolvidos = [], string $metodo = 'dinheiro')
+    private function vender(PosSession $posto, array $itens, ?float $recebido = null, ?float $troco = null, array $juntar = [], array $devolvidos = [], string $metodo = 'dinheiro', array $extra = [])
     {
         $total = collect($itens)->sum(fn ($i) => (float) $i[0]->preco * $i[1]
             + (float) $i[0]->caucao * max(0, $i[1] - ($i[2] ?? 0)));
@@ -878,6 +1025,7 @@ class PrePagamentoEventoTest extends TestCase
             'devolvidos' => collect($devolvidos)->map(fn ($d) => ['produto_id' => $d[0]->id, 'quantidade' => $d[1]])->all(),
             'juntar' => $juntar,
             'metodo_pagamento' => $metodo,
+            ...$extra,
         ]);
     }
 
